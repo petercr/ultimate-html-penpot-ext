@@ -53,6 +53,7 @@ export interface TextStyle {
   fontSize: number;
   fontWeight: number;
   fontStyle: string;
+  /** Unitless line-height multiplier used by Penpot (for example, 1.35). */
   lineHeight: number;
   letterSpacing: number;
   textAlign: string;
@@ -93,6 +94,8 @@ export interface SceneNode {
   paint: ScenePaint;
   layout: SceneLayout;
   text?: string;
+  /** Keep short inline controls such as links on one line when imported. */
+  textNoWrap?: boolean;
   textStyle?: TextStyle;
   assetId?: string;
   fallbackReason?: string;

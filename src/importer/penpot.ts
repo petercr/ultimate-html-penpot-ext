@@ -77,19 +77,55 @@ function textAlign(value: string): Text["align"] {
   return ["left", "right", "center", "justify"].includes(value) ? value as Text["align"] : "left";
 }
 
+const GENERIC_FONT_FAMILIES = new Set([
+  "caption",
+  "icon",
+  "menu",
+  "message-box",
+  "small-caption",
+  "status-bar",
+  "-apple-system",
+  "blinkmacsystemfont",
+  "system-ui",
+  "ui-sans-serif",
+  "ui-serif",
+  "ui-monospace",
+  "ui-rounded",
+  "sans-serif",
+  "serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "math"
+]);
+
+function penpotFontFamily(value: string | undefined): string {
+  const family = value?.split(",")[0].replace(/["']/g, "").trim() || "Inter";
+  return GENERIC_FONT_FAMILIES.has(family.toLowerCase()) ? "Inter" : family;
+}
+
 function createText(node: SceneNode): Text {
   const text = penpot.createText(node.text || "");
   if (!text) throw new Error(`Unable to create text layer: ${node.name}`);
   const style = node.textStyle;
   text.growType = "fixed";
+  // CSS lays inline content out from the top of its line box. Make that
+  // explicit because a Penpot text layer's editor default can be center.
+  text.verticalAlign = "top";
+  text.direction = "ltr";
   text.characters = node.text || "";
   if (style) {
-    text.fontFamily = style.fontFamily.split(",")[0].replace(/["']/g, "").trim();
+    // CSS generic families (for example `system-ui`) are valid in a browser
+    // but rejected by Penpot's fontFamily validator. Inter is Penpot's
+    // guaranteed fallback and keeps the layer editable instead of aborting
+    // the entire import.
+    text.fontFamily = penpotFontFamily(style.fontFamily);
     // Penpot's plugin API expects numeric string values, not CSS units.
     text.fontSize = String(Math.max(1, style.fontSize));
     text.fontWeight = String(style.fontWeight);
     text.fontStyle = style.fontStyle === "italic" ? "italic" : "normal";
-    text.lineHeight = String(Math.max(1, style.lineHeight));
+    // Scene text styles use Penpot's unitless line-height multiplier.
+    text.lineHeight = String(Math.max(0.01, style.lineHeight));
     // CSS permits negative tracking; Penpot's text API currently does not.
     text.letterSpacing = String(Math.max(0, style.letterSpacing));
     text.align = textAlign(style.textAlign);
@@ -113,6 +149,34 @@ async function mediaFor(asset: AssetRef) {
   return undefined;
 }
 
+function needsContainerBackdrop(node: SceneNode): boolean {
+  const paint = node.paint;
+  return Boolean(
+    cssColor(paint.backgroundColor) ||
+    (paint.backgroundImage && paint.backgroundImage !== "none") ||
+    (paint.borderWidth && paint.borderWidth > 0 && paint.borderStyle !== "none") ||
+    (paint.boxShadow && paint.boxShadow !== "none") ||
+    paint.radius?.some((radius) => radius > 0) ||
+    paint.overflow === "hidden" ||
+    paint.overflow === "clip"
+  );
+}
+
+function createContainerBackdrop(node: SceneNode): Shape {
+  const backdrop = penpot.createRectangle();
+  // Opacity belongs to the complete container compositing group. Keeping
+  // the backdrop fully opaque lets the group apply it once to both the
+  // background and editable descendants.
+  applyPaint(backdrop, { ...node.paint, opacity: 1 });
+  return backdrop;
+}
+
+function applyContainerOpacity(shape: Shape, node: SceneNode): void {
+  const opacity = node.paint.opacity;
+  if (opacity === undefined || opacity === 1) return;
+  shape.opacity = (shape.opacity ?? 1) * opacity;
+}
+
 function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
   shape.name = node.name.slice(0, 200);
   shape.setPluginData("importer", IMPORT_NAMESPACE);
@@ -130,8 +194,7 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
       if (group) return group;
     }
   }
-  const shape = node.kind === "container" ? penpot.createBoard() : penpot.createRectangle();
-  if (node.kind === "container") (shape as Board).showInViewMode = false;
+  const shape = penpot.createRectangle();
   if (node.kind === "fallback") {
     (shape as Shape & { fills: Fill[] }).fills = [{ fillColor: "#f4f4f5" }];
     shape.name = `Unsupported: ${node.name}`;
@@ -186,20 +249,65 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
       const shapes = new Map<string, Shape>();
       const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId));
 
-      const render = async (node: SceneNode, parentShape: Board | Shape) => {
-        if (options.isCancelled()) throw new ImportCancelledError();
-        const shape = await createShape(node, assets, media);
-        metadata(shape, node, scene.viewport.id);
-        shapes.set(node.id, shape);
+      const append = (parentShape: Board | Shape, shape: Shape) => {
         if (parentShape.type === "board") (parentShape as Board).appendChild(shape);
         else (parentShape as Shape & { appendChild?: (child: Shape) => void }).appendChild?.(shape);
-        applyGeometry(shape, node, { x: board.x, y: board.y });
-        for (const child of childrenByParent.get(node.id) || []) await render(child, shape);
+      };
+
+      const reportProgress = () => {
         completed += 1;
         if (completed % 25 === 0 || completed === total) {
           options.onProgress(completed, total, `Creating ${scene.viewport.name}`);
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
+      };
+
+      const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
+        if (options.isCancelled()) throw new ImportCancelledError();
+        if (node.kind === "container") {
+          const children: Shape[] = [];
+          for (const child of childrenByParent.get(node.id) || []) {
+            const childShape = await render(child, parentShape);
+            if (childShape) children.push(childShape);
+          }
+
+          const backdrop = needsContainerBackdrop(node) ? createContainerBackdrop(node) : undefined;
+          if (backdrop) {
+            metadata(backdrop, node, scene.viewport.id);
+            append(parentShape, backdrop);
+            applyGeometry(backdrop, node, { x: board.x, y: board.y });
+            children.unshift(backdrop);
+          }
+
+          if (!children.length) {
+            reportProgress();
+            return undefined;
+          }
+          const shape = children.length === 1 ? children[0] : penpot.group(children);
+          if (!shape) {
+            reportProgress();
+            return children[0];
+          }
+          applyContainerOpacity(shape, node);
+          metadata(shape, node, scene.viewport.id);
+          shapes.set(node.id, shape);
+          reportProgress();
+          return shape;
+        }
+
+        const shape = await createShape(node, assets, media);
+        metadata(shape, node, scene.viewport.id);
+        shapes.set(node.id, shape);
+        append(parentShape, shape);
+        applyGeometry(shape, node, { x: board.x, y: board.y });
+        // Keep short inline controls on the same line as in the source
+        // browser. Apply this after geometry because resize() can reset a
+        // text layer's grow mode.
+        if (shape.type === "text" && node.textNoWrap && !node.text?.includes("\n")) {
+          (shape as Text).growType = "auto-width";
+        }
+        reportProgress();
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        return shape;
       };
       for (const root of roots) {
         // The top-level Penpot board already represents <body>. Importing it
@@ -208,8 +316,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           applyPaint(board, root.paint);
           board.setPluginData("source", root.source);
           for (const child of childrenByParent.get(root.id) || []) await render(child, board);
-          completed += 1;
-          if (completed % 25 === 0 || completed === total) options.onProgress(completed, total, `Creating ${scene.viewport.name}`);
+          reportProgress();
         } else await render(root, board);
       }
     }
