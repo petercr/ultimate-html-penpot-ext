@@ -1,25 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { capturePage } from "./capture/sandbox";
 import { isSafeBaseUrl } from "./capture/prepareDocument";
+import { resolveSource } from "./capture/source";
 import { DEFAULT_VIEWPORTS, PROTOCOL_VERSION, type CaptureRequest, type PluginToUiMessage, type SceneDocument, type ScriptPolicy, type ViewportSpec } from "./shared/contracts";
 import { sceneWarnings } from "./shared/validation";
-
-const STARTER_HTML = `<!doctype html>
-<html>
-  <head>
-    <style>
-      body { margin: 0; font-family: Inter, system-ui, sans-serif; color: #18181b; }
-      main { display: flex; min-height: 100vh; padding: 72px; gap: 48px; background: #fafafa; }
-      section { display: flex; flex-direction: column; justify-content: center; max-width: 640px; gap: 20px; }
-      h1 { margin: 0; font-size: 64px; line-height: 1; letter-spacing: -2px; }
-      p { margin: 0; font-size: 20px; line-height: 1.5; color: #52525b; }
-      a { display: inline-block; width: fit-content; padding: 14px 20px; border-radius: 10px; background: #18181b; color: white; text-decoration: none; }
-    </style>
-  </head>
-  <body>
-    <main><section><p>HTML to Penpot</p><h1>A whole page, ready to edit.</h1><p>Paste a page, analyze its rendered layout, and import native Penpot layers.</p><a href="#">Import design</a></section></main>
-  </body>
-</html>`;
 
 type Phase = "idle" | "capturing" | "ready" | "importing" | "complete" | "error";
 
@@ -32,7 +16,7 @@ function viewportLabel(viewport: ViewportSpec) {
 }
 
 export default function App() {
-  const [source, setSource] = useState(STARTER_HTML);
+  const [source, setSource] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [viewports, setViewports] = useState<ViewportSpec[]>(DEFAULT_VIEWPORTS);
   const [scriptPolicy, setScriptPolicy] = useState<ScriptPolicy>("off");
@@ -83,9 +67,10 @@ export default function App() {
     setError(undefined);
     setScenes([]);
     setPhase("capturing");
-    setProgress("Rendering Desktop…");
+    setProgress("Preparing page…");
     try {
-      const request: CaptureRequest = { protocolVersion: PROTOCOL_VERSION, html: source, baseUrl: baseUrl || undefined, viewports, scriptPolicy, settleDelayMs };
+      const resolved = await resolveSource(source, baseUrl || undefined);
+      const request: CaptureRequest = { protocolVersion: PROTOCOL_VERSION, html: resolved.html, baseUrl: resolved.baseUrl, viewports, scriptPolicy, settleDelayMs };
       const captured = await capturePage(request, (completed, total) => setProgress(`Rendered ${completed}/${total} viewport${total === 1 ? "" : "s"}.`));
       setScenes(captured);
       setPhase("ready");
@@ -125,9 +110,10 @@ export default function App() {
     </header>
 
     <section className="source-section" aria-label="Page source">
-      <label htmlFor="base-url">Base URL <span>optional — resolves relative assets</span></label>
+      <label htmlFor="base-url">Base URL <span>optional — resolves relative assets when pasting HTML</span></label>
       <input id="base-url" value={baseUrl} placeholder="https://example.com/page/" onChange={(event) => { setBaseUrl(event.target.value); resetCapture(); }} />
-      <textarea className="editor" value={source} spellCheck={false} aria-label="HTML source" onChange={(event) => { setSource(event.target.value); resetCapture(); }} />
+      <label htmlFor="html-source">Page source <span>paste complete HTML or enter a full HTTP(S) URL</span></label>
+      <textarea id="html-source" className="editor" value={source} spellCheck={false} aria-label="HTML source" placeholder="<!doctype html>\n<html>…</html>\n\n—or—\n\nhttps://example.com/page" onChange={(event) => { setSource(event.target.value); resetCapture(); }} />
     </section>
 
     <section className="viewport-section">

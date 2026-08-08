@@ -12,4 +12,14 @@ describe("extractor script", () => {
     expect(script).toContain("settleWithin");
     expect(script).not.toContain("requestAnimationFrame");
   });
+
+  it("emits layout-preserving text capture code", () => {
+    const script = buildExtractorScript("token", { id: "tablet", name: "Tablet", width: 768, height: 1024 }, 0);
+    expect(script).toContain("const textLayout");
+    expect(script).toContain("const lineHeightOf");
+    expect(script).toContain("measuredLineHeight");
+    expect(script).toContain("textNoWrap");
+    expect(script).toContain("inlineControlAncestor");
+    expect(() => new Function(script)).not.toThrow();
+  });
 });

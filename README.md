@@ -23,8 +23,10 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 
 ## What v0.1 supports
 
-- Pasted HTML/CSS, an optional HTTP(S) base URL, responsive viewport boards, and editable text, boxes, flex layouts, images, and inline SVG.
+- Pasted HTML/CSS or a complete HTTP(S) page URL, an optional HTTP(S) base URL for pasted markup, responsive viewport boards, and editable text, boxes, flex layouts, images, and inline SVG.
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.
 
 Source remains in the browser. Remote assets are loaded directly from their host and can fail because of ordinary network or CORS constraints. This release imports one initial rendered state; it does not recreate interactions, hover states, or linked pages.
+
+When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. The proxy is intended for local development, has a 15-second timeout and 10 MB response limit, and does not send credentials. A deployed plugin needs an equivalent HTTPS proxy (or the target must allow CORS). Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.

@@ -75,33 +75,79 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     padding: [number(style.paddingTop), number(style.paddingRight), number(style.paddingBottom), number(style.paddingLeft)],
     absolute: ["absolute", "fixed"].includes(style.position)
   });
-  const textStyleOf = (style) => ({
+  const lineHeightOf = (style, measuredLineHeight) => {
+    const fontSize = Math.max(1, number(style.fontSize));
+    // Penpot stores line height as a multiplier. The browser exposes a
+    // measured line box in CSS pixels, so normalize it by the font size.
+    if (measuredLineHeight) return measuredLineHeight / fontSize;
+    if (style.lineHeight === "normal") return 1.2;
+    if (String(style.lineHeight).endsWith("px")) return number(style.lineHeight) / fontSize;
+    if (String(style.lineHeight).endsWith("%")) return number(style.lineHeight) / 100;
+    return number(style.lineHeight) || 1.2;
+  };
+  const textStyleOf = (style, measuredLineHeight) => ({
     fontFamily: style.fontFamily,
     fontSize: number(style.fontSize),
     fontWeight: Number.parseInt(style.fontWeight, 10) || 400,
     fontStyle: style.fontStyle,
-    lineHeight: style.lineHeight === "normal" ? number(style.fontSize) * 1.2 : number(style.lineHeight),
+    lineHeight: lineHeightOf(style, measuredLineHeight),
     letterSpacing: number(style.letterSpacing),
     textAlign: style.textAlign,
     textDecoration: style.textDecorationLine,
     textTransform: style.textTransform
   });
-  const appendText = (parent, textNode, style) => {
-    const text = compact(textNode.textContent);
-    if (!text) return;
+  const textLayout = (textNode) => {
+    const raw = String(textNode.textContent || "");
+    const fallback = compact(raw);
     const range = document.createRange();
     range.selectNodeContents(textNode);
     const rects = [...range.getClientRects()];
+    // A single-line text node needs no extra work. For wrapped text, preserve
+    // the browser's line breaks so Penpot does not reflow it differently when
+    // its available font metrics differ from the source browser.
+    const lineTops = [...new Set(rects.map((rect) => Math.round(rect.top * 100) / 100))].sort((a, b) => a - b);
+    const lineGaps = lineTops.slice(1).map((top, index) => top - lineTops[index]).filter((gap) => gap > 0.5);
+    const measuredLineHeight = lineGaps.length
+      ? lineGaps.reduce((sum, gap) => sum + gap, 0) / lineGaps.length
+      : rects[0]?.height;
+    if (rects.length < 2 || raw.length > 20_000) return { text: fallback, rects, measuredLineHeight };
+    const output = [];
+    let previousLine;
+    let pendingSpace = false;
+    for (let index = 0; index < raw.length; index += 1) {
+      range.setStart(textNode, index);
+      range.setEnd(textNode, index + 1);
+      const characterRect = range.getBoundingClientRect();
+      const character = raw[index];
+      if (/\\s/.test(character)) {
+        if (output.length) pendingSpace = true;
+        continue;
+      }
+      const line = characterRect.top;
+      const lineChanged = previousLine !== undefined && Math.abs(line - previousLine) > 0.5;
+      if (lineChanged) output.push("\\n");
+      else if (pendingSpace) output.push(" ");
+      output.push(character);
+      previousLine = line;
+      pendingSpace = false;
+    }
+    return { text: output.join("") || fallback, rects, measuredLineHeight };
+  };
+  const appendText = (parent, textNode, style) => {
+    const layout = textLayout(textNode);
+    const text = layout.text;
+    if (!text) return;
+    const rects = layout.rects;
     if (!rects.length) return;
     const left = Math.min(...rects.map((item) => item.left));
     const top = Math.min(...rects.map((item) => item.top));
     const right = Math.max(...rects.map((item) => item.right));
     const bottom = Math.max(...rects.map((item) => item.bottom));
     const id = "node-" + (++sequence);
-    nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: text.slice(0, 80), source: parent.source + " ::text", rect: rectOf({ x: left, y: top, width: right - left, height: bottom - top }), zIndex: parent.zIndex + 0.01, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text, textStyle: textStyleOf(style) });
+    nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: text.slice(0, 80), source: parent.source + " ::text", rect: rectOf({ x: left, y: top, width: right - left, height: bottom - top }), zIndex: parent.zIndex + 0.01, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text, textNoWrap: Boolean(parent.textNoWrap) || style.whiteSpace === "nowrap", textStyle: textStyleOf(style, layout.measuredLineHeight) });
     parent.children.push(id);
   };
-  const visit = (element, parentId) => {
+  const visit = (element, parentId, inlineControlAncestor = false) => {
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     if (!visible(element, style, rect)) return;
@@ -110,12 +156,22 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const tag = element.tagName.toLowerCase();
     const id = "node-" + (++sequence);
     const directText = [...element.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
+    // Penpot's fixed text layers wrap when the fallback font is a little
+    // wider than the browser's font. Links and buttons are inline controls in
+    // this capture model, so preserve their source browser line as one line.
+    const inlineControl = inlineControlAncestor || tag === "a" || tag === "button";
+    const textNoWrap = directText && (style.whiteSpace === "nowrap" || inlineControl);
     const childElements = [...element.children].filter((child) => { const childStyle = getComputedStyle(child); const childRect = child.getBoundingClientRect(); return visible(child, childStyle, childRect); });
     const imageUrl = tag === "img" ? element.currentSrc || element.src : backgroundUrl(style.backgroundImage);
     const imageAsset = asset(imageUrl, tag === "img" ? element.currentSrc?.split(".").pop() : undefined);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 ? "container" : "box");
-    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOf(style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason };
-    if (kind === "text") { scene.text = compact(element.textContent); scene.textStyle = textStyleOf(style); }
+    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOf(style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
+    if (kind === "text") {
+      const textNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
+      const layout = textNode ? textLayout(textNode) : undefined;
+      scene.text = layout?.text || compact(element.textContent);
+      scene.textStyle = textStyleOf(style, layout?.measuredLineHeight);
+    }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(element.outerHTML), "image/svg+xml"); }
     nodes.push(scene);
     nodeById.set(id, scene);
@@ -126,7 +182,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style);
-      if (child.nodeType === Node.ELEMENT_NODE) visit(child, id);
+      if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl);
     }
     for (const pseudo of ["::before", "::after"]) {
       const pseudoStyle = getComputedStyle(element, pseudo);
