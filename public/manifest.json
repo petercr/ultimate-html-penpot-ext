@@ -1,0 +1,7 @@
+{
+  "name": "Ultimate HTML to Penpot",
+  "description": "Turn a rendered HTML page into editable Penpot boards.",
+  "version": 2,
+  "code": "plugin.js",
+  "permissions": ["content:write"]
+}
