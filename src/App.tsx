@@ -112,6 +112,7 @@ export default function App() {
     <section className="source-section" aria-label="Page source">
       <label htmlFor="html-source">HTML or page URL <span>paste complete HTML or enter a full HTTP(S) URL</span></label>
       <textarea id="html-source" className="editor" value={source} spellCheck={false} aria-label="HTML source" placeholder="<!doctype html>\n<html>…</html>\n\n—or—\n\nhttps://example.com/page" onChange={(event) => { setSource(event.target.value); resetCapture(); }} />
+      <p className="source-note">Page URLs are best-effort and require the site to allow browser access (CORS). For consistent results, paste the page HTML.</p>
       <label htmlFor="base-url">Base URL <span>optional — resolves relative assets when pasting HTML</span></label>
       <input id="base-url" value={baseUrl} placeholder="https://example.com/page/" onChange={(event) => { setBaseUrl(event.target.value); resetCapture(); }} />
     </section>

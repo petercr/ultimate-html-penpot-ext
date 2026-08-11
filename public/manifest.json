@@ -3,5 +3,6 @@
   "description": "Turn a rendered HTML page into editable Penpot boards.",
   "version": 2,
   "code": "plugin.js",
+  "icon": "icon.svg",
   "permissions": ["content:write"]
 }

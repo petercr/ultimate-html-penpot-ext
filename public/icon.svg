@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 56 56" role="img" aria-labelledby="title description">
+  <title id="title">Ultimate HTML to Penpot</title>
+  <desc id="description">Three responsive boards formed by HTML angle brackets.</desc>
+  <defs>
+    <linearGradient id="background" x1="7" y1="5" x2="49" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+  </defs>
+  <rect width="56" height="56" rx="13" fill="url(#background)"/>
+  <rect x="10" y="12" width="25" height="32" rx="4" fill="#FFFFFF" fill-opacity=".18" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="39" y="19" width="8" height="25" rx="2.5" fill="#FFFFFF" fill-opacity=".18" stroke="#FFFFFF" stroke-width="2"/>
+  <path d="m20 22-5 6 5 6M27 22l5 6-5 6" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

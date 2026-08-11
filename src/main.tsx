@@ -3,5 +3,8 @@ import { createRoot } from "react-dom/client";
 import "@penpot/plugin-styles/styles.css";
 import "./styles.css";
 import App from "./App";
+import { themeFromSearch } from "./theme";
+
+document.documentElement.dataset.theme = themeFromSearch(window.location.search);
 
 createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);
