@@ -14,6 +14,7 @@ describe("sandbox document preparation", () => {
   it("removes supplied scripts when scripts are disabled", () => {
     const result = prepareSandboxDocument({ html: "<script>window.bad = true</script><main>Hello</main>", baseUrl: "https://example.com/", scriptPolicy: "off", token: "test", viewport, settleDelayMs: 0 });
     expect(result).not.toContain("window.bad");
+    expect(result).toContain("data-html-to-penpot-scripts-disabled=\"1\"");
     expect(result).toContain("Content-Security-Policy");
     expect(result).toContain("<base href=\"https://example.com/\">");
   });

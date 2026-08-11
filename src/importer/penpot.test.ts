@@ -48,7 +48,19 @@ describe("Penpot importer", () => {
         return board;
       }),
       createRectangle: vi.fn(() => Object.assign(fakeShape("rectangle"), { fills: [] })),
-      createText: vi.fn((characters: string) => Object.assign(fakeShape("text"), { characters, fills: [], growType: "fixed" })),
+      createText: vi.fn((characters: string) => {
+        const shape = Object.assign(fakeShape("text"), { characters, fills: [], growType: "fixed" });
+        let fontFamily = "";
+        Object.defineProperty(shape, "fontFamily", {
+          configurable: true,
+          get: () => fontFamily,
+          set: (value: string) => {
+            if (value === "Poppins-Regular") throw new Error("font family is not installed");
+            fontFamily = value;
+          }
+        });
+        return shape;
+      }),
       group: vi.fn((shapes: FakeShape[]) => Object.assign(fakeShape("group"), { children: shapes })),
       createShapeFromSvgWithImages: vi.fn(),
       uploadMediaData: vi.fn(),
@@ -78,6 +90,40 @@ describe("Penpot importer", () => {
 
     const result = await importScenes([genericFontScene], { isCancelled: () => false, onProgress: vi.fn() });
     expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fontFamily: "Inter" });
+  });
+
+  it("normalizes webfont face names and falls back when Penpot rejects them", async () => {
+    const webFontScene = scene();
+    const textNode = webFontScene.nodes.find((node) => node.kind === "text");
+    if (!textNode || !textNode.textStyle) throw new Error("test scene is missing its text node");
+    textNode.textStyle.fontFamily = "Poppins-Regular";
+
+    const result = await importScenes([webFontScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fontFamily: "Poppins" });
+  });
+
+  it("parses CSS shadow dimensions as finite Penpot values", async () => {
+    const shadowScene = scene();
+    shadowScene.nodes[0].paint.boxShadow = "0px 4px 20px 0px rgba(0, 0, 0, 0.2)";
+
+    const result = await importScenes([shadowScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const shadows = (result[0] as unknown as FakeShape).shadows as Array<Record<string, number>>;
+    expect(shadows[0]).toMatchObject({ offsetX: 0, offsetY: 4, blur: 20, spread: 0 });
+    expect(Object.values(shadows[0] || {}).every((value) => typeof value !== "number" || Number.isFinite(value))).toBe(true);
+  });
+
+  it("creates editable shapes from inlined SVG image assets", async () => {
+    const svgScene = scene();
+    svgScene.nodes[0].children = ["logo"];
+    svgScene.nodes = [svgScene.nodes[0], { id: "logo", parentId: "root", children: [], kind: "image", name: "logo", source: "img", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "logo-asset" }];
+    svgScene.assets = [{ id: "logo-asset", url: "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2010%2010%22%3E%3C%2Fsvg%3E", mimeType: "image/svg+xml" }];
+    const svgGroup = fakeShape("group");
+    const createSvg = (globalThis as typeof globalThis & { penpot: { createShapeFromSvgWithImages: ReturnType<typeof vi.fn> } }).penpot.createShapeFromSvgWithImages;
+    createSvg.mockResolvedValueOnce(svgGroup);
+
+    const result = await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect(createSvg).toHaveBeenCalledWith("<svg viewBox=\"0 0 10 10\"></svg>");
+    expect((result[0] as unknown as FakeShape).children?.[0]).toBe(svgGroup);
   });
 
   it("keeps marked inline text on one line", async () => {

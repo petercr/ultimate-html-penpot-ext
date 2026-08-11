@@ -110,50 +110,72 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const measuredLineHeight = lineGaps.length
       ? lineGaps.reduce((sum, gap) => sum + gap, 0) / lineGaps.length
       : rects[0]?.height;
-    if (rects.length < 2 || raw.length > 20_000) return { text: fallback, rects, measuredLineHeight };
-    const output = [];
-    let previousLine;
+    const rectFor = (items) => {
+      if (!items.length) return undefined;
+      const left = Math.min(...items.map((item) => item.left));
+      const top = Math.min(...items.map((item) => item.top));
+      const right = Math.max(...items.map((item) => item.right));
+      const bottom = Math.max(...items.map((item) => item.bottom));
+      return rectOf({ x: left, y: top, width: right - left, height: bottom - top });
+    };
+    if (!rects.length) return { text: fallback, lines: [], rects, measuredLineHeight };
+    if (rects.length < 2 || raw.length > 20_000) {
+      return { text: fallback, lines: fallback ? [{ text: fallback, rect: rectFor(rects) }] : [], rects, measuredLineHeight };
+    }
+    // Preserve the browser's line breaks as separate, non-wrapping scene
+    // nodes. Penpot can use different font metrics from the source browser;
+    // one fixed text box per source line prevents those metrics from making
+    // neighboring lines collide after import.
+    const lines = [];
+    let current = { top: undefined, text: "", rects: [] };
     let pendingSpace = false;
+    const flush = () => {
+      if (current.text) lines.push({ text: current.text, rect: rectFor(current.rects) });
+    };
     for (let index = 0; index < raw.length; index += 1) {
       range.setStart(textNode, index);
       range.setEnd(textNode, index + 1);
       const characterRect = range.getBoundingClientRect();
       const character = raw[index];
+      const line = Math.round(characterRect.top * 100) / 100;
+      if (current.top !== undefined && Math.abs(line - current.top) > 0.5) {
+        flush();
+        current = { top: line, text: "", rects: [] };
+        pendingSpace = false;
+      } else if (current.top === undefined) {
+        current.top = line;
+      }
       if (/\\s/.test(character)) {
-        if (output.length) pendingSpace = true;
+        if (current.text) pendingSpace = true;
         continue;
       }
-      const line = characterRect.top;
-      const lineChanged = previousLine !== undefined && Math.abs(line - previousLine) > 0.5;
-      if (lineChanged) output.push("\\n");
-      else if (pendingSpace) output.push(" ");
-      output.push(character);
-      previousLine = line;
+      if (pendingSpace) current.text += " ";
+      current.text += character;
+      current.rects.push(characterRect);
       pendingSpace = false;
     }
-    return { text: output.join("") || fallback, rects, measuredLineHeight };
+    flush();
+    return { text: lines.map((line) => line.text).join("\\n") || fallback, lines, rects, measuredLineHeight };
   };
   const appendText = (parent, textNode, style) => {
     const layout = textLayout(textNode);
-    const text = layout.text;
-    if (!text) return;
-    const rects = layout.rects;
-    if (!rects.length) return;
-    const left = Math.min(...rects.map((item) => item.left));
-    const top = Math.min(...rects.map((item) => item.top));
-    const right = Math.max(...rects.map((item) => item.right));
-    const bottom = Math.max(...rects.map((item) => item.bottom));
-    const id = "node-" + (++sequence);
-    nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: text.slice(0, 80), source: parent.source + " ::text", rect: rectOf({ x: left, y: top, width: right - left, height: bottom - top }), zIndex: parent.zIndex + 0.01, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text, textNoWrap: Boolean(parent.textNoWrap) || style.whiteSpace === "nowrap", textStyle: textStyleOf(style, layout.measuredLineHeight) });
-    parent.children.push(id);
+    for (const [index, line] of (layout.lines || []).entries()) {
+      if (!line.text || !line.rect) continue;
+      const id = "node-" + (++sequence);
+      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: parent.source + " ::text", rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textStyle: textStyleOf(style, layout.measuredLineHeight) });
+      parent.children.push(id);
+    }
   };
   const visit = (element, parentId, inlineControlAncestor = false) => {
+    const tag = element.tagName.toLowerCase();
+    // A line break is represented by the source line coordinates above, not
+    // by a visible rectangle in the Penpot layer tree.
+    if (tag === "br") return;
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     if (!visible(element, style, rect)) return;
     const source = sourceOf(element);
     const reason = unsupported(element, style);
-    const tag = element.tagName.toLowerCase();
     const id = "node-" + (++sequence);
     const directText = [...element.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
     // Penpot's fixed text layers wrap when the fallback font is a little
@@ -166,11 +188,21 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const imageAsset = asset(imageUrl, tag === "img" ? element.currentSrc?.split(".").pop() : undefined);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 ? "container" : "box");
     const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOf(style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
+    let directTextNode;
+    let directTextLayout;
+    let expandedDirectText = false;
     if (kind === "text") {
-      const textNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
-      const layout = textNode ? textLayout(textNode) : undefined;
-      scene.text = layout?.text || compact(element.textContent);
-      scene.textStyle = textStyleOf(style, layout?.measuredLineHeight);
+      directTextNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
+      directTextLayout = directTextNode ? textLayout(directTextNode) : undefined;
+      if (directTextLayout?.lines?.length > 1) {
+        scene.kind = "container";
+        scene.text = undefined;
+        scene.textStyle = undefined;
+        expandedDirectText = true;
+      } else {
+        scene.text = directTextLayout?.text || compact(element.textContent);
+        scene.textStyle = textStyleOf(style, directTextLayout?.measuredLineHeight);
+      }
     }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(element.outerHTML), "image/svg+xml"); }
     nodes.push(scene);
@@ -180,6 +212,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       diagnostics.push({ severity: "warning", code: "UNSUPPORTED_SUBTREE", message: reason, viewportId: viewport.id, source });
       return id;
     }
+    if (expandedDirectText && directTextNode) appendText(scene, directTextNode, style);
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style);
       if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl);
@@ -199,6 +232,29 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const settleWithin = async (work, maximumWait) => {
     try { await Promise.race([work, wait(maximumWait)]); } catch (_) {}
   };
+  const waitForDomSettle = async () => {
+    const root = document.body || document.documentElement;
+    if (!root || typeof MutationObserver === "undefined") return;
+    await new Promise((resolve) => {
+      let finished = false;
+      let quietTimer;
+      const observer = new MutationObserver(() => {
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(done, 180);
+      });
+      const done = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(quietTimer);
+        clearTimeout(maximumTimer);
+        observer.disconnect();
+        resolve(undefined);
+      };
+      const maximumTimer = setTimeout(done, 4_000);
+      observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true });
+      quietTimer = setTimeout(done, 180);
+    });
+  };
   const settle = async () => {
     // A remote font or image is allowed to be slow, but must never prevent a
     // useful capture. This is deliberately shorter than the outer watchdog.
@@ -208,11 +264,27 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // timer still gives styles and layout a chance to flush.
     await wait(32);
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    // Client-rendered pages often finish their first DOM update after the
+    // initial HTML has parsed. Wait for a brief quiet period, with a hard cap,
+    // so those updates are captured without allowing a page to hang forever.
+    await waitForDomSettle();
   };
   settle().then(() => {
     try {
       const root = document.body || document.documentElement;
       visit(root, undefined);
+      if (nodes.length <= 1) {
+        const scriptsDisabled = document.documentElement.getAttribute("data-html-to-penpot-scripts-disabled");
+        diagnostics.push({
+          severity: "warning",
+          code: "EMPTY_CAPTURE",
+          message: scriptsDisabled
+            ? "No visible page content was captured. This page contains JavaScript-rendered content, but its scripts were disabled; enable Run trusted page scripts for source you trust or paste rendered HTML."
+            : "No visible page content was captured. The page may require more settle time or may render content outside the supported HTML surface.",
+          viewportId: viewport.id,
+          source: "body"
+        });
+      }
       const documentHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0, viewport.height);
       parent.postMessage({ type: "CAPTURE_RESULT", token, scene: { protocolVersion: ${PROTOCOL_VERSION}, viewport, documentSize: { width: Math.max(document.documentElement.scrollWidth, viewport.width), height: documentHeight }, nodes, assets: [...assets.values()], diagnostics } }, "*");
     } catch (error) {
