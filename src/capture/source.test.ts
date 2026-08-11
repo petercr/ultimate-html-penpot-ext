@@ -26,6 +26,23 @@ describe("page source resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("inlines same-page SVG image assets for editable Penpot import", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="/logo.svg"></main>', { status: 200 }))
+      .mockResolvedValueOnce(new Response("<svg viewBox='0 0 10 10'><path d='M0 0h10v10z'/></svg>", {
+        status: 200,
+        headers: { "content-type": "image/svg+xml" }
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    expect(result.html).toContain("data:image/svg+xml,");
+    expect(result.html).not.toContain('src="/logo.svg"');
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://example.com/logo.svg", expect.objectContaining({ credentials: "omit" }));
+    vi.unstubAllGlobals();
+  });
+
   it("falls back to the local proxy when direct URL loading is blocked by CORS", async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))

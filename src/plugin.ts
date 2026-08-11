@@ -8,6 +8,12 @@ function send(message: PluginToUiMessage) {
   penpot.ui.sendMessage(message);
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Import failed in Penpot. Check the plugin console for the failing layer.";
+}
+
 penpot.ui.open("Ultimate HTML to Penpot", `?theme=${penpot.theme}`, { width: 620, height: 760 });
 
 penpot.ui.onMessage<UiToPluginMessage>(async (message) => {
@@ -26,6 +32,6 @@ penpot.ui.onMessage<UiToPluginMessage>(async (message) => {
     });
     send({ type: "COMPLETE", boards: boards.length });
   } catch (error) {
-    send({ type: "ERROR", message: error instanceof ImportCancelledError ? "Import cancelled; partial boards were removed." : error instanceof Error ? error.message : "Import failed." });
+    send({ type: "ERROR", message: error instanceof ImportCancelledError ? "Import cancelled; partial boards were removed." : errorMessage(error) });
   }
 });

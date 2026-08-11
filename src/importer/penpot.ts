@@ -5,6 +5,12 @@ export class ImportCancelledError extends Error {
   constructor() { super("Import cancelled."); }
 }
 
+function errorDetail(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Penpot returned an empty error.";
+}
+
 export interface ImportOptions {
   isCancelled: () => boolean;
   onProgress: (completed: number, total: number, label: string) => void;
@@ -35,7 +41,7 @@ function cssGradient(value: string | undefined): Gradient | undefined {
 function applyShadow(shape: Shape, value: string | undefined): void {
   if (!value || value === "none") return;
   const color = cssColor((value.match(/rgba?\([^)]*\)|#[\da-f]{3,8}/i) || [])[0]);
-  const dimensions = (value.match(/-?\d+(?:\.\d+)?px/g) || []).map(Number);
+  const dimensions = (value.match(/-?\d+(?:\.\d+)?px/g) || []).map((dimension) => Number.parseFloat(dimension));
   if (!color || dimensions.length < 3) return;
   shape.shadows = [{ style: value.includes("inset") ? "inner-shadow" : "drop-shadow", offsetX: dimensions[0], offsetY: dimensions[1], blur: dimensions[2], spread: dimensions[3] || 0, color: { color } }];
 }
@@ -104,6 +110,28 @@ function penpotFontFamily(value: string | undefined): string {
   return GENERIC_FONT_FAMILIES.has(family.toLowerCase()) ? "Inter" : family;
 }
 
+function penpotFontCandidates(value: string | undefined): string[] {
+  const family = penpotFontFamily(value);
+  if (family === "Inter") return [family];
+  // Some webfont CSS declares the PostScript face name as the family, for
+  // example `Poppins-Regular`. Penpot usually registers the family as
+  // `Poppins`, so try that normalized name before falling back.
+  const normalized = family.replace(/(?:[-_](?:regular|normal|italic|oblique|thin|extralight|light|medium|semibold|bold|extrabold|black)|[-_]\d{3})$/i, "");
+  return normalized && normalized !== family ? [family, normalized, "Inter"] : [family, "Inter"];
+}
+
+function applyPenpotFontFamily(text: Text, value: string | undefined): void {
+  for (const family of penpotFontCandidates(value)) {
+    try {
+      text.fontFamily = family;
+      return;
+    } catch {
+      // Browser fonts are not necessarily installed in Penpot. Try the
+      // normalized family and finally the guaranteed Inter fallback.
+    }
+  }
+}
+
 function createText(node: SceneNode): Text {
   const text = penpot.createText(node.text || "");
   if (!text) throw new Error(`Unable to create text layer: ${node.name}`);
@@ -119,7 +147,7 @@ function createText(node: SceneNode): Text {
     // but rejected by Penpot's fontFamily validator. Inter is Penpot's
     // guaranteed fallback and keeps the layer editable instead of aborting
     // the entire import.
-    text.fontFamily = penpotFontFamily(style.fontFamily);
+    applyPenpotFontFamily(text, style.fontFamily);
     // Penpot's plugin API expects numeric string values, not CSS units.
     text.fontSize = String(Math.max(1, style.fontSize));
     text.fontWeight = String(style.fontWeight);
@@ -147,6 +175,18 @@ async function mediaFor(asset: AssetRef) {
   }
   if (asset.url) return penpot.uploadMediaUrl(asset.id, asset.url);
   return undefined;
+}
+
+function svgTextOf(asset: AssetRef | undefined): string | undefined {
+  const url = asset?.url;
+  if (!url || !url.toLowerCase().startsWith("data:image/svg+xml")) return undefined;
+  const comma = url.indexOf(",");
+  if (comma < 0) return undefined;
+  const encoded = url.slice(comma + 1);
+  if (url.slice(0, comma).toLowerCase().endsWith(";base64")) {
+    try { return atob(encoded); } catch { return undefined; }
+  }
+  try { return decodeURIComponent(encoded); } catch { return undefined; }
 }
 
 function needsContainerBackdrop(node: SceneNode): boolean {
@@ -187,11 +227,15 @@ function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
 
 async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: Map<string, Awaited<ReturnType<typeof mediaFor>>>): Promise<Shape> {
   if (node.kind === "text") return createText(node);
-  if (node.kind === "svg") {
-    const asset = node.assetId ? assets.get(node.assetId) : undefined;
-    if (asset?.url?.startsWith("data:image/svg+xml,")) {
-      const group = await penpot.createShapeFromSvgWithImages(decodeURIComponent(asset.url.slice(asset.url.indexOf(",") + 1)));
+  const asset = node.assetId ? assets.get(node.assetId) : undefined;
+  const svg = svgTextOf(asset);
+  if (svg) {
+    try {
+      const group = await penpot.createShapeFromSvgWithImages(svg);
       if (group) return group;
+    } catch {
+      // Keep a rectangle fallback if the SVG uses features Penpot cannot
+      // translate into editable vectors.
     }
   }
   const shape = penpot.createRectangle();
@@ -202,7 +246,6 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
     applyPaint(shape, node.paint);
   }
   if ((node.kind === "image" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
-    const asset = assets.get(node.assetId);
     if (asset) {
       let uploaded = media.get(asset.id);
       if (!uploaded) {
@@ -294,16 +337,27 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           return shape;
         }
 
-        const shape = await createShape(node, assets, media);
-        metadata(shape, node, scene.viewport.id);
-        shapes.set(node.id, shape);
-        append(parentShape, shape);
-        applyGeometry(shape, node, { x: board.x, y: board.y });
-        // Keep short inline controls on the same line as in the source
-        // browser. Apply this after geometry because resize() can reset a
-        // text layer's grow mode.
-        if (shape.type === "text" && node.textNoWrap && !node.text?.includes("\n")) {
-          (shape as Text).growType = "auto-width";
+        let shape: Shape;
+        try {
+          shape = await createShape(node, assets, media);
+        } catch (error) {
+          throw new Error(`Unable to create ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
+        }
+        try {
+          metadata(shape, node, scene.viewport.id);
+          shapes.set(node.id, shape);
+          append(parentShape, shape);
+          applyGeometry(shape, node, { x: board.x, y: board.y });
+          // Keep short inline controls on the same line as in the source
+          // browser. Apply this after geometry because resize() can reset a
+          // text layer's grow mode. Wrapped source text is split into one
+          // non-wrapping layer per browser line by the extractor, so each
+          // imported line remains readable without relying on auto-height.
+          if (shape.type === "text" && node.textNoWrap && !node.text?.includes("\n")) {
+            (shape as Text).growType = "auto-width";
+          }
+        } catch (error) {
+          throw new Error(`Unable to place ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
         }
         reportProgress();
         await new Promise<void>((resolve) => setTimeout(resolve, 0));

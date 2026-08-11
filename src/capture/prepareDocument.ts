@@ -31,10 +31,11 @@ export function prepareSandboxDocument(input: {
     head.prepend(base);
   }
 
-  document.querySelectorAll("script").forEach((script) => {
-    if (input.scriptPolicy === "off") script.remove();
-    else script.setAttribute("nonce", nonce);
-  });
+  const scripts = [...document.querySelectorAll("script")];
+  if (input.scriptPolicy === "off") {
+    scripts.forEach((script) => script.remove());
+    if (scripts.length) document.documentElement.setAttribute("data-html-to-penpot-scripts-disabled", String(scripts.length));
+  } else scripts.forEach((script) => script.setAttribute("nonce", nonce));
 
   const policy = input.scriptPolicy === "trusted"
     ? `default-src 'none'; img-src data: blob: http: https:; style-src 'unsafe-inline' http: https:; font-src data: http: https:; script-src 'nonce-${nonce}' http: https:; connect-src http: https:; media-src data: blob: http: https:; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'self' http: https:`

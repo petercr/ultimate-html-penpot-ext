@@ -20,6 +20,11 @@ describe("extractor script", () => {
     expect(script).toContain("measuredLineHeight");
     expect(script).toContain("textNoWrap");
     expect(script).toContain("inlineControlAncestor");
+    expect(script).toContain("one fixed text box per source line");
+    expect(script).toContain("textNoWrap: true");
+    expect(script).toContain('if (tag === "br") return');
+    expect(script).toContain("waitForDomSettle");
+    expect(script).toContain("EMPTY_CAPTURE");
     expect(() => new Function(script)).not.toThrow();
   });
 });
