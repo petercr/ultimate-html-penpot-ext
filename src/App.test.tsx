@@ -10,5 +10,7 @@ describe("App source fields", () => {
     expect(markup.indexOf('id="html-source"')).toBeLessThan(markup.indexOf('id="base-url"'));
     expect(markup).toContain("HTML or page URL");
     expect(markup).toContain("https://example.com/page");
+    expect(markup).toContain("Page URLs are best-effort");
+    expect(markup).toContain("CORS");
   });
 });

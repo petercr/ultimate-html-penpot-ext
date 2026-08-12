@@ -2,10 +2,18 @@
   "name": "ultimate-html-to-penpot",
   "private": true,
   "version": "0.1.0",
+  "description": "Turn pasted HTML into editable responsive Penpot boards.",
+  "license": "MIT",
+  "repository": "github:petercr/ultimate-html-penpot-ext",
+  "bugs": "https://github.com/petercr/ultimate-html-penpot-ext/issues",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names ui,plugin,serve \"vite build --watch --emptyOutDir false\" \"vite build --config vite.plugin.config.ts --watch\" \"vite preview --host 0.0.0.0 --strictPort\"",
     "build": "tsc --noEmit && vite build && vite build --config vite.plugin.config.ts",
+    "check:dist": "node scripts/validate-build.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
