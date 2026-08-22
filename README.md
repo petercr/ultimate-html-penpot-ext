@@ -34,15 +34,23 @@ When running with `npm run dev`, URL imports first try the browser request and t
 
 ## Production deployment
 
-The v0.1.0 release is designed for static hosting on Cloudflare Pages. Netlify or any HTTPS static host that supports response headers also works.
+The v0.1.0 release is designed for static hosting on Vercel. Netlify, Cloudflare Pages, or any HTTPS static host that supports response headers also works.
 
-1. Connect this repository to Cloudflare Pages.
+### Vercel
+
+1. Import this repository into Vercel (Other framework preset).
 2. Use `npm ci && npm run build` as the build command.
-3. Publish the `dist` directory.
+3. Set the output directory to `dist`.
 4. Keep the generated production hostname stable; the install URL is `https://<hostname>/manifest.json`.
 5. Install that manifest URL in a fresh Penpot account before submitting it to Penpot Hub.
 
-The committed `public/_headers` file enables cross-origin loading for Penpot and short caching for `manifest.json` and `plugin.js`. Hashed UI assets are cached immutably. Pull requests and pushes to `main` run tests and the production build in GitHub Actions.
+The committed `vercel.json` sends `Access-Control-Allow-Origin: *` for every path so Penpot can load the manifest and bundle cross-origin, applies short caching to `manifest.json` and `plugin.js`, and caches hashed UI assets immutably.
+
+### Cloudflare Pages or Netlify
+
+Use the same build command (`npm ci && npm run build`) and publish the `dist` directory. The committed `public/_headers` file carries the identical CORS and cache policy for those hosts.
+
+Pull requests and pushes to `main` run tests and the production build in GitHub Actions, including a bundle check that validates the manifest paths, permissions, icon, CORS headers, and the Vercel configuration.
 
 ## Privacy and security
 

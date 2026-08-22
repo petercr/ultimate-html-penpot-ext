@@ -17,6 +17,29 @@ for (const field of ["code", "icon"]) {
 
 const headers = await readFile(resolve(dist, "_headers"), "utf8");
 if (!headers.includes("Access-Control-Allow-Origin: *")) throw new Error("Production CORS header is missing.");
+const headerLines = headers.split("\n").map((line) => line.trim());
+for (const path of ["/manifest.json", "/plugin.js"]) {
+  if (!headerLines.includes(path)) throw new Error(`${path} cache rule is missing from _headers.`);
+}
+if (!headers.includes("max-age=31536000, immutable") || !headerLines.includes("/assets/*")) {
+  throw new Error("Immutable asset caching is missing from _headers.");
+}
+
+const vercelConfig = JSON.parse(await readFile(resolve("vercel.json"), "utf8"));
+const vercelHeaders = vercelConfig.headers;
+if (!Array.isArray(vercelHeaders) || vercelHeaders.length === 0) throw new Error("vercel.json must define a headers array.");
+
+function findVercelHeader(source, key) {
+  const entry = vercelHeaders.find((rule) => rule?.source === source);
+  return entry?.headers?.find((header) => header?.key === key)?.value;
+}
+
+if (findVercelHeader("/(.*)", "Access-Control-Allow-Origin") !== "*") {
+  throw new Error("vercel.json must send Access-Control-Allow-Origin: * for all paths.");
+}
+if (findVercelHeader("/(.*)", "X-Content-Type-Options") !== "nosniff") {
+  throw new Error("vercel.json must send X-Content-Type-Options: nosniff.");
+}
 
 await access(resolve(dist, "index.html"));
-console.log(`Validated dist: manifest, ${manifest.code}, ${manifest.icon}, index.html, and CORS headers.`);
+console.log(`Validated dist: manifest, ${manifest.code}, ${manifest.icon}, index.html, CORS headers, and Vercel config.`);
