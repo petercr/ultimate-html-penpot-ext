@@ -27,4 +27,12 @@ describe("extractor script", () => {
     expect(script).toContain("EMPTY_CAPTURE");
     expect(() => new Function(script)).not.toThrow();
   });
+
+  it("keeps decorated text elements as containers so fills survive", () => {
+    const script = buildExtractorScript("token", { id: "desktop", name: "Desktop", width: 1440, height: 900 }, 0);
+    expect(script).toContain("const decorated");
+    expect(script).toContain('style.backgroundColor !== "rgba(0, 0, 0, 0)"');
+    expect(script).toContain("childElements.length === 0 && !decorated");
+    expect(() => new Function(script)).not.toThrow();
+  });
 });
