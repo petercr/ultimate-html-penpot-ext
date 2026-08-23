@@ -186,7 +186,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const childElements = [...element.children].filter((child) => { const childStyle = getComputedStyle(child); const childRect = child.getBoundingClientRect(); return visible(child, childStyle, childRect); });
     const imageUrl = tag === "img" ? element.currentSrc || element.src : backgroundUrl(style.backgroundImage);
     const imageAsset = asset(imageUrl, tag === "img" ? element.currentSrc?.split(".").pop() : undefined);
-    const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 ? "container" : "box");
+    // A text-only node cannot carry fills, borders, or radii, so any element
+    // with direct text and visible decoration keeps those surfaces by becoming
+    // a container with the text as a child layer.
+    const decorated = style.backgroundColor !== "rgba(0, 0, 0, 0)" || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
+    const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
     const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOf(style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
     let directTextNode;
     let directTextLayout;
