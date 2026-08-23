@@ -21,11 +21,11 @@
 
 **Repository:** https://github.com/petercr/ultimate-html-penpot-ext
 
-**Manifest URL:** Add the stable Cloudflare Pages production URL before submission.
+**Manifest URL:** https://ultimate-html-penpot-ext.vercel.app/manifest.json
 
 ## Assets
 
 - `icon-400.png` — 400×400 PNG listing icon, ready.
 - `cover-1390x724.png` — 1390×724 PNG listing cover, ready.
 - `plugin-analysis.png` — plugin analysis screenshot, ready.
-- Imported-board screenshot — capture during the fresh-account production verification pass.
+- `plugin-imported.png` — imported-board screenshot, capture during the fresh-account production verification pass.
