@@ -63,6 +63,67 @@ const buckets = new Map<string, BucketState>();
 let instanceWindow: WindowCounter = { count: 0, windowStartedAt: Date.now() };
 const targetWindows = new Map<string, WindowCounter>();
 
+// Optional global store for Hobby deployments. When UPSTASH_REDIS_REST_URL +
+// UPSTASH_REDIS_REST_TOKEN are set (Upstash free tier works), the per-client
+// and per-target limits become global across instances. Otherwise they remain
+// per-instance memory backstops. The edge challenge in vercel.json (routes
+// -> mitigate: challenge) is the true zero-cost edge filter on Hobby; these
+// in-function limits are the cost-aware fallback before any outbound fetch.
+function upstashConfig(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (!url || !token) return null;
+  return { url: url.replace(/\/+$/, ""), token };
+}
+
+async function takeUpstashSlot(key: string, limit: number, windowMs: number): Promise<boolean | null> {
+  const cfg = upstashConfig();
+  if (!cfg) return null;
+  try {
+    const windowSec = Math.ceil(windowMs / 1000);
+    const response = await fetch(`${cfg.url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify([
+        ["INCR", key],
+        ["EXPIRE", key, `${windowSec}`, "NX"]
+      ]),
+      signal: AbortSignal.timeout(300)
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as Array<{ result?: number }>;
+    const count = data?.[0]?.result;
+    if (typeof count !== "number") return null;
+    return count <= limit;
+  } catch {
+    return null; // Fail open to in-memory on Upstash errors/timeouts.
+  }
+}
+
+async function takeInstanceSlotShared(): Promise<boolean> {
+  const windowId = Math.floor(Date.now() / RATE_LIMIT_WINDOW_MS);
+  const shared = await takeUpstashSlot(`fetch-html:global:instance:${windowId}`, INSTANCE_MAX_REQUESTS_PER_WINDOW, RATE_LIMIT_WINDOW_MS);
+  if (shared !== null) return shared;
+  return takeInstanceSlot();
+}
+
+async function takeClientSlot(key: string): Promise<boolean> {
+  // Upstash fixed-window is slightly looser than the in-memory token bucket
+  // (burst folded into limit) but global across instances; acceptable trade.
+  const shared = await takeUpstashSlot(`fetch-html:client:${key}`, RATE_LIMIT_MAX_REQUESTS + RATE_LIMIT_BURST, RATE_LIMIT_WINDOW_MS);
+  if (shared !== null) return shared;
+  return takeToken(key);
+}
+
+async function takeTargetSlotShared(targetUrl: string): Promise<boolean> {
+  const origin = describeUrl(targetUrl);
+  if (!origin) return false;
+  const originHash = createHash("sha256").update(origin).digest("hex").slice(0, 16);
+  const shared = await takeUpstashSlot(`fetch-html:target:${originHash}`, TARGET_MAX_REQUESTS_PER_WINDOW, RATE_LIMIT_WINDOW_MS);
+  if (shared !== null) return shared;
+  return takeTargetSlot(targetUrl);
+}
+
 /**
  * Derive a stable client key from platform-authoritative data only.
  * x-real-ip is set by Vercel from the actual connection and cannot be chosen
@@ -184,14 +245,14 @@ export default async function handler(request: IncomingMessage, response: Server
     return;
   }
 
-  if (!takeInstanceSlot()) {
+  if (!(await takeInstanceSlotShared())) {
     sendJson(response, 503, { error: "The service is busy. Try again shortly." }, { "Retry-After": "10", ...corsHeaders });
     finishMetric({ outcome: "instance-saturated", status: 503 });
     return;
   }
 
   const key = clientKey(request);
-  if (!takeToken(key)) {
+  if (!(await takeClientSlot(key))) {
     sendJson(
       response,
       429,
@@ -212,7 +273,7 @@ export default async function handler(request: IncomingMessage, response: Server
     return;
   }
 
-  if (!takeTargetSlot(rawTarget)) {
+  if (!(await takeTargetSlotShared(rawTarget))) {
     sendJson(
       response,
       429,

@@ -41,11 +41,12 @@ When a build sets `VITE_FETCH_PROXY_ORIGIN` to the deployment origin, CORS-block
 - Sends a fixed header set only; it never forwards user cookies, authorization headers, client IP headers, or anything else from the caller.
 - Enforces one wall-clock budget of 15 seconds per chain and streams responses with a hard cap of 3 MB for pages (2 MB for SVG assets), counted after decompression and independent of declared `Content-Length`.
 - Returns HTML/XHTML for pages and SVG for `mode=svg` requests only, plus the final validated upstream URL in `X-HTML-Source-URL` so relative assets resolve correctly.
-- Rate limits per client (~20 requests/minute with small bursts), caps concurrent outbound fetches per instance, applies an instance-wide request ceiling, and throttles repeated fetches of a single target origin so the service cannot be used to hammer third parties; replies `429`/`503` with clear messages when exceeded.
-- Only serves requests carrying browser `Sec-Fetch-Site` metadata (the plugin always fetches same-origin), which cheaply rejects scripted clients; set `FETCH_SERVICE_ALLOW_ANY_CLIENT=1` when operating the service manually.
+- Rate limits per client (~20 requests/minute with small bursts), caps concurrent outbound fetches per instance, applies an instance-wide request ceiling, and throttles repeated fetches of a single target origin so the service cannot be used to hammer third parties; replies `429`/`503` with clear messages when exceeded. On Hobby (no Vercel WAF rate limiting), these checks run in-function *before* any outbound fetch — a flood still costs an invocation but almost no CPU/time. Set `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` to make the per-client and per-target limits global across instances (Upstash free tier); without them they remain per-instance memory backstops.
+- Only serves requests carrying browser `Sec-Fetch-Site` metadata (the plugin always fetches same-origin), which cheaply rejects scripted clients; set `FETCH_SERVICE_ALLOW_ANY_CLIENT=1` when operating the service manually. `vercel.json` also issues an edge `challenge` when `Sec-Fetch-Site` is missing, so naive scripts are blocked *before* the function runs — this works on Hobby.
 - Emits one structured metrics line per request — status, duration, byte count, rejection reason, hashed client bucket — and never logs full query strings, page contents, or raw client IPs. Nothing is cached or retained.
 - Runs bounded at 512 MB memory / 20 s maximum duration via `vercel.json`, capping worst-case cost per invocation.
 - Can be disabled instantly by setting the environment variable `FETCH_SERVICE_DISABLED=1` and redeploying.
+- Hobby workaround for edge rate limiting without Vercel Pro WAF: front the Vercel deployment with Cloudflare (free) and add a Cloudflare Rate Limiting rule on `/api/fetch-html` (≈30 req/min per IP). This blocks floods at Cloudflare's edge before they hit Vercel; the in-function limits remain the second layer.
 
 Every request through the service is disclosed in the plugin UI error text ("the import service"), and the plugin always attempts a credential-free direct browser fetch first, using the service only when the direct request is blocked by CORS or network failure.
 
@@ -64,7 +65,7 @@ The v0.1.0 release is designed for static hosting on Vercel. Netlify, Cloudflare
 5. Keep the generated production hostname stable; the install URL is `https://<hostname>/manifest.json`.
 6. Install that manifest URL in a fresh Penpot account before submitting it to Penpot Hub.
 
-The committed `vercel.json` sends CORS and security headers for every static path while excluding `/api`, where the fetch service manages its own headers. Static caching applies to `manifest.json`, `plugin.js`, and hashed UI assets.
+The committed `vercel.json` sends CORS and security headers for every static path while excluding `/api`, where the fetch service manages its own headers, and adds an edge `challenge` for `/api/fetch-html` when `Sec-Fetch-Site` is missing (Hobby-compatible; blocks naive scripts before function cost). Optionally set `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` (Upstash free tier) for global rate limiting across instances. Without Vercel Pro WAF, the cheapest edge rate limiting is to front this deployment with Cloudflare (free) and rate-limit `/api/fetch-html` there. Static caching applies to `manifest.json`, `plugin.js`, and hashed UI assets.
 
 ### Cloudflare Pages or Netlify
 

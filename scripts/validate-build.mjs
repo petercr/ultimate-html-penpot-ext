@@ -44,5 +44,12 @@ if (findVercelHeader(STATIC_SOURCE, "X-Content-Type-Options") !== "nosniff") {
   throw new Error("vercel.json must send X-Content-Type-Options: nosniff.");
 }
 
+if (!vercelConfig.routes?.some((route) => route.src === "/api/fetch-html" && route.mitigate?.action === "challenge" && route.missing?.some((entry) => entry.key === "sec-fetch-site"))) {
+  throw new Error("vercel.json must challenge /api/fetch-html when Sec-Fetch-Site is missing (Hobby edge filter).");
+}
+if (vercelConfig.functions?.["api/fetch-html.ts"]?.memory !== 512 || vercelConfig.functions?.["api/fetch-html.ts"]?.maxDuration !== 20) {
+  throw new Error("vercel.json must bound api/fetch-html.ts at 512 MB / 20 s.");
+}
+
 await access(resolve(dist, "index.html"));
-console.log(`Validated dist: manifest, ${manifest.code}, ${manifest.icon}, index.html, CORS headers, and Vercel config.`);
+console.log(`Validated dist: manifest, ${manifest.code}, ${manifest.icon}, index.html, CORS headers, Vercel firewall, and resource bounds.`);
