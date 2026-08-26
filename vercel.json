@@ -1,8 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/fetch-html.ts": {
+      "memory": 512,
+      "maxDuration": 20
+    }
+  },
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",

@@ -34,10 +34,13 @@ function findVercelHeader(source, key) {
   return entry?.headers?.find((header) => header?.key === key)?.value;
 }
 
-if (findVercelHeader("/(.*)", "Access-Control-Allow-Origin") !== "*") {
-  throw new Error("vercel.json must send Access-Control-Allow-Origin: * for all paths.");
+// Static paths must stay CORS-open for Penpot; /api is excluded because the
+// fetch service manages its own headers there.
+const STATIC_SOURCE = "/((?!api/).*)";
+if (findVercelHeader(STATIC_SOURCE, "Access-Control-Allow-Origin") !== "*") {
+  throw new Error("vercel.json must send Access-Control-Allow-Origin: * for all static paths.");
 }
-if (findVercelHeader("/(.*)", "X-Content-Type-Options") !== "nosniff") {
+if (findVercelHeader(STATIC_SOURCE, "X-Content-Type-Options") !== "nosniff") {
   throw new Error("vercel.json must send X-Content-Type-Options: nosniff.");
 }
 

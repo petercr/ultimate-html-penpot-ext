@@ -6,13 +6,93 @@ export interface ResolvedSource {
   sourceUrl?: string;
 }
 
-const FETCH_PROXY_PATH = "/__html_to_penpot/fetch";
+type AssetMode = "html" | "svg";
+
+const FETCH_SERVICE_PATH = "/api/fetch-html";
+const LOCAL_PROXY_PATH = "/__html_to_penpot/fetch";
 const MAX_INLINE_SVG_BYTES = 2 * 1024 * 1024;
 
-function localFetchProxyUrl(target: string): string | undefined {
+/** Distinguishes "origin answered" (no fallback warranted) from CORS/network failure. */
+class UpstreamStatusError extends Error {}
+
+/**
+ * Origin of the hosted fetch service, fixed at build time so the plugin never
+ * assumes its own deployment origin. Empty when the service is not part of
+ * this build; URL imports then rely on browser CORS alone.
+ */
+function fetchServiceOrigin(): string | undefined {
+  const origin = import.meta.env?.VITE_FETCH_PROXY_ORIGIN;
+  if (typeof origin !== "string" || !origin.trim()) return undefined;
+  return origin.trim().replace(/\/+$/, "");
+}
+
+function isLocalDevelopmentHost(): boolean {
+  const hostname = typeof globalThis.location === "object" ? globalThis.location.hostname : undefined;
+  return !!hostname && ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"].includes(hostname);
+}
+
+function proxyUrlFor(target: string, mode: AssetMode): string | undefined {
+  const params = `mode=${mode}&url=${encodeURIComponent(target)}`;
+  const serviceOrigin = fetchServiceOrigin();
+  if (serviceOrigin) return `${serviceOrigin}${FETCH_SERVICE_PATH}?${params}`;
+  // Local development keeps using the Vite preview middleware.
   const origin = typeof globalThis.location === "object" ? globalThis.location.origin : "";
-  if (!origin || origin === "null") return undefined;
-  return `${origin}${FETCH_PROXY_PATH}?url=${encodeURIComponent(target)}`;
+  if (isLocalDevelopmentHost() && origin && origin !== "null") {
+    return `${origin}${LOCAL_PROXY_PATH}?${params}`;
+  }
+  return undefined;
+}
+
+function detailOf(error: unknown): string {
+  return error instanceof Error ? error.message : "the browser blocked the request";
+}
+
+/** Turn a normalised service rejection into an actionable plugin error. */
+async function describeProxyRejection(url: string, response: Response): Promise<string> {
+  let reason = "";
+  try {
+    const payload = await response.json();
+    if (payload && typeof payload.error === "string") reason = payload.error;
+  } catch {
+    // Non-JSON bodies carry no usable reason.
+  }
+  if (!reason) reason = `the import service rejected the request (HTTP ${response.status}).`;
+  return `Unable to load ${url}: ${reason.endsWith(".") ? reason : `${reason}.`}`;
+}
+
+/**
+ * Fetch a document directly first; when the browser reports a CORS or network
+ * failure, retry through the constrained fetch service. An answer from the
+ * origin itself (any HTTP status) is authoritative and never retried.
+ */
+async function fetchDocument(url: string, mode: AssetMode): Promise<Response> {
+  try {
+    const direct = await fetch(url, { credentials: "omit", redirect: "follow" });
+    if (direct.ok) return direct;
+    throw new UpstreamStatusError(`Unable to load ${url}: the server returned HTTP ${direct.status}.`);
+  } catch (error) {
+    if (error instanceof UpstreamStatusError) throw error;
+    return await fetchThroughProxy(url, mode, error);
+  }
+}
+
+async function fetchThroughProxy(url: string, mode: AssetMode, directError: unknown): Promise<Response> {
+  const proxyTarget = proxyUrlFor(url, mode);
+  if (!proxyTarget) {
+    throw new Error(
+      `Unable to load ${url}. Paste the page HTML instead; direct URL loading requires browser CORS (${detailOf(directError)}) and no fetch service is configured.`
+    );
+  }
+  let response: Response;
+  try {
+    response = await fetch(proxyTarget, { credentials: "omit" });
+  } catch (proxyError) {
+    throw new Error(
+      `Unable to load ${url}. Direct loading was blocked by CORS (${detailOf(directError)}); the import service also failed (${detailOf(proxyError)}). Paste the page HTML instead.`
+    );
+  }
+  if (!response.ok) throw new Error(await describeProxyRejection(url, response));
+  return response;
 }
 
 function isSvgUrl(value: string): boolean {
@@ -20,24 +100,6 @@ function isSvgUrl(value: string): boolean {
     return new URL(value).pathname.toLowerCase().endsWith(".svg");
   } catch {
     return false;
-  }
-}
-
-async function fetchAsset(url: string): Promise<Response | undefined> {
-  try {
-    const direct = await fetch(url, { credentials: "omit", redirect: "follow" });
-    if (direct.ok) return direct;
-  } catch {
-    // The page host may not grant CORS; try the same local proxy used for the
-    // source document when this is running from the development server.
-  }
-  const proxyUrl = localFetchProxyUrl(url);
-  if (!proxyUrl) return undefined;
-  try {
-    const proxied = await fetch(proxyUrl, { credentials: "omit", redirect: "follow" });
-    return proxied.ok ? proxied : undefined;
-  } catch {
-    return undefined;
   }
 }
 
@@ -52,8 +114,12 @@ async function inlineSvgImages(html: string, baseUrl: string | undefined): Promi
     let target: URL;
     try { target = new URL(source, baseUrl); } catch { return; }
     if (!isSvgUrl(target.href)) return;
-    const response = await fetchAsset(target.href);
-    if (!response) return;
+    let response: Response;
+    try {
+      response = await fetchDocument(target.href, "svg");
+    } catch {
+      return; // Assets are best-effort; the page still imports.
+    }
     const contentLength = Number(response.headers.get("content-length") || "0");
     if (contentLength > MAX_INLINE_SVG_BYTES) return;
     const svg = await response.text();
@@ -79,38 +145,15 @@ export function sourceUrl(value: string): string | undefined {
 
 /**
  * Resolve the editor value into HTML. Pasted markup is returned unchanged;
- * a complete HTTP(S) URL is fetched so the browser can render the page itself.
- * The direct request is attempted first. If the target does not grant browser
- * CORS, the local development server proxy is used instead.
+ * a complete HTTP(S) URL is fetched by the browser first, with the hardened
+ * fetch service taking over only when CORS or the network prevents it. The
+ * final upstream URL (after redirects) becomes the asset base URL.
  */
 export async function resolveSource(value: string, explicitBaseUrl?: string): Promise<ResolvedSource> {
   const url = sourceUrl(value);
   if (!url) return { html: await inlineSvgImages(value, explicitBaseUrl), baseUrl: explicitBaseUrl || undefined };
 
-  let response: Response | undefined;
-  let directError: unknown;
-  try {
-    response = await fetch(url, { credentials: "omit", redirect: "follow" });
-  } catch (error) {
-    directError = error;
-  }
-
-  if (!response) {
-    const proxyUrl = localFetchProxyUrl(url);
-    if (proxyUrl) {
-      try {
-        response = await fetch(proxyUrl, { credentials: "omit", redirect: "follow" });
-      } catch (proxyError) {
-        const directDetail = directError instanceof Error ? directError.message : "the browser blocked the request";
-        const proxyDetail = proxyError instanceof Error ? proxyError.message : "the local proxy could not be reached";
-        throw new Error(`Unable to load ${url}. Direct loading was blocked by CORS (${directDetail}); the local fetch proxy also failed (${proxyDetail}). Paste the page HTML instead.`);
-      }
-    } else {
-      const detail = directError instanceof Error ? directError.message : "the browser blocked the request";
-      throw new Error(`Unable to load ${url}. Paste the page HTML instead; direct URL loading requires browser CORS (${detail}).`);
-    }
-  }
-  if (!response.ok) throw new Error(`Unable to load ${url}: the server returned HTTP ${response.status}.`);
+  const response = await fetchDocument(url, "html");
   const html = await response.text();
   if (!html.trim()) throw new Error(`Unable to load ${url}: the response did not contain HTML.`);
   const baseUrl = explicitBaseUrl || response.headers.get("X-HTML-Source-URL") || url;

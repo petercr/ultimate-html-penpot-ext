@@ -2,7 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const FETCH_PROXY_PATH = "/__html_to_penpot/fetch";
-const MAX_HTML_BYTES = 10 * 1024 * 1024;
+// Matches the production service cap in api/fetch-html.ts.
+const MAX_HTML_BYTES = 3 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 15_000;
 
 function htmlFetchProxy() {
@@ -62,7 +63,7 @@ function htmlFetchProxy() {
           if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) {
             response.statusCode = 413;
             response.setHeader("Access-Control-Allow-Origin", "*");
-            response.end("The target page is larger than the 10 MB limit.");
+            response.end("The target page is larger than the 3 MB limit.");
             return;
           }
 
