@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import handler, { mapFailure } from "./fetch-html";
-import { FetchFailure } from "./_lib/outbound";
+import handler, { mapFailure } from "./fetch-html.js";
+import { FetchFailure } from "./_lib/outbound.js";
 
 interface StubResponse {
   statusCode: number;
@@ -11,7 +11,7 @@ interface StubResponse {
   setHeader(key: string, value: string): void;
 }
 
-function callHandler(url: string, init: { method?: string; forwardedFor?: string; realIp?: string; secFetchSite?: string } = {}): Promise<StubResponse> {
+function callHandler(url: string, init: { method?: string; forwardedFor?: string; realIp?: string; secFetchSite?: string; frontSecret?: string } = {}): Promise<StubResponse> {
   return new Promise((resolve, reject) => {
     const response: StubResponse = {
       statusCode: 0,
@@ -23,6 +23,7 @@ function callHandler(url: string, init: { method?: string; forwardedFor?: string
     };
     const headers: Record<string, string> = { "x-forwarded-for": init.forwardedFor || `${Math.random()}` };
     if (init.realIp) headers["x-real-ip"] = init.realIp;
+    if (init.frontSecret) headers["x-fetch-front-secret"] = init.frontSecret;
     // The plugin fetches same-origin from its iframe; browsers always attach
     // Sec-Fetch-Site. Passing "" simulates a client that omits it entirely.
     if (init.secFetchSite !== "") headers["sec-fetch-site"] = init.secFetchSite || "same-origin";
@@ -154,6 +155,21 @@ describe("fetch-html endpoint", () => {
       expect(JSON.parse(response.body).error).toContain("not reachable");
     } finally {
       delete process.env.FETCH_SERVICE_ALLOW_ANY_CLIENT;
+    }
+  });
+
+  it("requires the trusted front channel when configured", async () => {
+    process.env.FETCH_FRONT_SHARED_SECRET = "test-front-secret";
+    try {
+      const direct = await callHandler("/?url=http://127.0.0.1/", { secFetchSite: "same-origin" });
+      expect(direct.statusCode).toBe(403);
+      expect(JSON.parse(direct.body).error).toContain("only available to the plugin");
+
+      const proxied = await callHandler("/?url=http://127.0.0.1/", { frontSecret: "test-front-secret" });
+      expect(proxied.statusCode).toBe(403);
+      expect(JSON.parse(proxied.body).error).toContain("not reachable");
+    } finally {
+      delete process.env.FETCH_FRONT_SHARED_SECRET;
     }
   });
 

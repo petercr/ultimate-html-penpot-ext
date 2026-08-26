@@ -15,7 +15,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
-import { FetchFailure, fetchHardened } from "./_lib/outbound";
+import { FetchFailure, fetchHardened } from "./_lib/outbound.js";
 
 const MODES = {
   html: {
@@ -132,8 +132,10 @@ async function takeTargetSlotShared(targetUrl: string): Promise<boolean> {
  * cannot mint unlimited fresh rate-limit buckets.
  */
 function clientKey(request: IncomingMessage): string {
+  const trustedFront = hasTrustedFrontSecret(request);
+  let ip = trustedFront ? String(request.headers["x-fetch-client-ip"] || "").trim() : "";
   const realIp = String(request.headers["x-real-ip"] || "").trim();
-  let ip = realIp;
+  if (!ip) ip = realIp;
   if (!ip) {
     const forwarded = String(request.headers["x-forwarded-for"] || "");
     ip = forwarded.split(",").map((part) => part.trim()).filter(Boolean).pop() || "unknown";
@@ -181,10 +183,19 @@ function takeTargetSlot(targetUrl: string): boolean {
 
 /** True when the request plausibly originates from the plugin in a browser. */
 function isBrowserInitiated(request: IncomingMessage): boolean {
-  // Read at request time so operators can flip the switch without a rebuild.
+  // Once a front secret is configured, require the private Worker-to-Vercel
+  // channel. This prevents callers from bypassing the Worker via the public
+  // Vercel hostname while keeping the secret out of plugin code.
+  if (process.env.FETCH_FRONT_SHARED_SECRET?.trim()) return hasTrustedFrontSecret(request);
+  // Read at request time so operators can flip the manual-client switch.
   if (["1", "true"].includes(String(process.env.FETCH_SERVICE_ALLOW_ANY_CLIENT || "").toLowerCase())) return true;
   const site = String(request.headers["sec-fetch-site"] || "").toLowerCase();
   return site === "same-origin" || site === "none" || site === "same-site";
+}
+
+function hasTrustedFrontSecret(request: IncomingMessage): boolean {
+  const expected = process.env.FETCH_FRONT_SHARED_SECRET?.trim();
+  return !!expected && String(request.headers["x-fetch-front-secret"] || "") === expected;
 }
 
 function sendJson(response: ServerResponse, status: number, payload: Record<string, unknown>, extraHeaders: Record<string, string> = {}): void {
