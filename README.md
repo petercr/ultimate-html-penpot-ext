@@ -28,7 +28,7 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.
 
-Pasting HTML is the reliable workflow. Direct page URLs and remote images, fonts, stylesheets, or SVG assets can fail when their host does not permit browser access. When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. That proxy is intended for local development only: 15-second timeout, 10 MB response limit, no credentials. Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.
+Pasting HTML is the reliable workflow. Direct page URLs and remote images, fonts, stylesheets, or SVG assets can fail when their host does not permit browser access. When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. That proxy is intended for local development only: 15-second timeout, 3 MB response limit, no credentials. Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.
 
 ## URL import service (v0.2)
 
@@ -39,7 +39,7 @@ When a build sets `VITE_FETCH_PROXY_ORIGIN` to the deployment origin, CORS-block
 - Pins each connection to an address validated immediately before dialling, so DNS rebinding cannot redirect a request into internal networks mid-flight.
 - Follows at most three redirects, re-validating every hop (protocol, port, credentials, resolved addresses) before following it.
 - Sends a fixed header set only; it never forwards user cookies, authorization headers, client IP headers, or anything else from the caller.
-- Enforces one wall-clock budget of 15 seconds per chain and streams responses with a hard cap of 10 MB for pages (2 MB for SVG assets), counted after decompression and independent of declared `Content-Length`.
+- Enforces one wall-clock budget of 15 seconds per chain and streams responses with a hard cap of 3 MB for pages (2 MB for SVG assets), counted after decompression and independent of declared `Content-Length`.
 - Returns HTML/XHTML for pages and SVG for `mode=svg` requests only, plus the final validated upstream URL in `X-HTML-Source-URL` so relative assets resolve correctly.
 - Rate limits per client (~20 requests/minute with small bursts), caps concurrent outbound fetches per instance, applies an instance-wide request ceiling, and throttles repeated fetches of a single target origin so the service cannot be used to hammer third parties; replies `429`/`503` with clear messages when exceeded.
 - Only serves requests carrying browser `Sec-Fetch-Site` metadata (the plugin always fetches same-origin), which cheaply rejects scripted clients; set `FETCH_SERVICE_ALLOW_ANY_CLIENT=1` when operating the service manually.

@@ -19,7 +19,9 @@ import { FetchFailure, fetchHardened } from "./_lib/outbound";
 
 const MODES = {
   html: {
-    maxBytes: 10 * 1024 * 1024,
+    // Real-world page HTML sits far below this; the cap exists to bound
+    // worst-case abuse egress, not to fit the largest pages on the web.
+    maxBytes: 3 * 1024 * 1024,
     contentTypes: ["text/html", "application/xhtml+xml"],
     responseContentType: "text/html; charset=utf-8"
   },
