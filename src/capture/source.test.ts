@@ -57,7 +57,49 @@ describe("page source resolution", () => {
       baseUrl: "https://example.com/final",
       sourceUrl: "https://example.com/page"
     });
-    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining("/__html_to_penpot/fetch?url=https%3A%2F%2Fexample.com%2Fpage"), expect.objectContaining({ credentials: "omit" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining("/__html_to_penpot/fetch?mode=html&url=https%3A%2F%2Fexample.com%2Fpage"), expect.objectContaining({ credentials: "omit" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the build-time configured fetch service before the local dev proxy", async () => {
+    vi.stubEnv("VITE_FETCH_PROXY_ORIGIN", "https://svc.example.com/");
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response("<main>Served</main>", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resolveSource("https://example.com/page")).resolves.toEqual({
+      html: "<main>Served</main>",
+      baseUrl: "https://example.com/page",
+      sourceUrl: "https://example.com/page"
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://svc.example.com/api/fetch-html?mode=html&url=https%3A%2F%2Fexample.com%2Fpage",
+      { credentials: "omit" }
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("does not fall back to the service when the origin answers with an HTTP error", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("gone", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resolveSource("https://example.com/page")).rejects.toThrow(/HTTP 404/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("surfaces normalised service rejections", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "That address is not reachable through the import service." }), {
+        status: 403,
+        headers: { "content-type": "application/json" }
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resolveSource("https://10.0.0.5/")).rejects.toThrow(/not reachable through the import service/);
     vi.unstubAllGlobals();
   });
 });

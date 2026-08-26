@@ -1,6 +1,6 @@
 # Ultimate HTML to Penpot
 
-A browser-only Penpot plugin that turns pasted HTML into editable desktop, tablet, and mobile boards. It uses deterministic browser layout extraction; no LLM or production backend is involved in v0.1.0.
+A Penpot plugin that turns pasted HTML or web page URLs into editable desktop, tablet, and mobile boards. It uses deterministic browser layout extraction; pasted HTML never leaves the browser.
 
 ## Run locally
 
@@ -28,9 +28,26 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.
 
-Pasting HTML is the reliable v0.1.0 workflow. Direct page URLs and remote images, fonts, stylesheets, or SVG assets can fail when their host does not permit browser access. This release imports one initial rendered state; it does not recreate interactions, hover states, or linked pages.
+Pasting HTML is the reliable workflow. Direct page URLs and remote images, fonts, stylesheets, or SVG assets can fail when their host does not permit browser access. When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. That proxy is intended for local development only: 15-second timeout, 10 MB response limit, no credentials. Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.
 
-When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. The proxy is intended for local development, has a 15-second timeout and 10 MB response limit, and does not send credentials. A deployed plugin needs an equivalent HTTPS proxy (or the target must allow CORS). Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.
+## URL import service (v0.2)
+
+When a build sets `VITE_FETCH_PROXY_ORIGIN` to the deployment origin, CORS-blocked page imports are retried through a deliberately constrained fetch service (`api/fetch-html.ts`, deployed as a Vercel serverless function next to the plugin). The service:
+
+- Accepts only complete `http:`/`https:` URLs on ports 80/443 without embedded credentials.
+- Resolves every hostname itself and refuses loopback, private, link-local, carrier-grade NAT, multicast, documentation, benchmarking, reserved, and other non-public IPv4/IPv6 space — including tunnelled addresses inside `::ffff:` and NAT64 forms.
+- Pins each connection to an address validated immediately before dialling, so DNS rebinding cannot redirect a request into internal networks mid-flight.
+- Follows at most three redirects, re-validating every hop (protocol, port, credentials, resolved addresses) before following it.
+- Sends a fixed header set only; it never forwards user cookies, authorization headers, client IP headers, or anything else from the caller.
+- Enforces one wall-clock budget of 15 seconds per chain and streams responses with a hard cap of 10 MB for pages (2 MB for SVG assets), counted after decompression and independent of declared `Content-Length`.
+- Returns HTML/XHTML for pages and SVG for `mode=svg` requests only, plus the final validated upstream URL in `X-HTML-Source-URL` so relative assets resolve correctly.
+- Rate limits per client (~20 requests/minute with small bursts) and caps concurrent outbound fetches per instance, replying `429`/`503` with clear messages when exceeded.
+- Emits one structured metrics line per request — status, duration, byte count, rejection reason, hashed client bucket — and never logs full query strings, page contents, or raw client IPs. Nothing is cached or retained.
+- Can be disabled instantly by setting the environment variable `FETCH_SERVICE_DISABLED=1` and redeploying.
+
+Every request through the service is disclosed in the plugin UI error text ("the import service"), and the plugin always attempts a credential-free direct browser fetch first, using the service only when the direct request is blocked by CORS or network failure.
+
+Hosting costs scale with usage; the rate limits above cap worst-case bandwidth per instance. Review Vercel function quotas before enabling the service publicly.
 
 ## Production deployment
 
@@ -41,26 +58,28 @@ The v0.1.0 release is designed for static hosting on Vercel. Netlify, Cloudflare
 1. Import this repository into Vercel (Other framework preset).
 2. Use `npm ci && npm run build` as the build command.
 3. Set the output directory to `dist`.
-4. Keep the generated production hostname stable; the install URL is `https://<hostname>/manifest.json`.
-5. Install that manifest URL in a fresh Penpot account before submitting it to Penpot Hub.
+4. To enable the URL import service, set `VITE_FETCH_PROXY_ORIGIN` to the deployment's public origin (for example `https://your-app.vercel.app`) so plugin builds target it, and keep `FETCH_SERVICE_DISABLED` unset.
+5. Keep the generated production hostname stable; the install URL is `https://<hostname>/manifest.json`.
+6. Install that manifest URL in a fresh Penpot account before submitting it to Penpot Hub.
 
-The committed `vercel.json` sends `Access-Control-Allow-Origin: *` for every path so Penpot can load the manifest and bundle cross-origin, applies short caching to `manifest.json` and `plugin.js`, and caches hashed UI assets immutably.
+The committed `vercel.json` sends CORS and security headers for every static path while excluding `/api`, where the fetch service manages its own headers. Static caching applies to `manifest.json`, `plugin.js`, and hashed UI assets.
 
 ### Cloudflare Pages or Netlify
 
-Use the same build command (`npm ci && npm run build`) and publish the `dist` directory. The committed `public/_headers` file carries the identical CORS and cache policy for those hosts.
+Use the same build command (`npm ci && npm run build`) and publish the `dist` directory. The committed `public/_headers` file carries the identical CORS and cache policy for those hosts. The URL import service requires a runtime host (Vercel functions today); without one, builds simply omit it and URL imports rely on browser CORS alone.
 
-Pull requests and pushes to `main` run tests and the production build in GitHub Actions, including a bundle check that validates the manifest paths, permissions, icon, CORS headers, and the Vercel configuration.
+Pull requests and pushes to `main` run tests, the API typecheck (`npm run check:api`), and the production build in GitHub Actions, including a bundle check that validates the manifest paths, permissions, icon, CORS headers, and the Vercel configuration.
 
 ## Privacy and security
 
 - Pasted HTML is parsed and rendered inside the plugin's browser sandbox. It is not uploaded to a service operated by this project.
 - Remote assets are requested directly from the asset's original host without credentials. Those hosts receive ordinary network request metadata such as the user's IP address.
-- Direct page URL imports also use credential-free browser requests. In local development only, a local proxy can fetch a page when browser CORS prevents the direct request.
+- Direct page URL imports also use credential-free browser requests. When they are blocked by CORS **and** the hosted fetch service is configured, the requested page URL is sent to this project's service so it can fetch the page server-side: the service receives the URL, fetches only its HTML/SVG within the limits described above, and returns the bytes to the plugin. It does not receive user identity beyond IP-derived rate limiting (stored only as a hash), does not retain content, and never forwards credentials. Pasted HTML is never sent through the service.
+- Remote SVG inlining uses the same constrained service path (`mode=svg`) when direct fetching fails.
 - Running scripts is off by default and should be enabled only for trusted source HTML.
 - The plugin requests Penpot's `content:write` permission so it can create editable boards and layers.
 
-Do not paste confidential HTML or enable scripts from an untrusted source. A hardened production URL-fetch service is intentionally deferred beyond v0.1.0.
+Threat model summary for the service: it is an abuse-resistant partial web proxy for public pages only. SSRF defenses (address classification, pinned connections, redirect revalidation) protect internal networks; size/time/rate caps limit resource abuse; fixed outbound headers and no-forward rules prevent credential propagation; structured logs contain no page content or raw client IPs and are subject to the hosting platform's log retention. Do not paste confidential HTML or enable scripts from an untrusted source.
 
 ## Support
 
