@@ -11,7 +11,7 @@ interface StubResponse {
   setHeader(key: string, value: string): void;
 }
 
-function callHandler(url: string, init: { method?: string; forwardedFor?: string } = {}): Promise<StubResponse> {
+function callHandler(url: string, init: { method?: string; forwardedFor?: string; realIp?: string; secFetchSite?: string } = {}): Promise<StubResponse> {
   return new Promise((resolve, reject) => {
     const response: StubResponse = {
       statusCode: 0,
@@ -21,11 +21,16 @@ function callHandler(url: string, init: { method?: string; forwardedFor?: string
         this.headers[key.toLowerCase()] = value;
       }
     };
+    const headers: Record<string, string> = { "x-forwarded-for": init.forwardedFor || `${Math.random()}` };
+    if (init.realIp) headers["x-real-ip"] = init.realIp;
+    // The plugin fetches same-origin from its iframe; browsers always attach
+    // Sec-Fetch-Site. Passing "" simulates a client that omits it entirely.
+    if (init.secFetchSite !== "") headers["sec-fetch-site"] = init.secFetchSite || "same-origin";
     handler(
       {
         method: init.method || "GET",
         url,
-        headers: { "x-forwarded-for": init.forwardedFor || `${Math.random()}` }
+        headers
       } as never,
       {
         set statusCode(value: number) {
@@ -133,6 +138,39 @@ describe("fetch-html endpoint", () => {
     } finally {
       delete process.env.FETCH_SERVICE_DISABLED;
     }
+  });
+
+  it("rejects scripted clients that do not present browser fetch metadata", async () => {
+    const response = await callHandler("/?url=http://127.0.0.1/", { secFetchSite: "" });
+    expect(response.statusCode).toBe(403);
+    expect(JSON.parse(response.body).error).toContain("only available to the plugin");
+  });
+
+  it("allows non-browser clients when explicitly enabled", async () => {
+    process.env.FETCH_SERVICE_ALLOW_ANY_CLIENT = "1";
+    try {
+      const response = await callHandler("/?url=http://127.0.0.1/", { secFetchSite: "" });
+      expect(JSON.parse(response.body).error).not.toContain("only available to the plugin");
+      expect(JSON.parse(response.body).error).toContain("not reachable");
+    } finally {
+      delete process.env.FETCH_SERVICE_ALLOW_ANY_CLIENT;
+    }
+  });
+
+  it("ignores spoofed forwarding hops when deriving the rate-limit identity", async () => {
+    // Same platform-set x-real-ip, rotating fake XFF values: must still share
+    // one bucket and exhaust it.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await callHandler("/?url=http://127.0.0.1/", {
+        realIp: "203.0.113.50",
+        forwardedFor: `10.${attempt}.0.1, 203.0.113.50`
+      });
+    }
+    const exhausted = await callHandler("/?url=http://127.0.0.1/", {
+      realIp: "203.0.113.50",
+      forwardedFor: `10.99.99.99, 203.0.113.50`
+    });
+    expect(exhausted.statusCode).toBe(429);
   });
 
   it("returns rate-limit responses with retry guidance", async () => {

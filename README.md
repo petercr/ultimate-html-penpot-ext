@@ -41,8 +41,10 @@ When a build sets `VITE_FETCH_PROXY_ORIGIN` to the deployment origin, CORS-block
 - Sends a fixed header set only; it never forwards user cookies, authorization headers, client IP headers, or anything else from the caller.
 - Enforces one wall-clock budget of 15 seconds per chain and streams responses with a hard cap of 10 MB for pages (2 MB for SVG assets), counted after decompression and independent of declared `Content-Length`.
 - Returns HTML/XHTML for pages and SVG for `mode=svg` requests only, plus the final validated upstream URL in `X-HTML-Source-URL` so relative assets resolve correctly.
-- Rate limits per client (~20 requests/minute with small bursts) and caps concurrent outbound fetches per instance, replying `429`/`503` with clear messages when exceeded.
+- Rate limits per client (~20 requests/minute with small bursts), caps concurrent outbound fetches per instance, applies an instance-wide request ceiling, and throttles repeated fetches of a single target origin so the service cannot be used to hammer third parties; replies `429`/`503` with clear messages when exceeded.
+- Only serves requests carrying browser `Sec-Fetch-Site` metadata (the plugin always fetches same-origin), which cheaply rejects scripted clients; set `FETCH_SERVICE_ALLOW_ANY_CLIENT=1` when operating the service manually.
 - Emits one structured metrics line per request — status, duration, byte count, rejection reason, hashed client bucket — and never logs full query strings, page contents, or raw client IPs. Nothing is cached or retained.
+- Runs bounded at 512 MB memory / 20 s maximum duration via `vercel.json`, capping worst-case cost per invocation.
 - Can be disabled instantly by setting the environment variable `FETCH_SERVICE_DISABLED=1` and redeploying.
 
 Every request through the service is disclosed in the plugin UI error text ("the import service"), and the plugin always attempts a credential-free direct browser fetch first, using the service only when the direct request is blocked by CORS or network failure.

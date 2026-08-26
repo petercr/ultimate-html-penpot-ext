@@ -39,22 +39,42 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const RATE_LIMIT_BURST = 5;
 const MAX_CONCURRENT_FETCHES = 8;
+/** Instance-wide ceiling regardless of how many clients appear. */
+const INSTANCE_MAX_REQUESTS_PER_WINDOW = 120;
+/** Protects third parties: one target origin cannot be hammered via us. */
+const TARGET_MAX_REQUESTS_PER_WINDOW = 30;
 
 interface BucketState {
   tokens: number;
   updatedAt: number;
 }
 
+interface WindowCounter {
+  count: number;
+  windowStartedAt: number;
+}
+
 let activeFetches = 0;
 
 /** Buckets live for the lifetime of this instance only; nothing persists. */
 const buckets = new Map<string, BucketState>();
+let instanceWindow: WindowCounter = { count: 0, windowStartedAt: Date.now() };
+const targetWindows = new Map<string, WindowCounter>();
 
+/**
+ * Derive a stable client key from platform-authoritative data only.
+ * x-real-ip is set by Vercel from the actual connection and cannot be chosen
+ * by the caller; x-forwarded-for is appended to (not trusted from) the client,
+ * so its rightmost entry is the strongest fallback. Spoofed values therefore
+ * cannot mint unlimited fresh rate-limit buckets.
+ */
 function clientKey(request: IncomingMessage): string {
-  // Vercel populates x-forwarded-for with the immediate client; the leftmost
-  // value is spoofable, so fall back to a shared bucket when absent.
-  const forwarded = String(request.headers["x-forwarded-for"] || "");
-  const ip = forwarded.split(",")[0]?.trim() || "unknown";
+  const realIp = String(request.headers["x-real-ip"] || "").trim();
+  let ip = realIp;
+  if (!ip) {
+    const forwarded = String(request.headers["x-forwarded-for"] || "");
+    ip = forwarded.split(",").map((part) => part.trim()).filter(Boolean).pop() || "unknown";
+  }
   // Hash so operational logs never retain raw client addresses.
   return createHash("sha256").update(ip).digest("hex").slice(0, 16);
 }
@@ -71,6 +91,37 @@ function takeToken(key: string): boolean {
   if (state.tokens < 1) return false;
   state.tokens -= 1;
   return true;
+}
+
+function takeInstanceSlot(): boolean {
+  const now = Date.now();
+  if (now - instanceWindow.windowStartedAt >= RATE_LIMIT_WINDOW_MS) {
+    instanceWindow = { count: 0, windowStartedAt: now };
+  }
+  instanceWindow.count += 1;
+  return instanceWindow.count <= INSTANCE_MAX_REQUESTS_PER_WINDOW;
+}
+
+function takeTargetSlot(targetUrl: string): boolean {
+  const origin = describeUrl(targetUrl);
+  if (!origin) return false;
+  const now = Date.now();
+  const state = targetWindows.get(origin);
+  if (!state || now - state.windowStartedAt >= RATE_LIMIT_WINDOW_MS) {
+    if (targetWindows.size > 500) targetWindows.clear();
+    targetWindows.set(origin, { count: 1, windowStartedAt: now });
+    return true;
+  }
+  state.count += 1;
+  return state.count <= TARGET_MAX_REQUESTS_PER_WINDOW;
+}
+
+/** True when the request plausibly originates from the plugin in a browser. */
+function isBrowserInitiated(request: IncomingMessage): boolean {
+  // Read at request time so operators can flip the switch without a rebuild.
+  if (["1", "true"].includes(String(process.env.FETCH_SERVICE_ALLOW_ANY_CLIENT || "").toLowerCase())) return true;
+  const site = String(request.headers["sec-fetch-site"] || "").toLowerCase();
+  return site === "same-origin" || site === "none" || site === "same-site";
 }
 
 function sendJson(response: ServerResponse, status: number, payload: Record<string, unknown>, extraHeaders: Record<string, string> = {}): void {
@@ -125,6 +176,18 @@ export default async function handler(request: IncomingMessage, response: Server
     return;
   }
 
+  if (!isBrowserInitiated(request)) {
+    sendJson(response, 403, { error: "The import service is only available to the plugin." }, corsHeaders);
+    finishMetric({ outcome: "non-browser", status: 403 });
+    return;
+  }
+
+  if (!takeInstanceSlot()) {
+    sendJson(response, 503, { error: "The service is busy. Try again shortly." }, { "Retry-After": "10", ...corsHeaders });
+    finishMetric({ outcome: "instance-saturated", status: 503 });
+    return;
+  }
+
   const key = clientKey(request);
   if (!takeToken(key)) {
     sendJson(
@@ -144,6 +207,17 @@ export default async function handler(request: IncomingMessage, response: Server
   if (!rawTarget) {
     sendJson(response, 400, { error: "The url query parameter is required." }, corsHeaders);
     finishMetric({ outcome: "rejected", status: 400, reason: "missing-url" });
+    return;
+  }
+
+  if (!takeTargetSlot(rawTarget)) {
+    sendJson(
+      response,
+      429,
+      { error: "That target site is receiving too many requests right now. Try again in a minute." },
+      { "Retry-After": "60", ...corsHeaders }
+    );
+    finishMetric({ outcome: "target-limited", status: 429, origin: describeUrl(rawTarget), client: key });
     return;
   }
 
