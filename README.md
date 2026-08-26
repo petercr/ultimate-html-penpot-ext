@@ -46,7 +46,14 @@ When a build sets `VITE_FETCH_PROXY_ORIGIN` to the deployment origin, CORS-block
 - Emits one structured metrics line per request — status, duration, byte count, rejection reason, hashed client bucket — and never logs full query strings, page contents, or raw client IPs. Nothing is cached or retained.
 - Runs bounded at 512 MB memory / 20 s maximum duration via `vercel.json`, capping worst-case cost per invocation.
 - Can be disabled instantly by setting the environment variable `FETCH_SERVICE_DISABLED=1` and redeploying.
-- Hobby workaround for edge rate limiting without Vercel Pro WAF: front the Vercel deployment with Cloudflare (free) and add a Cloudflare Rate Limiting rule on `/api/fetch-html` (≈30 req/min per IP). This blocks floods at Cloudflare's edge before they hit Vercel; the in-function limits remain the second layer.
+
+### Hobby front proxy
+
+Vercel Hobby does not provide edge rate-limiting rules. This repository includes a small Cloudflare Worker at `cloudflare/front-proxy.ts` that can run on the free `workers.dev` hostname instead. It only accepts the fetch endpoint, applies a Cloudflare Worker Rate Limiting binding (30 requests/minute per IP per Cloudflare location), forwards to the fixed Vercel origin, and strips all inbound headers except the browser signal needed for admission. Cloudflare Workers Free currently allows 100,000 Worker requests/day; the Vercel function's global Upstash limit remains the second layer.
+
+Deploy it with `npm run deploy:worker` after setting the Worker secret `FETCH_FRONT_SHARED_SECRET`. Set the same secret as a sensitive Vercel Production and Preview variable. Then set `VITE_FETCH_PROXY_ORIGIN` to the resulting `https://<worker>.<account-subdomain>.workers.dev` URL and redeploy the plugin. The secret is never included in browser code. When the secret is configured, direct requests to the Vercel function are rejected; only the Worker can reach it.
+
+The Worker URL is intentionally used instead of a customer-owned custom domain. A Route 53 record by itself would not provide Cloudflare proxying, and `capecod.world` remains on Vercel DNS for its existing project.
 
 Every request through the service is disclosed in the plugin UI error text ("the import service"), and the plugin always attempts a credential-free direct browser fetch first, using the service only when the direct request is blocked by CORS or network failure.
 
@@ -61,11 +68,11 @@ The v0.1.0 release is designed for static hosting on Vercel. Netlify, Cloudflare
 1. Import this repository into Vercel (Other framework preset).
 2. Use `npm ci && npm run build` as the build command.
 3. Set the output directory to `dist`.
-4. To enable the URL import service, set `VITE_FETCH_PROXY_ORIGIN` to the deployment's public origin (for example `https://your-app.vercel.app`) so plugin builds target it, and keep `FETCH_SERVICE_DISABLED` unset.
+4. To enable the URL import service, set `VITE_FETCH_PROXY_ORIGIN` to the deployed Worker URL so plugin builds use the rate-limited front proxy, and keep `FETCH_SERVICE_DISABLED` unset.
 5. Keep the generated production hostname stable; the install URL is `https://<hostname>/manifest.json`.
 6. Install that manifest URL in a fresh Penpot account before submitting it to Penpot Hub.
 
-The committed `vercel.json` sends CORS and security headers for every static path while excluding `/api`, where the fetch service manages its own headers, and adds an edge `challenge` for `/api/fetch-html` when `Sec-Fetch-Site` is missing (Hobby-compatible; blocks naive scripts before function cost). Optionally set `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` (Upstash free tier) for global rate limiting across instances. Without Vercel Pro WAF, the cheapest edge rate limiting is to front this deployment with Cloudflare (free) and rate-limit `/api/fetch-html` there. Static caching applies to `manifest.json`, `plugin.js`, and hashed UI assets.
+The committed `vercel.json` sends CORS and security headers for every static path while excluding `/api`, where the fetch service manages its own headers, and adds an edge `challenge` for `/api/fetch-html` when `Sec-Fetch-Site` is missing (Hobby-compatible; blocks naive scripts before function cost). Optionally set `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` (Upstash free tier) for global rate limiting across instances. The included Cloudflare Worker provides the free edge rate limit without requiring Vercel Pro WAF. Static caching applies to `manifest.json`, `plugin.js`, and hashed UI assets.
 
 ### Cloudflare Pages or Netlify
 
