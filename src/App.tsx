@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { capturePage } from "./capture/sandbox";
 import { isSafeBaseUrl } from "./capture/prepareDocument";
 import { resolveSource } from "./capture/source";
+import { isStandaloneHost } from "./host";
 import { DEFAULT_VIEWPORTS, PROTOCOL_VERSION, type CaptureRequest, type PluginToUiMessage, type SceneDocument, type ScriptPolicy, type ViewportSpec } from "./shared/contracts";
 import { sceneWarnings } from "./shared/validation";
 
@@ -15,7 +16,12 @@ function viewportLabel(viewport: ViewportSpec) {
   return `${viewport.name} · ${viewport.width}×${viewport.height}`;
 }
 
-export default function App() {
+interface AppProps {
+  /** Test hook: when omitted, standalone is detected from the host frame. */
+  readonly standaloneHost?: boolean;
+}
+
+export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   const [source, setSource] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [viewports, setViewports] = useState<ViewportSpec[]>(DEFAULT_VIEWPORTS);
@@ -82,7 +88,7 @@ export default function App() {
   };
 
   const importScenes = () => {
-    if (!scenes.length) return;
+    if (!scenes.length || standaloneHost) return;
     if ((warnings.needsLayerConfirmation || warnings.tallViewports.length) && !window.confirm(`This import contains ${warnings.layers.toLocaleString()} layers${warnings.tallViewports.length ? ` and tall boards (${warnings.tallViewports.join(", ")})` : ""}. It may be slow. Import anyway?`)) return;
     setPhase("importing");
     setError(undefined);
@@ -108,6 +114,8 @@ export default function App() {
       </div>
       <span className={`status status-${phase}`}>{phase === "ready" ? "Ready" : phase === "importing" ? "Importing" : phase === "capturing" ? "Analyzing" : phase === "complete" ? "Done" : "Draft"}</span>
     </header>
+
+    {standaloneHost && <p className="notice" role="note">You are viewing the plugin outside Penpot. Analyzing pages works here, but boards can only be imported from inside Penpot — open this plugin from Penpot’s plugin manager to import.</p>}
 
     <section className="source-section" aria-label="Page source">
       <label htmlFor="html-source">HTML or page URL <span>paste complete HTML or enter a full HTTP(S) URL</span></label>
@@ -152,7 +160,7 @@ export default function App() {
     {(phase === "capturing" || phase === "importing" || phase === "complete" || phase === "ready") && <p className="progress" aria-live="polite">{progress}</p>}
     <footer>
       {phase === "importing" ? <button className="secondary" onClick={cancel}>Cancel import</button> : <button className="secondary" onClick={analyze} disabled={phase === "capturing"}>Analyze page</button>}
-      <button className="primary" onClick={importScenes} disabled={phase !== "ready"}>Import to Penpot</button>
+      <button className="primary" onClick={importScenes} disabled={phase !== "ready" || standaloneHost} title={standaloneHost ? "Importing requires Penpot — open this plugin inside Penpot" : undefined}>Import to Penpot</button>
     </footer>
   </main>;
 }
