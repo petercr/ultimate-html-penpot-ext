@@ -25,6 +25,19 @@ if (!headers.includes("max-age=31536000, immutable") || !headerLines.includes("/
   throw new Error("Immutable asset caching is missing from _headers.");
 }
 
+// RFC 9116: the published abuse contact must exist and not silently expire.
+const securityTxt = await readFile(resolve(dist, ".well-known", "security.txt"), "utf8");
+if (!securityTxt.includes("Contact: https://github.com/petercr/ultimate-html-penpot-ext/issues")) {
+  throw new Error("security.txt must publish the repository contact.");
+}
+const expiresMatch = securityTxt.match(/^Expires:\s*(\S+)\s*$/m);
+if (!expiresMatch || Number.isNaN(Date.parse(expiresMatch[1]))) {
+  throw new Error("security.txt must carry a parseable Expires field (RFC 9116).");
+}
+if (Date.parse(expiresMatch[1]) < Date.now() + 30 * 24 * 60 * 60 * 1000) {
+  throw new Error("security.txt Expires is within 30 days — renew the date (RFC 9116 requires < 1 year).");
+}
+
 const vercelConfig = JSON.parse(await readFile(resolve("vercel.json"), "utf8"));
 const vercelHeaders = vercelConfig.headers;
 if (!Array.isArray(vercelHeaders) || vercelHeaders.length === 0) throw new Error("vercel.json must define a headers array.");
@@ -52,4 +65,4 @@ if (vercelConfig.functions?.["api/fetch-html.ts"]?.memory !== 512 || vercelConfi
 }
 
 await access(resolve(dist, "index.html"));
-console.log(`Validated dist: manifest, ${manifest.code}, ${manifest.icon}, index.html, CORS headers, Vercel firewall, and resource bounds.`);
+console.log(`Validated dist: manifest, ${manifest.code}, ${manifest.icon}, index.html, CORS headers, security.txt, Vercel firewall, and resource bounds.`);

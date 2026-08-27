@@ -56,6 +56,17 @@ Deploy it with `npm run deploy:worker` after setting the Worker secret `FETCH_FR
 
 The Worker URL is intentionally used instead of a customer-owned custom domain. A Route 53 record by itself would not provide Cloudflare proxying, and `capecod.world` remains on Vercel DNS for its existing project.
 
+### Egress identity
+
+Third parties can identify and contact this service from access logs alone:
+
+- **User-Agent** — every outbound fetch sends the fixed string `ultimate-html-to-penpot/0.2 (+https://github.com/petercr/ultimate-html-penpot-ext)`, which resolves to this repository.
+- **security.txt** — published at `/.well-known/security.txt` (RFC 9116) with the abuse/report contact (GitHub Issues) and an `Expires` date that CI enforces is renewed at least 30 days ahead.
+
+**Static egress IPs: deferred (documented decision).** Vercel's Static IPs are a paid plan add-on, unavailable on our Hobby deployment, and current volume does not justify a dedicated proxy VM. Trade-offs accepted for now: fetches originate from ephemeral Vercel egress; Vercel publishes its egress IP ranges publicly, so site owners can allow- or block-list them wholesale; the fixed User-Agent and `security.txt` provide identification and contact regardless. Revisit before listing on Penpot Hub or if blocks or abuse complaints appear.
+
+**robots.txt policy: not honored.** The service fetches single pages at the explicit direction of a Penpot user — user-agent semantics, like a browser — rather than crawling: it never follows links, fetches at most one page per user action, and throttles per target origin (30/minute globally via Upstash). `robots.txt` governs autonomous crawlers, not user-initiated fetches. Site owners who prefer to exclude this service can block the fixed User-Agent above at their firewall, or rate-limit it, and can reach us through `security.txt`.
+
 Every request through the service is disclosed in the plugin UI error text ("the import service"), and the plugin always attempts a credential-free direct browser fetch first, using the service only when the direct request is blocked by CORS or network failure.
 
 Hosting costs scale with usage; the rate limits above cap worst-case bandwidth per instance. Review Vercel function quotas before enabling the service publicly.
