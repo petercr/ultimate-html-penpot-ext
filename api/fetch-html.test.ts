@@ -199,3 +199,76 @@ describe("fetch-html endpoint", () => {
     expect(exhausted.headers["retry-after"]).toBe("60");
   });
 });
+
+describe("shared Upstash limits", () => {
+  const upstashEnv = { UPSTASH_REDIS_REST_URL: "https://example.upstash.io", UPSTASH_REDIS_REST_TOKEN: "test-token" };
+
+  function pipelineMock(results: number[][]) {
+    const bodies: string[] = [];
+    const mock = vi.fn(async (_url: string | URL, init?: { body?: string }) => {
+      const body = init?.body || "";
+      bodies.push(body);
+      const commands = JSON.parse(body).length as number;
+      const response = results.shift() || Array.from({ length: commands }, () => 1);
+      return new Response(JSON.stringify(response.map((result) => ({ result }))), { status: 200 });
+    });
+    return { mock, bodies };
+  }
+
+  it("denies a client via the shared store before any outbound work", async () => {
+    const { mock, bodies } = pipelineMock([[1, 1], [26, 1]]); // instance slot ok, client slot exhausted
+    vi.stubGlobal("fetch", mock);
+    Object.assign(process.env, upstashEnv);
+    try {
+      const denied = await callHandler("/?url=https://example.com/", { realIp: "203.0.113.88" });
+      expect(denied.statusCode).toBe(429);
+      expect(denied.headers["retry-after"]).toBe("60");
+      expect(mock).toHaveBeenCalledTimes(2); // instance + client slots; no target slot, no outbound fetch
+      expect(bodies[0]).toContain("fetch-html:global:instance:");
+      expect(bodies[1]).toContain("fetch-html:client:");
+      expect(bodies[1]).not.toContain("203.0.113.88"); // identity is hashed, never raw
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    }
+  });
+
+  it("consults the shared per-origin counter and enforces it", async () => {
+    const { mock, bodies } = pipelineMock([[1, 1], [1, 1], [31, 1]]); // instance, client, target exhausted
+    vi.stubGlobal("fetch", mock);
+    Object.assign(process.env, upstashEnv);
+    try {
+      const denied = await callHandler("/?url=https://example.com/", { realIp: "203.0.113.89" });
+      expect(denied.statusCode).toBe(429);
+      expect(denied.headers["retry-after"]).toBe("60");
+      expect(bodies[2]).toContain("fetch-html:target:");
+      expect(bodies[2]).not.toContain("https://example.com"); // only the origin hash is stored
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    }
+  });
+
+  it("degrades to in-memory limits and logs a metric when the store is unreachable", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("store down"); }));
+    Object.assign(process.env, upstashEnv);
+    try {
+      const response = await callHandler("/?url=http://127.0.0.1/", { realIp: "203.0.113.90" });
+      expect(response.statusCode).toBe(403); // request still evaluated via in-memory slots
+      expect(JSON.parse(response.body).error).toContain("not reachable");
+      const degraded = logSpy.mock.calls.map((call) => String(call[0])).filter((line) => line.includes('"outcome":"store-degraded"'));
+      expect(degraded.length).toBeGreaterThan(0);
+      expect(degraded[0]).toContain('"store":"upstash"');
+      expect(degraded[0]).toContain('"reason":"network_error"');
+      expect(degraded[0]).not.toContain("203.0.113.90");
+    } finally {
+      vi.unstubAllGlobals();
+      logSpy.mockRestore();
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    }
+  });
+});

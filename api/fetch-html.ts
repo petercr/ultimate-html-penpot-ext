@@ -76,6 +76,11 @@ function upstashConfig(): { url: string; token: string } | null {
   return { url: url.replace(/\/+$/, ""), token };
 }
 
+/** Observability for degraded limits, without keys or raw addresses. */
+function logStoreDegraded(reason: string): void {
+  logMetric({ outcome: "store-degraded", store: "upstash", reason });
+}
+
 async function takeUpstashSlot(key: string, limit: number, windowMs: number): Promise<boolean | null> {
   const cfg = upstashConfig();
   if (!cfg) return null;
@@ -90,13 +95,21 @@ async function takeUpstashSlot(key: string, limit: number, windowMs: number): Pr
       ]),
       signal: AbortSignal.timeout(300)
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      logStoreDegraded(`http_${response.status}`);
+      return null;
+    }
     const data = (await response.json()) as Array<{ result?: number }>;
     const count = data?.[0]?.result;
-    if (typeof count !== "number") return null;
+    if (typeof count !== "number") {
+      logStoreDegraded("invalid_response");
+      return null;
+    }
     return count <= limit;
   } catch {
-    return null; // Fail open to in-memory on Upstash errors/timeouts.
+    // Fail open to in-memory on Upstash errors/timeouts.
+    logStoreDegraded("network_error");
+    return null;
   }
 }
 
