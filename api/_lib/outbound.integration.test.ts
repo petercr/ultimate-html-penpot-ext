@@ -2,7 +2,7 @@
 // Exercises the real outbound chain against example.org when the network is
 // available; skipped automatically in hermetic environments.
 import { describe, expect, it } from "vitest";
-import { fetchHardened, FetchFailure } from "./outbound";
+import { fetchHardened, FetchFailure } from "./outbound.js";
 
 const online = await fetch("https://example.org", { signal: AbortSignal.timeout(5_000) })
   .then((response) => response.ok)

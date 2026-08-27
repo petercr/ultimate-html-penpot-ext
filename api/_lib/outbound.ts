@@ -27,7 +27,7 @@ import {
   parseTargetUrl,
   TargetRejectedError,
   type TargetUrl
-} from "../../src/shared/urlGuard";
+} from "../../src/shared/urlGuard.js";
 
 const OUTBOUND_HEADERS = {
   accept: "text/html,application/xhtml+xml;q=0.9,image/svg+xml;q=0.8",
