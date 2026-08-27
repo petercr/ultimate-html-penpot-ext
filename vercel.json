@@ -6,6 +6,13 @@
       "maxDuration": 20
     }
   },
+  "routes": [
+    {
+      "src": "/api/fetch-html",
+      "missing": [{ "type": "header", "key": "sec-fetch-site" }],
+      "mitigate": { "action": "challenge" }
+    }
+  ],
   "headers": [
     {
       "source": "/((?!api/).*)",
