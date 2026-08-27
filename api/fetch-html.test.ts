@@ -173,6 +173,25 @@ describe("fetch-html endpoint", () => {
     }
   });
 
+  it("maps reputation rejections to 451", () => {
+    const mapped = mapFailure(new FetchFailure("policy", "x", { rejectionReason: "threat" }));
+    expect(mapped.status).toBe(451);
+    expect(mapped.message).toContain("blocklist");
+  });
+
+  it("refuses targets listed by the screening service", async () => {
+    process.env.SAFE_BROWSING_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ matches: [{ threatType: "MALWARE" }] }), { status: 200 })));
+    try {
+      const response = await callHandler("/?url=https://example.com/");
+      expect(response.statusCode).toBe(451);
+      expect(JSON.parse(response.body).error).toContain("blocklist");
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.SAFE_BROWSING_API_KEY;
+    }
+  });
+
   it("ignores spoofed forwarding hops when deriving the rate-limit identity", async () => {
     // Same platform-set x-real-ip, rotating fake XFF values: must still share
     // one bucket and exhaust it.

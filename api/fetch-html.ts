@@ -387,6 +387,9 @@ export const POLICY_MESSAGES: Record<string, string> = {
 
 export function mapFailure(error: FetchFailure): { status: number; message: string; retryAfter?: string } {
   if (error.kind === "policy") {
+    if (error.rejectionReason === "threat") {
+      return { status: 451, message: "That address is on a blocklist and cannot be imported." };
+    }
     const hostLevel = ["blocked-hostname", "blocked-ip", "zone-id"].includes(error.rejectionReason || "");
     if (hostLevel) {
       return { status: 403, message: "That address is not reachable through the import service." };

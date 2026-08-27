@@ -62,6 +62,91 @@ export class FetchFailure extends Error {
   }
 }
 
+const SCREENING_ENDPOINT = "https://safebrowsing.googleapis.com/v4/threatMatches:find";
+const SCREENING_THREAT_TYPES = ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"] as const;
+const SCREENING_LOOKUP_TIMEOUT_MS = 2_000;
+const SCREENING_CLEAN_TTL_MS = 2 * 60 * 60 * 1000;
+const SCREENING_THREAT_TTL_MS = 30 * 60 * 1000;
+const SCREENING_CACHE_LIMIT = 5_000;
+
+interface ScreeningVerdict {
+  threat: boolean;
+  expiresAt: number;
+}
+
+const screeningCache = new Map<string, ScreeningVerdict>();
+
+/** Test hook: verdict caches are process-wide and must reset between tests. */
+export function clearScreeningCache(): void {
+  screeningCache.clear();
+}
+
+function screeningDisabled(): boolean {
+  return ["1", "true"].includes(String(process.env.FETCH_SCREENING_DISABLED || "").toLowerCase());
+}
+
+function logScreeningDegraded(reason: string): void {
+  console.log(JSON.stringify({ event: "fetch_html", at: new Date().toISOString(), outcome: "screening-degraded", reason }));
+}
+
+function threatFailure(): FetchFailure {
+  return new FetchFailure("policy", "the target is on a web-threat blocklist", { rejectionReason: "threat" });
+}
+
+/** One Lookup API call; true when any threat list matches the URL. */
+async function lookupThreat(url: string, apiKey: string): Promise<boolean> {
+  const response = await fetch(`${SCREENING_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client: { clientId: "ultimate-html-to-penpot", clientVersion: "0.2" },
+      threatInfo: {
+        threatTypes: SCREENING_THREAT_TYPES,
+        platformTypes: ["ANY_PLATFORM"],
+        threatEntryTypes: ["URL"],
+        threatEntries: [{ url }]
+      }
+    }),
+    signal: AbortSignal.timeout(SCREENING_LOOKUP_TIMEOUT_MS)
+  });
+  if (!response.ok) throw new Error(`http_${response.status}`);
+  const data = (await response.json()) as { matches?: unknown };
+  return Array.isArray(data.matches) && data.matches.length > 0;
+}
+
+/**
+ * Screen one destination against Google Safe Browsing before it is dialled.
+ * Called for the initial target and every redirect hop, since a redirect
+ * changes the effective destination. Verdicts are cached per URL (2 h clean,
+ * 30 min listed, bounded). Screening is inactive until SAFE_BROWSING_API_KEY
+ * is configured and can be force-disabled with FETCH_SCREENING_DISABLED=1.
+ *
+ * Failure policy: listed verdicts refuse the fetch; screening-infrastructure
+ * failures fail OPEN with a "screening-degraded" metric so a Google outage
+ * cannot take the import service down (deliberate, documented trade-off).
+ */
+export async function screenTarget(url: string): Promise<void> {
+  const apiKey = process.env.SAFE_BROWSING_API_KEY?.trim();
+  if (!apiKey || screeningDisabled()) return;
+  const cached = screeningCache.get(url);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    if (cached.threat) throw threatFailure();
+    return;
+  }
+  let threat: boolean;
+  try {
+    threat = await lookupThreat(url, apiKey);
+  } catch (error) {
+    const reason = error instanceof Error && error.message.startsWith("http_") ? error.message : "network_error";
+    logScreeningDegraded(reason);
+    return;
+  }
+  if (screeningCache.size >= SCREENING_CACHE_LIMIT) screeningCache.clear();
+  screeningCache.set(url, { threat, expiresAt: now + (threat ? SCREENING_THREAT_TTL_MS : SCREENING_CLEAN_TTL_MS) });
+  if (threat) throw threatFailure();
+}
+
 export interface FetchedDocument {
   status: number;
   contentType: string;
@@ -215,11 +300,17 @@ function performHop(target: TargetUrl, address: string, deadlineAt: number): Pro
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+export interface FetchOptions {
+  /** Injected in tests to intercept per-hop screening; defaults to Safe Browsing screening. */
+  screen?: (target: TargetUrl) => Promise<void>;
+}
+
 /**
  * Fetch a page or asset through validated, pinned connections, following up to
  * `limits.maxRedirects` revalidated hops within one wall-clock budget.
  */
-export async function fetchHardened(rawUrl: string, limits: FetchLimits): Promise<FetchedDocument> {
+export async function fetchHardened(rawUrl: string, limits: FetchLimits, options: FetchOptions = {}): Promise<FetchedDocument> {
+  const screen = options.screen ?? ((target: TargetUrl) => screenTarget(target.href));
   const maxRedirects = limits.maxRedirects ?? MAX_REDIRECTS;
   const startedAt = Date.now();
 
@@ -238,6 +329,7 @@ export async function fetchHardened(rawUrl: string, limits: FetchLimits): Promis
       throw new FetchFailure("timeout", "the fetch ran out of time");
     }
 
+    await screen(current);
     const address = await resolvePublicAddress(current);
     const hop = await performHop(current, address, startedAt + limits.timeoutMs);
 

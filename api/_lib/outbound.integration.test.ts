@@ -42,4 +42,21 @@ describe.skipIf(!online)("fetchHardened against the public web", () => {
     expect(error).toBeInstanceOf(FetchFailure);
     expect((error as FetchFailure).kind).toBe("timeout");
   });
+
+  it("re-screens every redirect hop", async () => {
+    const screened: string[] = [];
+    const screen = async (target: { href: string }) => {
+      screened.push(target.href);
+      if (screened.length > 1) {
+        throw new FetchFailure("policy", "the target is on a web-threat blocklist", { rejectionReason: "threat" });
+      }
+    };
+    // http://github.com redirects to https://github.com: two hops, one origin.
+    const error = await fetchHardened("http://github.com/", { maxBytes: 4096, timeoutMs: 15_000 }, { screen }).catch(
+      (caught: unknown) => caught
+    );
+    expect(screened).toEqual(["http://github.com/", "https://github.com/"]);
+    expect(error).toBeInstanceOf(FetchFailure);
+    expect((error as FetchFailure).rejectionReason).toBe("threat");
+  }, 20_000);
 });
