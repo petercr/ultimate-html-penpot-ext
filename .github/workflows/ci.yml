@@ -9,7 +9,29 @@ permissions:
   contents: read
 
 jobs:
+  authorize:
+    name: Verify maintainer trigger
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require maintainer permissions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          permission="$(gh api "repos/$REPOSITORY/collaborators/$ACTOR/permission" --jq .permission 2>/dev/null || echo none)"
+          echo "Actor '$ACTOR' repository permission: $permission"
+          case "$permission" in
+            admin|maintain) exit 0 ;;
+            *)
+              echo "::error::CI can only be triggered by maintainers. Ask a maintainer to re-run this workflow for your branch."
+              exit 1
+              ;;
+          esac
+
   test-and-build:
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
