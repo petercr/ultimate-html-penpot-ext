@@ -22,6 +22,10 @@ describe("extractor script", () => {
     expect(script).toContain("inlineControlAncestor");
     expect(script).toContain("one fixed text box per source line");
     expect(script).toContain("textNoWrap: true");
+    expect(script).toContain("const paintOfElement");
+    expect(script).toContain("document.documentElement");
+    expect(script).toContain("rgb(255, 255, 255)");
+    expect(script).toContain("const dataUrl");
     expect(script).toContain('if (tag === "br") return');
     expect(script).toContain("waitForDomSettle");
     expect(script).toContain("SCRIPTS_DISABLED");

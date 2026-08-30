@@ -183,7 +183,7 @@ function mediaKey(asset: AssetRef): string {
 }
 
 function svgTextOf(asset: AssetRef | undefined): string | undefined {
-  const url = asset?.url;
+  const url = asset?.dataUrl || asset?.url;
   if (!url || !url.toLowerCase().startsWith("data:image/svg+xml")) return undefined;
   const comma = url.indexOf(",");
   if (comma < 0) return undefined;

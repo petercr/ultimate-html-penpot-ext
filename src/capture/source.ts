@@ -13,6 +13,9 @@ export type { AssetMode };
 const FETCH_SERVICE_PATH = "/api/fetch-html";
 const LOCAL_PROXY_PATH = "/__html_to_penpot/fetch";
 const MAX_INLINE_SVG_BYTES = 2 * 1024 * 1024;
+const MAX_INLINE_STYLESHEETS = 8;
+const MAX_INLINE_STYLESHEET_BYTES = 2 * 1024 * 1024;
+const MAX_INLINE_STYLES_TOTAL_BYTES = 4 * 1024 * 1024;
 const MAX_INLINE_IMAGE_ASSETS = 16;
 const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_INLINE_IMAGE_TOTAL_BYTES = 8 * 1024 * 1024;
@@ -23,6 +26,7 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".jpg": "image/jpeg",
   ".png": "image/png",
+  ".svg": "image/svg+xml",
   ".webp": "image/webp"
 };
 
@@ -108,9 +112,10 @@ async function imageDataUrl(url: string): Promise<{ dataUrl: string; bytes: numb
 }
 
 function absoluteAssetUrl(value: string, baseUrl: string): string | undefined {
-  if (!value || value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("#")) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("data:") || trimmed.startsWith("blob:") || trimmed.startsWith("#")) return undefined;
   try {
-    const target = new URL(value, baseUrl);
+    const target = new URL(trimmed, baseUrl);
     return target.protocol === "http:" || target.protocol === "https:" ? target.href : undefined;
   } catch {
     return undefined;
@@ -118,6 +123,96 @@ function absoluteAssetUrl(value: string, baseUrl: string): string | undefined {
 }
 
 const INLINE_STYLE_URL_PATTERN = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+const FONT_FACE_PATTERN = /@font-face\s*\{[^{}]*\}/gi;
+
+const STYLESHEET_URL_PATTERN = /["']([^"']+\.css(?:[?#][^"']*)?)["']/gi;
+
+interface StylesheetCandidate {
+  url: string;
+  media?: string;
+  link?: HTMLLinkElement;
+}
+
+function rebaseCssUrls(css: string, baseUrl: string): string {
+  return css.replace(INLINE_STYLE_URL_PATTERN, (match, _quote: string, source: string) => {
+    const target = absoluteAssetUrl(source, baseUrl);
+    return target ? `url("${target}")` : match;
+  });
+}
+
+/**
+ * Find stylesheets declared in markup and in small loader scripts. Some older
+ * sites (including Dance/NYC) inject their only stylesheet from JavaScript;
+ * scripts are intentionally disabled by default, so those styles need to be
+ * copied into the capture document before it is rendered.
+ */
+function stylesheetCandidates(document: Document, baseUrl: string): StylesheetCandidate[] {
+  const candidates = new Map<string, StylesheetCandidate>();
+  for (const link of document.querySelectorAll<HTMLLinkElement>("link[rel~='stylesheet'][href]")) {
+    const source = link.getAttribute("href");
+    const url = source && absoluteAssetUrl(source, baseUrl);
+    if (!url) continue;
+    candidates.set(url, { url, media: link.getAttribute("media") || undefined, link });
+  }
+  for (const script of document.querySelectorAll("script")) {
+    for (const match of (script.textContent || "").matchAll(STYLESHEET_URL_PATTERN)) {
+      const url = absoluteAssetUrl(match[1], baseUrl);
+      if (url && !candidates.has(url)) candidates.set(url, { url });
+    }
+  }
+  return [...candidates.values()];
+}
+
+/** Inline external CSS so computed styles survive the opaque capture sandbox. */
+async function inlineStylesheets(html: string, baseUrl: string | undefined): Promise<string> {
+  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  const document = new DOMParser().parseFromString(html, "text/html");
+  const candidates = stylesheetCandidates(document, baseUrl).slice(0, MAX_INLINE_STYLESHEETS);
+  if (!candidates.length) return html;
+
+  const head = document.head || document.documentElement;
+  let totalBytes = 0;
+  let changed = false;
+  for (const candidate of candidates) {
+    if (totalBytes >= MAX_INLINE_STYLES_TOTAL_BYTES) break;
+    try {
+      const response = await fetchDocument(candidate.url, "css");
+      const css = await response.text();
+      const bytes = utf8ByteLength(css);
+      if (!css.trim() || bytes > MAX_INLINE_STYLESHEET_BYTES || totalBytes + bytes > MAX_INLINE_STYLES_TOTAL_BYTES) continue;
+      const style = document.createElement("style");
+      style.setAttribute("data-html-to-penpot-stylesheet", candidate.url);
+      if (candidate.media) style.setAttribute("media", candidate.media);
+      style.textContent = rebaseCssUrls(css, candidate.url);
+      head.append(style);
+      candidate.link?.remove();
+      totalBytes += bytes;
+      changed = true;
+    } catch {
+      // Keep an unavailable stylesheet in place; the sandbox may still load it.
+    }
+  }
+  return changed ? "<!doctype html>\n" + document.documentElement.outerHTML : html;
+}
+
+function srcsetUrls(value: string): string[] {
+  return value.split(",").map((candidate) => candidate.trim().split(/\s+/, 1)[0]).filter(Boolean);
+}
+
+function likelyImageUrl(url: string): boolean {
+  return Boolean(IMAGE_MIME_BY_EXTENSION[extensionOf(url)]);
+}
+
+function rewriteSrcset(value: string, baseUrl: string, dataUrls: Map<string, string>): string {
+  return value.split(",").map((candidate) => {
+    const parts = candidate.trim().split(/\s+/);
+    const source = parts.shift();
+    if (!source) return candidate;
+    const target = absoluteAssetUrl(source, baseUrl);
+    const dataUrl = target && dataUrls.get(target);
+    return dataUrl ? [dataUrl, ...parts].join(" ") : candidate;
+  }).join(", ");
+}
 
 /** Inline ordinary image assets so Penpot receives bytes instead of fetching remote URLs server-side. */
 async function inlineImageAssets(html: string, baseUrl: string | undefined): Promise<string> {
@@ -128,13 +223,31 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
   for (const image of images) {
     const source = image.getAttribute("src");
     const target = source && absoluteAssetUrl(source, baseUrl);
-    if (target) targets.add(target);
+    // SVG <img> elements are handled by the vector pass below. Keeping them
+    // out of the raster budget ensures ordinary header/hero images win even
+    // on pages with many social icons.
+    if (target && !isSvgUrl(target)) targets.add(target);
+  }
+  for (const element of document.querySelectorAll("img[srcset], source[srcset]")) {
+    for (const source of srcsetUrls(element.getAttribute("srcset") || "")) {
+      const target = absoluteAssetUrl(source, baseUrl);
+      if (target && !isSvgUrl(target)) targets.add(target);
+    }
   }
   for (const element of document.querySelectorAll("[style]")) {
     const style = element.getAttribute("style") || "";
     for (const match of style.matchAll(INLINE_STYLE_URL_PATTERN)) {
       const target = absoluteAssetUrl(match[2], baseUrl);
-      if (target) targets.add(target);
+      if (target && likelyImageUrl(target)) targets.add(target);
+    }
+  }
+  for (const style of document.querySelectorAll("style")) {
+    // Font sources are presentation data and are handled by inlineWebFonts;
+    // treating legacy SVG fonts as page images would consume the image budget.
+    const css = (style.textContent || "").replace(FONT_FACE_PATTERN, "");
+    for (const match of css.matchAll(INLINE_STYLE_URL_PATTERN)) {
+      const target = absoluteAssetUrl(match[2], baseUrl);
+      if (target && likelyImageUrl(target)) targets.add(target);
     }
   }
 
@@ -159,6 +272,11 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
     const dataUrl = target && dataUrls.get(target);
     if (dataUrl) image.setAttribute("src", dataUrl);
   }
+  for (const element of document.querySelectorAll("img[srcset], source[srcset]")) {
+    const source = element.getAttribute("srcset") || "";
+    const rewritten = rewriteSrcset(source, baseUrl, dataUrls);
+    if (rewritten !== source) element.setAttribute("srcset", rewritten);
+  }
   for (const element of document.querySelectorAll("[style]")) {
     const style = element.getAttribute("style") || "";
     const rewritten = style.replace(INLINE_STYLE_URL_PATTERN, (match, _quote: string, source: string) => {
@@ -167,6 +285,15 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
       return dataUrl ? `url("${dataUrl}")` : match;
     });
     if (rewritten !== style) element.setAttribute("style", rewritten);
+  }
+  for (const element of document.querySelectorAll("style")) {
+    const style = element.textContent || "";
+    const rewritten = style.replace(INLINE_STYLE_URL_PATTERN, (match, _quote: string, source: string) => {
+      const target = absoluteAssetUrl(source, baseUrl);
+      const dataUrl = target && dataUrls.get(target);
+      return dataUrl ? `url("${dataUrl}")` : match;
+    });
+    if (rewritten !== style) element.textContent = rewritten;
   }
   return "<!doctype html>\n" + document.documentElement.outerHTML;
 }
@@ -276,7 +403,10 @@ export function sourceUrl(value: string): string | undefined {
 export async function resolveSource(value: string, explicitBaseUrl?: string): Promise<ResolvedSource> {
   const url = sourceUrl(value);
   if (!url) {
-    const html = await inlineImageAssets(await inlineWebFonts(await inlineSvgImages(value, explicitBaseUrl), explicitBaseUrl), explicitBaseUrl);
+    const styles = await inlineStylesheets(value, explicitBaseUrl);
+    const images = await inlineImageAssets(styles, explicitBaseUrl);
+    const fonts = await inlineWebFonts(images, explicitBaseUrl);
+    const html = await inlineSvgImages(fonts, explicitBaseUrl);
     return { html, baseUrl: explicitBaseUrl || undefined };
   }
 
@@ -284,9 +414,12 @@ export async function resolveSource(value: string, explicitBaseUrl?: string): Pr
   const html = await response.text();
   if (!html.trim()) throw new Error(`Unable to load ${url}: the response did not contain HTML.`);
   const baseUrl = explicitBaseUrl || response.headers.get("X-HTML-Source-URL") || url;
+  const styles = await inlineStylesheets(html, baseUrl);
+  const images = await inlineImageAssets(styles, baseUrl);
+  const fonts = await inlineWebFonts(images, baseUrl);
 
   return {
-    html: await inlineImageAssets(await inlineWebFonts(await inlineSvgImages(html, baseUrl), baseUrl), baseUrl),
+    html: await inlineSvgImages(fonts, baseUrl),
     baseUrl,
     sourceUrl: url
   };

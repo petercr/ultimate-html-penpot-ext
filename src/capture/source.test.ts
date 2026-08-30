@@ -65,6 +65,42 @@ describe("page source resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("inlines loader-injected styles and their image assets", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<html><head><script>var _jqqreqcss=["/includes/site.css"];</script></head><body><img src="/images/logo.png"><div class="hero"></div></body></html>', { status: 200 }))
+      .mockResolvedValueOnce(new Response('.social_icon{display:inline-block}.hero{background-image:url(../images/hero.png)}', { status: 200, headers: { "content-type": "text/css" } }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([4, 5]), { status: 200, headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    expect(result.html).toContain("data-html-to-penpot-stylesheet");
+    expect(result.html).toContain(".social_icon");
+    expect(result.html).toContain("data:image/png;base64,AQID");
+    expect(result.html).toContain("data:image/png;base64,BAU=");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://example.com/includes/site.css", expect.objectContaining({ credentials: "omit" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "https://example.com/images/logo.png", expect.objectContaining({ credentials: "omit" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "https://example.com/images/hero.png", expect.objectContaining({ credentials: "omit" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("prioritizes raster images without spending the budget on SVG icons", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="/social.svg"><img src="/logo.png"></main>', { status: 200 }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }))
+      .mockResolvedValueOnce(new Response("<svg viewBox='0 0 10 10'><path d='M0 0h10v10z'/></svg>", { status: 200, headers: { "content-type": "image/svg+xml" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    expect(result.html).toContain("data:image/png;base64,AQID");
+    expect(result.html).toContain("data:image/svg+xml,");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://example.com/logo.png", expect.objectContaining({ credentials: "omit" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "https://example.com/social.svg", expect.objectContaining({ credentials: "omit" }));
+    vi.unstubAllGlobals();
+  });
+
   it("falls back to the local proxy when direct URL loading is blocked by CORS", async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))

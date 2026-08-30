@@ -116,7 +116,7 @@ describe("Penpot importer", () => {
     const svgScene = scene();
     svgScene.nodes[0].children = ["logo"];
     svgScene.nodes = [svgScene.nodes[0], { id: "logo", parentId: "root", children: [], kind: "image", name: "logo", source: "img", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "logo-asset" }];
-    svgScene.assets = [{ id: "logo-asset", url: "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2010%2010%22%3E%3C%2Fsvg%3E", mimeType: "image/svg+xml" }];
+    svgScene.assets = [{ id: "logo-asset", dataUrl: "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2010%2010%22%3E%3C%2Fsvg%3E", mimeType: "image/svg+xml" }];
     const svgGroup = fakeShape("group");
     const createSvg = (globalThis as typeof globalThis & { penpot: { createShapeFromSvgWithImages: ReturnType<typeof vi.fn> } }).penpot.createShapeFromSvgWithImages;
     createSvg.mockResolvedValueOnce(svgGroup);
