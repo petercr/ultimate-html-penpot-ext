@@ -37,12 +37,20 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const existing = assets.get(url);
     if (existing) return existing.id;
     const id = "asset-" + (assets.size + 1);
-    assets.set(url, { id, url, mimeType: hint });
+    const dataUrl = /^data:/i.test(url) ? url : undefined;
+    const dataMime = dataUrl?.match(/^data:([^;,]+)/i)?.[1];
+    assets.set(url, dataUrl
+      ? { id, dataUrl, mimeType: dataMime || hint }
+      : { id, url, mimeType: hint });
     return id;
   };
   const backgroundUrl = (value) => {
     const match = /url\\(["']?(.+?)["']?\\)/.exec(value || "");
     return match ? match[1] : undefined;
+  };
+  const transparent = (value) => {
+    const normalized = String(value || "").replace(/\\s+/g, "").toLowerCase();
+    return !normalized || normalized === "transparent" || normalized === "rgba(0,0,0,0)";
   };
   const unsupported = (element, style) => {
     if (["CANVAS", "VIDEO", "IFRAME", "OBJECT", "EMBED"].includes(element.tagName)) return element.tagName.toLowerCase() + " cannot be converted to editable layers";
@@ -65,6 +73,20 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     overflow: ["hidden", "clip"].includes(style.overflow) ? style.overflow : "visible",
     transform: style.transform
   });
+  const paintOfElement = (element, style) => {
+    const paint = paintOf(style);
+    // The browser paints a transparent html/body pair against the default
+    // white canvas. Penpot boards have their own default canvas color, so
+    // leaving this as "no fill" makes an otherwise white page render black.
+    // Carry the effective document background onto the top-level board while
+    // preserving an explicitly colored body or html background.
+    if (element === document.body && transparent(paint.backgroundColor) && paint.backgroundImage === "none") {
+      const htmlStyle = getComputedStyle(document.documentElement);
+      paint.backgroundColor = transparent(htmlStyle.backgroundColor) ? "rgb(255, 255, 255)" : htmlStyle.backgroundColor;
+      if (paint.backgroundImage === "none" && htmlStyle.backgroundImage !== "none") paint.backgroundImage = htmlStyle.backgroundImage;
+    }
+    return paint;
+  };
   const layoutOf = (style) => ({
     kind: style.display === "flex" || style.display === "inline-flex" ? "flex" : style.display === "grid" || style.display === "inline-grid" ? "grid" : "none",
     direction: style.flexDirection,
@@ -192,7 +214,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // a container with the text as a child layer.
     const decorated = style.backgroundColor !== "rgba(0, 0, 0, 0)" || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
-    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOf(style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
+    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOfElement(element, style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
     let directTextNode;
     let directTextLayout;
     let expandedDirectText = false;
