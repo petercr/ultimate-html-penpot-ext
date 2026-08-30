@@ -2,9 +2,11 @@
  * Production page-fetch service for the Ultimate HTML to Penpot plugin.
  *
  * Contract (see README "URL import service"):
- * - GET /api/fetch-html?url=<absolute http(s) url>&mode=html|svg
+ * - GET /api/fetch-html?url=<absolute http(s) url>&mode=html|svg|css|font|asset
  * - 200 -> body is the upstream document; X-HTML-Source-URL holds the final,
  *   validated URL after redirects so relative assets resolve correctly.
+ *   `font` responses are inert font bytes; `asset` mirrors the upstream
+ *   content type for trusted-mode same-origin page resources.
  * - All rejections use JSON bodies ({ error }) with normalised status codes;
  *   internal network details are never included.
  *
@@ -17,7 +19,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import { FetchFailure, fetchHardened } from "./_lib/outbound.js";
 
-const MODES = {
+/** Exported for the mode-contract test; operators should not rely on it. */
+export const MODES = {
   html: {
     // Real-world page HTML sits far below this; the cap exists to bound
     // worst-case abuse egress, not to fit the largest pages on the web.
@@ -29,6 +32,35 @@ const MODES = {
     maxBytes: 2 * 1024 * 1024,
     contentTypes: ["image/svg+xml"],
     responseContentType: "image/svg+xml"
+  },
+  css: {
+    maxBytes: 2 * 1024 * 1024,
+    contentTypes: ["text/css"],
+    responseContentType: "text/css; charset=utf-8"
+  },
+  font: {
+    maxBytes: 1_572_864,
+    // `application/octet-stream` is the most common misconfiguration for
+    // self-hosted fonts; the bytes are consumed as inert font data either way.
+    contentTypes: [
+      "font/woff2", "font/woff", "font/ttf", "font/otf", "font/collection",
+      "application/font-woff", "application/font-woff2",
+      "application/x-font-ttf", "application/x-font-woff", "application/x-font-opentype",
+      "application/vnd.ms-fontobject", "application/octet-stream"
+    ],
+    // Preserve the upstream font MIME type when available. Consumers still
+    // treat the body as inert bytes and fontDataUrl applies an extension
+    // fallback for servers that omit or mislabel it.
+    responseContentType: ""
+  },
+  // Trusted-mode same-origin page resources (stylesheets and data fetched by
+  // the page's own scripts). Content type is not constrained, because the
+  // page decides how to consume the response; the byte cap and every other
+  // control still apply.
+  asset: {
+    maxBytes: 3 * 1024 * 1024,
+    contentTypes: null,
+    responseContentType: ""
   }
 } as const;
 
@@ -308,7 +340,7 @@ export default async function handler(request: IncomingMessage, response: Server
     return;
   }
 
-  const mode = (modeParam === "svg" ? "svg" : "html") satisfies Mode;
+  const mode = (["html", "svg", "css", "font", "asset"].includes(modeParam) ? modeParam : "html") as Mode;
   const limits = MODES[mode];
 
   if (activeFetches >= MAX_CONCURRENT_FETCHES) {
@@ -321,7 +353,7 @@ export default async function handler(request: IncomingMessage, response: Server
     const document = await fetchHardened(rawTarget, { maxBytes: limits.maxBytes, timeoutMs: 15_000 });
 
     const mediaType = document.contentType.split(";")[0].trim().toLowerCase();
-    if (!(limits.contentTypes as readonly string[]).includes(mediaType)) {
+    if (limits.contentTypes && !(limits.contentTypes as readonly string[]).includes(mediaType)) {
       sendJson(response, 415, { error: "The target did not return a supported document type." }, corsHeaders);
       finishMetric({
         outcome: "unsupported-content",
@@ -341,7 +373,7 @@ export default async function handler(request: IncomingMessage, response: Server
     }
 
     response.statusCode = 200;
-    response.setHeader("Content-Type", limits.responseContentType);
+    response.setHeader("Content-Type", limits.responseContentType || document.contentType || "application/octet-stream");
     response.setHeader("Cache-Control", "no-store");
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("X-HTML-Source-URL", document.finalTarget.href);

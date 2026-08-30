@@ -24,6 +24,7 @@ describe("extractor script", () => {
     expect(script).toContain("textNoWrap: true");
     expect(script).toContain('if (tag === "br") return');
     expect(script).toContain("waitForDomSettle");
+    expect(script).toContain("SCRIPTS_DISABLED");
     expect(script).toContain("EMPTY_CAPTURE");
     expect(() => new Function(script)).not.toThrow();
   });

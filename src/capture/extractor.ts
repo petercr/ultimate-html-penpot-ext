@@ -8,6 +8,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const token = ${JSON.stringify(token)};
   const viewport = ${encodedViewport};
   const delay = ${Math.max(0, Math.min(settleDelayMs, 10_000))};
+  const scriptsDisabled = document.documentElement.getAttribute("data-html-to-penpot-scripts-disabled");
   const diagnostics = [];
   const assets = new Map();
   const nodes = [];
@@ -277,8 +278,16 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     try {
       const root = document.body || document.documentElement;
       visit(root, undefined);
+      if (scriptsDisabled) {
+        diagnostics.push({
+          severity: "warning",
+          code: "SCRIPTS_DISABLED",
+          message: "Page scripts were disabled; dynamic content or JavaScript-controlled layout may not match. Enable Run trusted page scripts for a source you trust if needed.",
+          viewportId: viewport.id,
+          source: "script"
+        });
+      }
       if (nodes.length <= 1) {
-        const scriptsDisabled = document.documentElement.getAttribute("data-html-to-penpot-scripts-disabled");
         diagnostics.push({
           severity: "warning",
           code: "EMPTY_CAPTURE",

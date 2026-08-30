@@ -1,4 +1,5 @@
 import { utf8ByteLength } from "../shared/validation";
+import { inlineWebFonts } from "./fonts";
 
 export interface ResolvedSource {
   html: string;
@@ -6,7 +7,8 @@ export interface ResolvedSource {
   sourceUrl?: string;
 }
 
-type AssetMode = "html" | "svg";
+type AssetMode = "html" | "svg" | "css" | "font" | "asset";
+export type { AssetMode };
 
 const FETCH_SERVICE_PATH = "/api/fetch-html";
 const LOCAL_PROXY_PATH = "/__html_to_penpot/fetch";
@@ -43,6 +45,19 @@ function proxyUrlFor(target: string, mode: AssetMode): string | undefined {
   return undefined;
 }
 
+/**
+ * Origin-plus-path of the constrained asset proxy, without query parameters.
+ * The trusted-script network shim rewrites a page's own same-origin requests
+ * here. Undefined when no proxy is configured for this build.
+ */
+export function assetProxyBase(): string | undefined {
+  const serviceOrigin = fetchServiceOrigin();
+  if (serviceOrigin) return `${serviceOrigin}${FETCH_SERVICE_PATH}`;
+  const origin = typeof globalThis.location === "object" ? globalThis.location.origin : "";
+  if (isLocalDevelopmentHost() && origin && origin !== "null") return `${origin}${LOCAL_PROXY_PATH}`;
+  return undefined;
+}
+
 function detailOf(error: unknown): string {
   return error instanceof Error ? error.message : "the browser blocked the request";
 }
@@ -65,7 +80,7 @@ async function describeProxyRejection(url: string, response: Response): Promise<
  * failure, retry through the constrained fetch service. An answer from the
  * origin itself (any HTTP status) is authoritative and never retried.
  */
-async function fetchDocument(url: string, mode: AssetMode): Promise<Response> {
+export async function fetchDocument(url: string, mode: AssetMode): Promise<Response> {
   try {
     const direct = await fetch(url, { credentials: "omit", redirect: "follow" });
     if (direct.ok) return direct;
@@ -151,7 +166,7 @@ export function sourceUrl(value: string): string | undefined {
  */
 export async function resolveSource(value: string, explicitBaseUrl?: string): Promise<ResolvedSource> {
   const url = sourceUrl(value);
-  if (!url) return { html: await inlineSvgImages(value, explicitBaseUrl), baseUrl: explicitBaseUrl || undefined };
+  if (!url) return { html: await inlineWebFonts(await inlineSvgImages(value, explicitBaseUrl), explicitBaseUrl), baseUrl: explicitBaseUrl || undefined };
 
   const response = await fetchDocument(url, "html");
   const html = await response.text();
@@ -159,7 +174,7 @@ export async function resolveSource(value: string, explicitBaseUrl?: string): Pr
   const baseUrl = explicitBaseUrl || response.headers.get("X-HTML-Source-URL") || url;
 
   return {
-    html: await inlineSvgImages(html, baseUrl),
+    html: await inlineWebFonts(await inlineSvgImages(html, baseUrl), baseUrl),
     baseUrl,
     sourceUrl: url
   };

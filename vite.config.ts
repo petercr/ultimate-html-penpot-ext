@@ -2,8 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const FETCH_PROXY_PATH = "/__html_to_penpot/fetch";
-// Matches the production service cap in api/fetch-html.ts.
-const MAX_HTML_BYTES = 3 * 1024 * 1024;
+// Matches the production service caps in api/fetch-html.ts.
+const MAX_BYTES_BY_MODE: Record<string, number> = {
+  html: 3 * 1024 * 1024,
+  svg: 2 * 1024 * 1024,
+  css: 2 * 1024 * 1024,
+  font: 1.5 * 1024 * 1024,
+  asset: 3 * 1024 * 1024
+};
 const FETCH_TIMEOUT_MS = 15_000;
 
 function htmlFetchProxy() {
@@ -47,8 +53,10 @@ function htmlFetchProxy() {
         }
 
         try {
+          const mode = new URL(request.url, "http://localhost").searchParams.get("mode") || "html";
+          const maxBytes = MAX_BYTES_BY_MODE[mode] || MAX_BYTES_BY_MODE.html;
           const upstream = await fetch(targetUrl, {
-            headers: { Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1" },
+            headers: { Accept: "text/html,application/xhtml+xml;q=0.9,text/css;q=0.8,*/*;q=0.7" },
             redirect: "follow",
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
           });
@@ -59,21 +67,30 @@ function htmlFetchProxy() {
             return;
           }
 
-          const html = await upstream.text();
-          if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) {
+          // Fonts are binary; read the body as bytes for every mode so no
+          // text decoding can corrupt them.
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          if (buffer.byteLength > maxBytes) {
             response.statusCode = 413;
             response.setHeader("Access-Control-Allow-Origin", "*");
-            response.end("The target page is larger than the 3 MB limit.");
+            response.end("The target resource is larger than the allowed size limit.");
             return;
           }
 
+          const upstreamType = (upstream.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+          const responseContentType =
+            mode === "font" ? upstreamType || "application/octet-stream" :
+            mode === "css" ? "text/css; charset=utf-8" :
+            mode === "asset" ? upstreamType || "application/octet-stream" :
+            mode === "svg" ? "image/svg+xml" :
+            "text/html; charset=utf-8";
           response.statusCode = 200;
           response.setHeader("Access-Control-Allow-Origin", "*");
           response.setHeader("Access-Control-Expose-Headers", "X-HTML-Source-URL");
-          response.setHeader("Content-Type", "text/html; charset=utf-8");
+          response.setHeader("Content-Type", responseContentType);
           response.setHeader("Cache-Control", "no-store");
           response.setHeader("X-HTML-Source-URL", upstream.url || targetUrl.href);
-          response.end(html);
+          response.end(buffer);
         } catch (error) {
           response.statusCode = 502;
           response.setHeader("Access-Control-Allow-Origin", "*");

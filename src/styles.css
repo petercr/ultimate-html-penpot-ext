@@ -79,6 +79,8 @@ input:focus { outline: 2px solid var(--ui-accent-focus); outline-offset: 1px; }
 .status-importing, .status-capturing { background: var(--ui-progress-background); color: var(--ui-progress-text); }
 .error { padding: 9px 10px; border-radius: 6px; background: var(--ui-error-background); color: var(--ui-error-text); }
 .notice { padding: 9px 10px; border-radius: 6px; background: var(--ui-progress-background); color: var(--ui-progress-text); }
+.notice.confirm p { margin: 0 0 8px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .progress { color: var(--ui-text-muted); }
 footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 4px; }
 .primary, .secondary { border-radius: 6px; padding: 9px 12px; font-weight: 600; }
