@@ -43,6 +43,28 @@ describe("page source resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("inlines raster image assets so Penpot receives bytes instead of remote URLs", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="/logo.png"><div style="background-image: url(\'/hero.jpg\')"></div></main>', { status: 200 }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(new Uint8Array([4, 5]), { status: 200, headers: { "content-type": "image/jpeg" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    expect(result.html).toContain("data:image/png;base64,AQID");
+    expect(result.html).toContain("data:image/jpeg;base64,BAU=");
+    expect(result.html).not.toContain('src="/logo.png"');
+    expect(result.html).not.toContain("/hero.jpg");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "https://example.com/logo.png", expect.objectContaining({ credentials: "omit" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, expect.stringContaining("mode=asset&url=https%3A%2F%2Fexample.com%2Flogo.png"), { credentials: "omit" });
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "https://example.com/hero.jpg", expect.objectContaining({ credentials: "omit" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(5, expect.stringContaining("mode=asset&url=https%3A%2F%2Fexample.com%2Fhero.jpg"), { credentials: "omit" });
+    vi.unstubAllGlobals();
+  });
+
   it("falls back to the local proxy when direct URL loading is blocked by CORS", async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))

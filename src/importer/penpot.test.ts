@@ -63,8 +63,8 @@ describe("Penpot importer", () => {
       }),
       group: vi.fn((shapes: FakeShape[]) => Object.assign(fakeShape("group"), { children: shapes })),
       createShapeFromSvgWithImages: vi.fn(),
-      uploadMediaData: vi.fn(),
-      uploadMediaUrl: vi.fn()
+      uploadMediaData: vi.fn().mockResolvedValue({}),
+      uploadMediaUrl: vi.fn().mockResolvedValue({})
     });
   });
 
@@ -124,6 +124,32 @@ describe("Penpot importer", () => {
     const result = await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
     expect(createSvg).toHaveBeenCalledWith("<svg viewBox=\"0 0 10 10\"></svg>");
     expect((result[0] as unknown as FakeShape).children?.[0]).toBe(svgGroup);
+  });
+
+  it("uploads inlined raster assets and reuses them across responsive boards", async () => {
+    const image = (name: string): SceneDocument => {
+      const result = scene(name);
+      result.nodes[0].children = ["image"];
+      result.nodes = [result.nodes[0], { id: "image", parentId: "root", children: [], kind: "image", name: "logo", source: "img", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "logo-asset" }];
+      result.assets = [{ id: "logo-asset", url: "data:image/png;base64,AQID", mimeType: "image/png" }];
+      return result;
+    };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const penpotApi = (globalThis as typeof globalThis & { penpot: { uploadMediaData: ReturnType<typeof vi.fn>; uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot;
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(penpotApi.uploadMediaData).toHaveBeenCalledOnce();
+    expect(penpotApi.uploadMediaData).toHaveBeenCalledWith("logo-asset", expect.any(Uint8Array), "image/png");
+    expect(penpotApi.uploadMediaUrl).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("commits each responsive board in its own undo block", async () => {
+    await importScenes([scene("Desktop"), scene("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
+    expect(undoFinish).toHaveBeenCalledTimes(2);
   });
 
   it("keeps marked inline text on one line", async () => {

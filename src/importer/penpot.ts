@@ -168,13 +168,18 @@ function createText(node: SceneNode): Text {
 }
 
 async function mediaFor(asset: AssetRef) {
-  if (asset.url?.startsWith("data:")) {
-    const response = await fetch(asset.url);
+  const dataUrl = asset.dataUrl || (asset.url?.startsWith("data:") ? asset.url : undefined);
+  if (dataUrl) {
+    const response = await fetch(dataUrl);
     const data = new Uint8Array(await response.arrayBuffer());
     return penpot.uploadMediaData(asset.id, data, response.headers.get("content-type") || asset.mimeType || "image/png");
   }
   if (asset.url) return penpot.uploadMediaUrl(asset.id, asset.url);
   return undefined;
+}
+
+function mediaKey(asset: AssetRef): string {
+  return asset.dataUrl || asset.url || asset.id;
 }
 
 function svgTextOf(asset: AssetRef | undefined): string | undefined {
@@ -247,9 +252,10 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
   }
   if ((node.kind === "image" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
     if (asset) {
-      let uploaded = media.get(asset.id);
+      const key = mediaKey(asset);
+      let uploaded = media.get(key);
       if (!uploaded) {
-        try { uploaded = await mediaFor(asset); media.set(asset.id, uploaded); } catch { /* A placeholder remains visible. */ }
+        try { uploaded = await mediaFor(asset); media.set(key, uploaded); } catch { /* A placeholder remains visible. */ }
       }
       if (uploaded) (shape as Shape & { fills: Fill[] }).fills = [{ fillImage: uploaded, fillOpacity: 1 }];
     }
@@ -258,127 +264,138 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
 }
 
 export async function importScenes(scenes: SceneDocument[], options: ImportOptions): Promise<Board[]> {
-  const undo = penpot.history.undoBlockBegin();
   const boards: Board[] = [];
   const total = scenes.reduce((sum, scene) => sum + scene.nodes.length, 0);
   let completed = 0;
   const origin = { x: penpot.viewport.center.x, y: penpot.viewport.center.y };
   let x = origin.x;
+  // Keep one uploaded media object per source URL across responsive boards.
+  // Re-uploading the same page asset for each viewport creates noisy failed
+  // requests in Penpot and needlessly increases the file update payload.
+  const media = new Map<string, Awaited<ReturnType<typeof mediaFor>>>();
 
   try {
     for (const scene of scenes) {
       if (options.isCancelled()) throw new ImportCancelledError();
-      const board = penpot.createBoard();
-      boards.push(board);
-      board.name = `Page — ${scene.viewport.name} ${scene.viewport.width}`;
-      board.x = x;
-      board.y = origin.y;
-      board.resize(scene.viewport.width, scene.documentSize.height);
-      board.clipContent = true;
-      board.setPluginData("importer", IMPORT_NAMESPACE);
-      board.setPluginData("viewport", scene.viewport.id);
-      x += scene.viewport.width + 120;
+      const undo = penpot.history.undoBlockBegin();
+      try {
+        const board = penpot.createBoard();
+        boards.push(board);
+        board.name = `Page — ${scene.viewport.name} ${scene.viewport.width}`;
+        board.x = x;
+        board.y = origin.y;
+        board.resize(scene.viewport.width, scene.documentSize.height);
+        board.clipContent = true;
+        board.setPluginData("importer", IMPORT_NAMESPACE);
+        board.setPluginData("viewport", scene.viewport.id);
+        x += scene.viewport.width + 120;
 
-      const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
-      const childrenByParent = new Map<string, SceneNode[]>();
-      for (const node of scene.nodes) {
-        if (!node.parentId || !nodes.has(node.parentId)) continue;
-        const siblings = childrenByParent.get(node.parentId) || [];
-        siblings.push(node);
-        childrenByParent.set(node.parentId, siblings);
-      }
-      const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
-      const media = new Map<string, Awaited<ReturnType<typeof mediaFor>>>();
-      const shapes = new Map<string, Shape>();
-      const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId));
-
-      const append = (parentShape: Board | Shape, shape: Shape) => {
-        if (parentShape.type === "board") (parentShape as Board).appendChild(shape);
-        else (parentShape as Shape & { appendChild?: (child: Shape) => void }).appendChild?.(shape);
-      };
-
-      const reportProgress = () => {
-        completed += 1;
-        if (completed % 25 === 0 || completed === total) {
-          options.onProgress(completed, total, `Creating ${scene.viewport.name}`);
+        const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
+        const childrenByParent = new Map<string, SceneNode[]>();
+        for (const node of scene.nodes) {
+          if (!node.parentId || !nodes.has(node.parentId)) continue;
+          const siblings = childrenByParent.get(node.parentId) || [];
+          siblings.push(node);
+          childrenByParent.set(node.parentId, siblings);
         }
-      };
+        const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
+        const shapes = new Map<string, Shape>();
+        const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId));
 
-      const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
-        if (options.isCancelled()) throw new ImportCancelledError();
-        if (node.kind === "container") {
-          const children: Shape[] = [];
-          for (const child of childrenByParent.get(node.id) || []) {
-            const childShape = await render(child, parentShape);
-            if (childShape) children.push(childShape);
+        const append = (parentShape: Board | Shape, shape: Shape) => {
+          if (parentShape.type === "board") (parentShape as Board).appendChild(shape);
+          else (parentShape as Shape & { appendChild?: (child: Shape) => void }).appendChild?.(shape);
+        };
+
+        const reportProgress = () => {
+          completed += 1;
+          if (completed % 25 === 0 || completed === total) {
+            options.onProgress(completed, total, `Creating ${scene.viewport.name}`);
           }
+        };
 
-          const backdrop = needsContainerBackdrop(node) ? createContainerBackdrop(node) : undefined;
-          if (backdrop) {
-            metadata(backdrop, node, scene.viewport.id);
-            append(parentShape, backdrop);
-            applyGeometry(backdrop, node, { x: board.x, y: board.y });
-            children.unshift(backdrop);
-          }
+        const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
+          if (options.isCancelled()) throw new ImportCancelledError();
+          if (node.kind === "container") {
+            const children: Shape[] = [];
+            for (const child of childrenByParent.get(node.id) || []) {
+              const childShape = await render(child, parentShape);
+              if (childShape) children.push(childShape);
+            }
 
-          if (!children.length) {
+            const backdrop = needsContainerBackdrop(node) ? createContainerBackdrop(node) : undefined;
+            if (backdrop) {
+              metadata(backdrop, node, scene.viewport.id);
+              append(parentShape, backdrop);
+              applyGeometry(backdrop, node, { x: board.x, y: board.y });
+              children.unshift(backdrop);
+            }
+
+            if (!children.length) {
+              reportProgress();
+              return undefined;
+            }
+            const shape = children.length === 1 ? children[0] : penpot.group(children);
+            if (!shape) {
+              reportProgress();
+              return children[0];
+            }
+            applyContainerOpacity(shape, node);
+            metadata(shape, node, scene.viewport.id);
+            shapes.set(node.id, shape);
             reportProgress();
-            return undefined;
+            return shape;
           }
-          const shape = children.length === 1 ? children[0] : penpot.group(children);
-          if (!shape) {
-            reportProgress();
-            return children[0];
+
+          let shape: Shape;
+          try {
+            shape = await createShape(node, assets, media);
+          } catch (error) {
+            throw new Error(`Unable to create ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
           }
-          applyContainerOpacity(shape, node);
-          metadata(shape, node, scene.viewport.id);
-          shapes.set(node.id, shape);
+          try {
+            metadata(shape, node, scene.viewport.id);
+            shapes.set(node.id, shape);
+            append(parentShape, shape);
+            applyGeometry(shape, node, { x: board.x, y: board.y });
+            // Keep short inline controls on the same line as in the source
+            // browser. Apply this after geometry because resize() can reset a
+            // text layer's grow mode. Wrapped source text is split into one
+            // non-wrapping layer per browser line by the extractor, so each
+            // imported line remains readable without relying on auto-height.
+            if (shape.type === "text" && node.textNoWrap && !node.text?.includes("\n")) {
+              (shape as Text).growType = "auto-width";
+            }
+          } catch (error) {
+            throw new Error(`Unable to place ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
+          }
           reportProgress();
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
           return shape;
+        };
+        for (const root of roots) {
+          // The top-level Penpot board already represents <body>. Importing it
+          // again creates an offset nested board and makes its size misleading.
+          if (root.kind === "container") {
+            applyPaint(board, root.paint);
+            board.setPluginData("source", root.source);
+            for (const child of childrenByParent.get(root.id) || []) await render(child, board);
+            reportProgress();
+          } else await render(root, board);
         }
-
-        let shape: Shape;
-        try {
-          shape = await createShape(node, assets, media);
-        } catch (error) {
-          throw new Error(`Unable to create ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
-        }
-        try {
-          metadata(shape, node, scene.viewport.id);
-          shapes.set(node.id, shape);
-          append(parentShape, shape);
-          applyGeometry(shape, node, { x: board.x, y: board.y });
-          // Keep short inline controls on the same line as in the source
-          // browser. Apply this after geometry because resize() can reset a
-          // text layer's grow mode. Wrapped source text is split into one
-          // non-wrapping layer per browser line by the extractor, so each
-          // imported line remains readable without relying on auto-height.
-          if (shape.type === "text" && node.textNoWrap && !node.text?.includes("\n")) {
-            (shape as Text).growType = "auto-width";
-          }
-        } catch (error) {
-          throw new Error(`Unable to place ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
-        }
-        reportProgress();
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        return shape;
-      };
-      for (const root of roots) {
-        // The top-level Penpot board already represents <body>. Importing it
-        // again creates an offset nested board and makes its size misleading.
-        if (root.kind === "container") {
-          applyPaint(board, root.paint);
-          board.setPluginData("source", root.source);
-          for (const child of childrenByParent.get(root.id) || []) await render(child, board);
-          reportProgress();
-        } else await render(root, board);
+      } finally {
+        // Each responsive board gets its own persistence-sized transaction.
+        // A single 662-layer undo block generated a ~6.3 MB update-file
+        // request, which Penpot could not persist.
+        penpot.history.undoBlockFinish(undo);
       }
+      // Let the Penpot host flush the completed transaction before starting
+      // the next board. This keeps network requests and undo history bounded.
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
     }
     return boards;
   } catch (error) {
     for (const board of boards) board.remove();
     throw error;
-  } finally {
-    penpot.history.undoBlockFinish(undo);
   }
 }
