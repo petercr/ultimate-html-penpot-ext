@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import handler, { mapFailure } from "./fetch-html.js";
+import handler, { mapFailure, MODES } from "./fetch-html.js";
 import { FetchFailure } from "./_lib/outbound.js";
 
 interface StubResponse {
@@ -50,6 +50,28 @@ function callHandler(url: string, init: { method?: string; forwardedFor?: string
   });
 }
 
+describe("mode contract", () => {
+  it("exposes the documented asset modes with bounded sizes", () => {
+    expect(Object.keys(MODES).sort()).toEqual(["asset", "css", "font", "html", "svg"]);
+    expect(MODES.font.maxBytes).toBe(1_572_864);
+    expect(MODES.css.maxBytes).toBe(2 * 1024 * 1024);
+    expect(MODES.asset.maxBytes).toBe(3 * 1024 * 1024);
+  });
+
+  it("allows font content types including the common octet-stream misconfiguration", () => {
+    expect(MODES.font.contentTypes).toContain("font/woff2");
+    expect(MODES.font.contentTypes).toContain("font/woff");
+    expect(MODES.font.contentTypes).toContain("application/vnd.ms-fontobject");
+    expect(MODES.font.contentTypes).toContain("application/octet-stream");
+    expect(MODES.font.contentTypes).not.toContain("text/html");
+  });
+
+  it("constrains css but lets trusted-mode assets pass any type", () => {
+    expect(MODES.css.contentTypes).toEqual(["text/css"]);
+    expect(MODES.asset.contentTypes).toBeNull();
+  });
+});
+
 describe("mapFailure", () => {
   it("maps policy rejections by scope", () => {
     expect(mapFailure(new FetchFailure("policy", "x", { rejectionReason: "blocked-ip" })).status).toBe(403);
@@ -77,6 +99,16 @@ describe("fetch-html endpoint", () => {
       if (request.url === "/json") {
         response.setHeader("content-type", "application/json");
         response.end("{}");
+        return;
+      }
+      if (request.url === "/style.css") {
+        response.setHeader("content-type", "text/css");
+        response.end("body{color:red}");
+        return;
+      }
+      if (request.url === "/font.woff2") {
+        response.setHeader("content-type", "font/woff2");
+        response.end(Buffer.from([0x77, 0x4f, 0x46, 0x32]));
         return;
       }
       response.setHeader("content-type", "text/html; charset=utf-8");

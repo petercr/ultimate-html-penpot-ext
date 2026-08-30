@@ -1,8 +1,9 @@
-interface Env {
-  VERCEL_ORIGIN: string;
-  FETCH_IP_LIMITER: RateLimit;
+type FrontEnv = Env & {
+  // Secrets are intentionally absent from wrangler.jsonc and therefore from
+  // the generated binding declaration. Keep the secret requirement explicit
+  // at the handler boundary without duplicating the whole Env interface.
   FETCH_FRONT_SHARED_SECRET: string;
-}
+};
 
 const SERVICE_PATH = "/api/fetch-html";
 const ALLOWED_METHODS = "GET, OPTIONS";
@@ -40,6 +41,11 @@ function clientIp(request: Request): string {
 
 function allowedOrigin(value: string | null): string | undefined {
   if (!value) return undefined;
+  // Penpot plugin panels run in an opaque sandbox. Browsers serialize that
+  // origin as the literal string `null`; it is safe to reflect this exact
+  // value because the request still has to carry accepted Fetch Metadata and
+  // the Worker rate limit plus Vercel front secret remain in force.
+  if (value === "null") return "null";
   try {
     const origin = new URL(value);
     if (origin.protocol !== "https:") return undefined;
@@ -59,7 +65,7 @@ function hasBrowserMetadata(request: Request, origin: string | undefined): boole
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: FrontEnv): Promise<Response> {
     const incoming = new URL(request.url);
     if (incoming.pathname !== SERVICE_PATH) return new Response("Not found.", { status: 404 });
 
@@ -121,4 +127,4 @@ export default {
     if (finalUrl) headers.set("X-HTML-Source-URL", finalUrl);
     return new Response(response.body, { status: response.status, headers });
   }
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<FrontEnv>;

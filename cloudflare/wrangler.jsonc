@@ -2,7 +2,7 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "ultimate-html-fetch-front",
   "main": "./front-proxy.ts",
-  "compatibility_date": "2026-08-26",
+  "compatibility_date": "2026-08-29",
   "workers_dev": true,
   "vars": {
     "VERCEL_ORIGIN": "https://ultimate-html-penpot-ext.vercel.app"

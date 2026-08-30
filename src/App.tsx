@@ -21,6 +21,13 @@ interface AppProps {
   readonly standaloneHost?: boolean;
 }
 
+interface ConfirmRequest {
+  title: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel?: () => void;
+}
+
 export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   const [source, setSource] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -32,6 +39,11 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string>();
   const [advanced, setAdvanced] = useState(false);
+  // Penpot runs plugin panels in sandboxed iframes where native
+  // window.confirm() is silently suppressed and always returns false, which
+  // made trusted scripts and heavy imports impossible to approve from inside
+  // Penpot. Confirmations therefore render in the panel itself.
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest>();
 
   useEffect(() => {
     const receive = (event: MessageEvent<PluginToUiMessage>) => {
@@ -69,7 +81,6 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
       setError("The base URL must use http:// or https://.");
       return;
     }
-    if (scriptPolicy === "trusted" && !window.confirm("Only enable scripts for source you trust. A sandbox prevents access to Penpot, but a broken or hostile script can still hang this plugin tab. Continue?")) return;
     setError(undefined);
     setScenes([]);
     setPhase("capturing");
@@ -87,9 +98,33 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
     }
   };
 
+  const requestAnalyze = () => {
+    if (scriptPolicy === "trusted") {
+      setConfirmRequest({
+        title: "Only enable scripts for source you trust. A sandbox prevents access to Penpot, but a broken or hostile script can still hang this plugin tab. Continue with scripts enabled?",
+        confirmLabel: "Analyze with scripts",
+        onConfirm: () => { void analyze(); },
+        onCancel: () => setScriptPolicy("off")
+      });
+      return;
+    }
+    void analyze();
+  };
+
   const importScenes = () => {
     if (!scenes.length || standaloneHost) return;
-    if ((warnings.needsLayerConfirmation || warnings.tallViewports.length) && !window.confirm(`This import contains ${warnings.layers.toLocaleString()} layers${warnings.tallViewports.length ? ` and tall boards (${warnings.tallViewports.join(", ")})` : ""}. It may be slow. Import anyway?`)) return;
+    if ((warnings.needsLayerConfirmation || warnings.tallViewports.length)) {
+      setConfirmRequest({
+        title: `This import contains ${warnings.layers.toLocaleString()} layers${warnings.tallViewports.length ? ` and tall boards (${warnings.tallViewports.join(", ")})` : ""}. It may be slow. Import anyway?`,
+        confirmLabel: "Import anyway",
+        onConfirm: () => startImport()
+      });
+      return;
+    }
+    startImport();
+  };
+
+  const startImport = () => {
     setPhase("importing");
     setError(undefined);
     setProgress("Preparing Penpot layers…");
@@ -157,9 +192,16 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
     </section>}
 
     {error && <p className="error" role="alert">{error}</p>}
+    {confirmRequest && <div className="notice confirm" role="alertdialog" aria-label="Confirmation required">
+      <p>{confirmRequest.title}</p>
+      <div className="confirm-actions">
+        <button className="primary" onClick={() => { const action = confirmRequest.onConfirm; setConfirmRequest(undefined); action(); }}>{confirmRequest.confirmLabel}</button>
+        <button className="secondary" onClick={() => { const action = confirmRequest.onCancel; setConfirmRequest(undefined); action?.(); }}>Cancel</button>
+      </div>
+    </div>}
     {(phase === "capturing" || phase === "importing" || phase === "complete" || phase === "ready") && <p className="progress" aria-live="polite">{progress}</p>}
     <footer>
-      {phase === "importing" ? <button className="secondary" onClick={cancel}>Cancel import</button> : <button className="secondary" onClick={analyze} disabled={phase === "capturing"}>Analyze page</button>}
+      {phase === "importing" ? <button className="secondary" onClick={cancel}>Cancel import</button> : <button className="secondary" onClick={requestAnalyze} disabled={phase === "capturing"}>Analyze page</button>}
       <button className="primary" onClick={importScenes} disabled={phase !== "ready" || standaloneHost} title={standaloneHost ? "Importing requires Penpot — open this plugin inside Penpot" : undefined}>Import to Penpot</button>
     </footer>
   </main>;
