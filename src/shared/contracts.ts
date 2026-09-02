@@ -94,8 +94,10 @@ export interface SceneNode {
   paint: ScenePaint;
   layout: SceneLayout;
   text?: string;
-  /** Keep short inline controls such as links on one line when imported. */
+  /** Keep a captured source line on one line when imported. */
   textNoWrap?: boolean;
+  /** Horizontal fit scale for a captured line that exceeds its source bounds. */
+  textFitScale?: number;
   textStyle?: TextStyle;
   assetId?: string;
   fallbackReason?: string;

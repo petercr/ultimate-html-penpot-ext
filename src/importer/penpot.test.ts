@@ -162,6 +162,21 @@ describe("Penpot importer", () => {
     expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ growType: "auto-width" });
   });
 
+  it("scales overflowing text while preserving its line box", async () => {
+    const fittedScene = scene();
+    const textNode = fittedScene.nodes.find((node) => node.kind === "text");
+    if (!textNode || !textNode.textStyle) throw new Error("test scene is missing its text node");
+    textNode.textFitScale = 0.8;
+    textNode.textStyle.letterSpacing = 2;
+
+    const result = await importScenes([fittedScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({
+      fontSize: "12.8",
+      lineHeight: "1.875",
+      letterSpacing: "1.6"
+    });
+  });
+
   it("groups painted containers instead of creating nested boards", async () => {
     const nestedScene = scene();
     const root = nestedScene.nodes[0];
