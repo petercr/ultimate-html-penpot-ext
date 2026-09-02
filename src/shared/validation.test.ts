@@ -19,6 +19,13 @@ describe("scene validation", () => {
     expect(validateScenes([scene()])).toHaveLength(1);
   });
 
+  it("accepts only bounded text fit scales", () => {
+    const scaled = scene({ nodes: [{ ...scene().nodes[0], textFitScale: 0.8 }] });
+    expect(validateScenes([scaled])).toHaveLength(1);
+    expect(() => validateScenes([scene({ nodes: [{ ...scene().nodes[0], textFitScale: 0 }] })])).toThrow("textFitScale");
+    expect(() => validateScenes([scene({ nodes: [{ ...scene().nodes[0], textFitScale: 1.1 }] })])).toThrow("no greater than 1");
+  });
+
   it("rejects impossible document height", () => {
     expect(() => validateScenes([scene({ documentSize: { width: 1440, height: 100_001 } })])).toThrow("100,000px");
   });

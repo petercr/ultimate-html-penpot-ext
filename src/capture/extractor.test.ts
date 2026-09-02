@@ -18,6 +18,8 @@ describe("extractor script", () => {
     expect(script).toContain("const textLayout");
     expect(script).toContain("const lineHeightOf");
     expect(script).toContain("measuredLineHeight");
+    expect(script).toContain("const textFitScaleOf");
+    expect(script).toContain("textFitScale");
     expect(script).toContain("textNoWrap");
     expect(script).toContain("inlineControlAncestor");
     expect(script).toContain("one fixed text box per source line");

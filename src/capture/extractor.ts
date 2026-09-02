@@ -119,6 +119,15 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     textDecoration: style.textDecorationLine,
     textTransform: style.textTransform
   });
+  const textFitScaleOf = (containerRect, lineRect) => {
+    // Capture preserves the browser's line breaks, but Penpot can still
+    // render a captured line a little wider when its editable font metrics
+    // differ. Keep the line inside the source element's right edge instead
+    // of allowing it to paint over the next card or the board clip.
+    const available = containerRect.x + containerRect.width - lineRect.x - 1;
+    if (available <= 0 || lineRect.width <= available) return undefined;
+    return Math.max(0.01, Math.min(1, available / lineRect.width));
+  };
   const textLayout = (textNode) => {
     const raw = String(textNode.textContent || "");
     const fallback = compact(raw);
@@ -185,7 +194,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     for (const [index, line] of (layout.lines || []).entries()) {
       if (!line.text || !line.rect) continue;
       const id = "node-" + (++sequence);
-      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: parent.source + " ::text", rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textStyle: textStyleOf(style, layout.measuredLineHeight) });
+      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: parent.source + " ::text", rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
       parent.children.push(id);
     }
   };
@@ -229,6 +238,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       } else {
         scene.text = directTextLayout?.text || compact(element.textContent);
         scene.textStyle = textStyleOf(style, directTextLayout?.measuredLineHeight);
+        // Keep every captured single-line text layer from being rewrapped by
+        // Penpot's fixed text box when its font metrics differ from the page.
+        scene.textNoWrap = Boolean(scene.text);
+        const line = directTextLayout?.lines?.[0];
+        if (line?.rect) scene.textFitScale = textFitScaleOf(scene.rect, line.rect);
       }
     }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(element.outerHTML), "image/svg+xml"); }
@@ -249,7 +263,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       const content = compact(pseudoStyle.content).replace(/^("|')|("|')$/g, "");
       if (content && content !== "none" && content !== "normal") {
         const pseudoId = "node-" + (++sequence);
-        nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex + 0.02, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textStyle: textStyleOf(pseudoStyle) });
+        nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex + 0.02, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
         scene.children.push(pseudoId);
       }
     }

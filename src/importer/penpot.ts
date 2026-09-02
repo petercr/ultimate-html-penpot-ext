@@ -132,6 +132,10 @@ function applyPenpotFontFamily(text: Text, value: string | undefined): void {
   }
 }
 
+function textFitScale(node: SceneNode): number {
+  return Math.min(1, Math.max(0.01, node.textFitScale ?? 1));
+}
+
 function createText(node: SceneNode): Text {
   const text = penpot.createText(node.text || "");
   if (!text) throw new Error(`Unable to create text layer: ${node.name}`);
@@ -149,13 +153,19 @@ function createText(node: SceneNode): Text {
     // the entire import.
     applyPenpotFontFamily(text, style.fontFamily);
     // Penpot's plugin API expects numeric string values, not CSS units.
-    text.fontSize = String(Math.max(1, style.fontSize));
+    const requestedScale = textFitScale(node);
+    const baseFontSize = Math.max(1, style.fontSize);
+    const fontSize = Math.max(1, baseFontSize * requestedScale);
+    const effectiveScale = fontSize / baseFontSize;
+    text.fontSize = String(fontSize);
     text.fontWeight = String(style.fontWeight);
     text.fontStyle = style.fontStyle === "italic" ? "italic" : "normal";
     // Scene text styles use Penpot's unitless line-height multiplier.
-    text.lineHeight = String(Math.max(0.01, style.lineHeight));
+    // Compensate for the fit scale so the captured line box keeps its
+    // original vertical rhythm after the horizontal overflow is corrected.
+    text.lineHeight = String(Math.max(0.01, style.lineHeight / effectiveScale));
     // CSS permits negative tracking; Penpot's text API currently does not.
-    text.letterSpacing = String(Math.max(0, style.letterSpacing));
+    text.letterSpacing = String(Math.max(0, style.letterSpacing * effectiveScale));
     text.align = textAlign(style.textAlign);
     const textTransform = ["uppercase", "lowercase", "capitalize"].find((value) => value === style.textTransform);
     if (textTransform) text.textTransform = textTransform as Text["textTransform"];
