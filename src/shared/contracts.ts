@@ -37,6 +37,14 @@ export interface Rect {
 export interface ScenePaint {
   backgroundColor?: string;
   backgroundImage?: string;
+  /** Computed CSS background placement retained for asset materialization and diagnostics. */
+  backgroundRepeat?: string;
+  backgroundRepeatX?: string;
+  backgroundRepeatY?: string;
+  backgroundSize?: string;
+  backgroundPosition?: string;
+  backgroundPositionX?: string;
+  backgroundPositionY?: string;
   color?: string;
   borderColor?: string;
   borderWidth?: number;

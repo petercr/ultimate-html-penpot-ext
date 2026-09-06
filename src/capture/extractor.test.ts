@@ -27,6 +27,10 @@ describe("extractor script", () => {
     expect(script).toContain("one fixed text box per source line");
     expect(script).toContain("textNoWrap: true");
     expect(script).toContain("const paintOfElement");
+    expect(script).toContain("const materializeSvgBackground");
+    expect(script).toContain("backgroundRepeat");
+    expect(script).toContain("backgroundPosition");
+    expect(script).toContain("backgroundSize");
     expect(script).toContain("const svgMarkupOf");
     expect(script).toContain("http://www.w3.org/2000/svg");
     expect(script).toContain("presentationProperties");
@@ -51,5 +55,47 @@ describe("extractor script", () => {
     expect(script).toContain('style.backgroundColor !== "rgba(0, 0, 0, 0)"');
     expect(script).toContain("childElements.length === 0 && !decorated");
     expect(() => new Function(script)).not.toThrow();
+  });
+
+  it("materializes repeating SVG backgrounds at the captured element size", async () => {
+    const tile = encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><path d=\"M0 0h2v2H0z\"/></svg>");
+    document.body.innerHTML = `<div style="opacity:1;visibility:visible"><div id="anchor" style="width:25px;height:15px;opacity:1;visibility:visible;background-repeat:repeat;background-size:auto;background-position:0% 0%"></div></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const anchor = document.querySelector("#anchor") as HTMLElement;
+    anchor.style.backgroundImage = `url("data:image/svg+xml,${tile}")`;
+    const bounds = (element: Element) => {
+      const width = 25;
+      const height = 15;
+      return { x: 0, y: 0, left: 0, top: 0, right: width, bottom: height, width, height, toJSON: () => ({}) };
+    };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalComputedStyle = window.getComputedStyle;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds(this); };
+    window.getComputedStyle = ((element: Element) => originalComputedStyle.call(window, element)) as typeof window.getComputedStyle;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    const messages: MessageEvent[] = [];
+    const receive = (event: MessageEvent) => messages.push(event);
+    window.addEventListener("message", receive);
+    try {
+      window.eval(buildExtractorScript("anchor-test", { id: "test", name: "Test", width: 25, height: 15 }, 0));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    } finally {
+      window.removeEventListener("message", receive);
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      window.getComputedStyle = originalComputedStyle;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+    const result = messages.find((event) => event.data?.type === "CAPTURE_RESULT")?.data?.scene;
+    const node = result?.nodes?.find((candidate: { source: string }) => candidate.source === "#anchor");
+    const asset = node && result.assets.find((candidate: { id: string }) => candidate.id === node.assetId);
+    expect(result).toBeDefined();
+    expect(node).toBeDefined();
+    expect(asset?.dataUrl).toContain("data:image/svg+xml,");
+    const materialized = decodeURIComponent((asset?.dataUrl || "").split(",", 2)[1]);
+    expect(materialized).toContain('viewBox="0 0 25 15"');
+    expect(materialized.match(/<g /g)?.length).toBe(6);
+    expect(materialized).toContain("translate(0 0)");
+    expect(materialized).toContain("translate(20 10)");
   });
 });

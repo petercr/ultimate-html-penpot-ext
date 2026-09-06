@@ -6,7 +6,7 @@ Status: in progress.
 
 Improve visual fidelity and predictable imports first, then improve performance and native Penpot editability. Preserve the separation between browser capture, the scene document, and Penpot object creation.
 
-This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 137 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
+This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 138 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
 
 ## Phase 1 — Regression fixtures and visual baseline
 
@@ -27,7 +27,7 @@ Relevant code: `createShape()`, `createContainerBackdrop()`, and root rendering 
 
 - [x] Share asset-fill resolution between ordinary shapes, container backdrops, and root boards.
 - [x] Preserve background color beneath image fills where supported.
-- [ ] Extend the scene contract to capture background size, position, and repeat when needed for correct placement.
+- [x] Extend the scene contract to capture background size, position, and repeat for correctly placing repeating data-URI SVG backgrounds; materialize those backgrounds into viewport-sized tiled SVG assets.
 - [ ] Define handling for multiple background layers; report unsupported combinations explicitly.
 - [x] Test a hero image behind a heading, a body background, and reuse of the same asset across viewports.
 
