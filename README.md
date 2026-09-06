@@ -24,6 +24,7 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 ## What v0.1 supports
 
 - Pasted HTML/CSS, an optional HTTP(S) base URL for resolving relative assets, responsive viewport boards, and editable text, boxes, flex layouts, images, and inline SVG.
+- Capture preparation inlines common `img`, `srcset`, lazy-load, CSS background, and SVG-embedded image references when their bytes are available; missing assets remain visible as named placeholders.
 - Best-effort HTTP(S) page URLs when the target site permits credential-free browser requests through CORS.
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.

@@ -240,9 +240,19 @@ function svgTextOf(asset: AssetRef | undefined): string | undefined {
   if (comma < 0) return undefined;
   const encoded = url.slice(comma + 1);
   if (url.slice(0, comma).toLowerCase().endsWith(";base64")) {
-    try { return atob(encoded); } catch { return undefined; }
+    try {
+      const binary = atob(encoded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      if (typeof TextDecoder === "function") {
+        try { return new TextDecoder("utf-8", { fatal: false }).decode(bytes).trim(); } catch { /* Use the binary fallback below. */ }
+      }
+      return binary;
+    } catch { return undefined; }
   }
-  try { return decodeURIComponent(encoded); } catch { return undefined; }
+  try {
+    const svg = decodeURIComponent(encoded).trim();
+    return /<svg[\s>]/i.test(svg) ? svg : undefined;
+  } catch { return undefined; }
 }
 
 function needsContainerBackdrop(node: SceneNode): boolean {
@@ -259,32 +269,47 @@ function needsContainerBackdrop(node: SceneNode): boolean {
 }
 
 type Media = Awaited<ReturnType<typeof mediaFor>>;
+type MediaCache = Map<string, Media | null>;
 
-async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: Map<string, Media>): Promise<void> {
-  if (!asset || shape.type === "group") return;
+async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaCache): Promise<boolean> {
+  if (!asset || shape.type === "group") return false;
   const key = mediaKey(asset);
-  let uploaded = media.get(key);
-  if (!uploaded) {
+  let uploaded = media.has(key) ? media.get(key) || undefined : undefined;
+  if (!media.has(key)) {
     try {
       uploaded = await mediaFor(asset);
-      if (uploaded) media.set(key, uploaded);
+      media.set(key, uploaded || null);
     } catch {
-      // A later phase adds visible placeholders and surfaced diagnostics.
-      return;
+      // Cache failures as well as successes so repeated responsive boards do
+      // not retry an unavailable asset for every viewport.
+      media.set(key, null);
+      return false;
     }
   }
-  if (!uploaded) return;
+  if (!uploaded) return false;
   const fillTarget = shape as Shape & { fills: Fill[] };
   fillTarget.fills = [...(fillTarget.fills || []), { fillImage: uploaded, fillOpacity: 1 }];
+  return true;
 }
 
-async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: Map<string, Media>): Promise<Shape> {
+function markAssetFallback(shape: Shape, reason: string): void {
+  if (shape.type !== "group" && "fills" in shape) {
+    const target = shape as Shape & { fills: Fill[] };
+    if (!target.fills?.length) target.fills = [{ fillColor: "#e5e7eb", fillOpacity: 1 }];
+  }
+  shape.setPluginData("asset-fallback", reason);
+}
+
+async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: MediaCache): Promise<Shape> {
   const backdrop = penpot.createRectangle();
   // Opacity belongs to the complete container compositing group. Keeping
   // the backdrop fully opaque lets the group apply it once to both the
   // background and editable descendants.
   applyPaint(backdrop, { ...node.paint, opacity: 1 });
-  await applyAssetFill(backdrop, node.assetId ? assets.get(node.assetId) : undefined, media);
+  const asset = node.assetId ? assets.get(node.assetId) : undefined;
+  if (asset && !(await applyAssetFill(backdrop, asset, media))) {
+    markAssetFallback(backdrop, "Background image could not be loaded; a placeholder is shown.");
+  }
   return backdrop;
 }
 
@@ -295,23 +320,37 @@ function applyContainerOpacity(shape: Shape, node: SceneNode): void {
 }
 
 function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
-  shape.name = node.name.slice(0, 200);
+  let assetFallback = "";
+  const getPluginData = (shape as Shape & { getPluginData?: (key: string) => string }).getPluginData;
+  if (typeof getPluginData === "function") {
+    try { assetFallback = getPluginData.call(shape, "asset-fallback"); } catch { /* Older hosts may not expose plugin data reads. */ }
+  }
+  shape.name = assetFallback
+    ? `${assetFallback.startsWith("SVG") ? "SVG fallback" : "Image unavailable"}: ${node.name}`.slice(0, 200)
+    : node.name.slice(0, 200);
   shape.setPluginData("importer", IMPORT_NAMESPACE);
   shape.setPluginData("viewport", viewportId);
   shape.setPluginData("source", node.source);
   if (node.fallbackReason) shape.setPluginData("fallback", node.fallbackReason);
 }
 
-async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: Map<string, Media>): Promise<Shape> {
+async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: MediaCache): Promise<Shape> {
   if (node.kind === "text") return createText(node);
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
   const svg = svgTextOf(asset);
+  let svgConversionFailed = node.kind === "svg" || Boolean(svg);
   if (svg) {
     try {
       const group = await penpot.createShapeFromSvgWithImages(svg);
       if (group) return group;
     } catch {
-      // Keep a rectangle fallback if the SVG uses features Penpot cannot
+      // Try the synchronous converter for SVGs without image dependencies.
+    }
+    try {
+      const group = penpot.createShapeFromSvg(svg);
+      if (group) return group;
+    } catch {
+      // Keep an image-backed rectangle if the SVG uses features Penpot cannot
       // translate into editable vectors.
     }
   }
@@ -322,10 +361,10 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
   } else {
     applyPaint(shape, node.paint);
   }
-  if ((node.kind === "image" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
-    if (asset) {
-      await applyAssetFill(shape, asset, media);
-    }
+  if ((node.kind === "image" || node.kind === "svg" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
+    const applied = await applyAssetFill(shape, asset, media);
+    if (svgConversionFailed && applied) markAssetFallback(shape, "SVG vector conversion failed; the uploaded image fallback is shown.");
+    else if (!applied) markAssetFallback(shape, node.kind === "svg" ? "SVG could not be converted or loaded; an image placeholder is shown." : "Image could not be loaded; an image placeholder is shown.");
   }
   return shape;
 }
@@ -339,7 +378,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
   // Keep one uploaded media object per source URL across responsive boards.
   // Re-uploading the same page asset for each viewport creates noisy failed
   // requests in Penpot and needlessly increases the file update payload.
-  const media = new Map<string, Media>();
+  const media: MediaCache = new Map();
 
   try {
     for (const scene of scenes) {
@@ -460,7 +499,10 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           // again creates an offset nested board and makes its size misleading.
           if (root.kind === "container") {
             applyPaint(board, root.paint);
-            await applyAssetFill(board, root.assetId ? assets.get(root.assetId) : undefined, media);
+            const rootAsset = root.assetId ? assets.get(root.assetId) : undefined;
+            if (rootAsset && !(await applyAssetFill(board, rootAsset, media))) {
+              board.setPluginData("asset-fallback", "Page background image could not be loaded; the configured background color remains.");
+            }
             board.setPluginData("source", root.source);
             for (const child of childrenByParent.get(root.id) || []) await render(child, board);
             reportProgress();

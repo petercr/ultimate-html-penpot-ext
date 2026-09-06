@@ -96,26 +96,42 @@ function extensionOf(url: string): string {
   }
 }
 
-function assetMimeType(response: Response, url: string): string | undefined {
+function startsWithBytes(bytes: Uint8Array, signature: number[]): boolean {
+  return signature.every((value, index) => bytes[index] === value);
+}
+
+function sniffImageMime(bytes: Uint8Array): string | undefined {
+  if (startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (startsWithBytes(bytes, [0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (startsWithBytes(bytes, [0x47, 0x49, 0x46, 0x38])) return "image/gif";
+  if (startsWithBytes(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWithBytes(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50])) return "image/webp";
+  if (startsWithBytes(bytes.subarray(4), [0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66])) return "image/avif";
+  const text = String.fromCharCode(...bytes.subarray(0, Math.min(bytes.length, 512)));
+  if (/^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(text)) return "image/svg+xml";
+  return undefined;
+}
+
+function assetMimeType(response: Response, url: string, bytes: Uint8Array): string | undefined {
   const declared = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (declared?.startsWith("image/")) return declared;
-  return IMAGE_MIME_BY_EXTENSION[extensionOf(url)];
+  return IMAGE_MIME_BY_EXTENSION[extensionOf(url)] || sniffImageMime(bytes);
 }
 
 async function imageDataUrl(url: string): Promise<{ dataUrl: string; bytes: number } | undefined> {
   const response = await fetchDocument(url, "asset");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.byteLength || bytes.byteLength > MAX_INLINE_IMAGE_BYTES) return undefined;
-  const mimeType = assetMimeType(response, url);
+  const mimeType = assetMimeType(response, url, bytes);
   if (!mimeType) return undefined;
   return { dataUrl: `data:${mimeType};base64,${base64Of(bytes)}`, bytes: bytes.byteLength };
 }
 
-function absoluteAssetUrl(value: string, baseUrl: string): string | undefined {
+function absoluteAssetUrl(value: string, baseUrl?: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed || trimmed.startsWith("data:") || trimmed.startsWith("blob:") || trimmed.startsWith("#")) return undefined;
   try {
-    const target = new URL(trimmed, baseUrl);
+    if (!baseUrl && !/^https?:\/\//i.test(trimmed)) return undefined;
+    const target = baseUrl ? new URL(trimmed, baseUrl) : new URL(trimmed);
     return target.protocol === "http:" || target.protocol === "https:" ? target.href : undefined;
   } catch {
     return undefined;
@@ -133,7 +149,7 @@ interface StylesheetCandidate {
   link?: HTMLLinkElement;
 }
 
-function rebaseCssUrls(css: string, baseUrl: string): string {
+function rebaseCssUrls(css: string, baseUrl?: string): string {
   return css.replace(INLINE_STYLE_URL_PATTERN, (match, _quote: string, source: string) => {
     const target = absoluteAssetUrl(source, baseUrl);
     return target ? `url("${target}")` : match;
@@ -146,7 +162,7 @@ function rebaseCssUrls(css: string, baseUrl: string): string {
  * scripts are intentionally disabled by default, so those styles need to be
  * copied into the capture document before it is rendered.
  */
-function stylesheetCandidates(document: Document, baseUrl: string): StylesheetCandidate[] {
+function stylesheetCandidates(document: Document, baseUrl?: string): StylesheetCandidate[] {
   const candidates = new Map<string, StylesheetCandidate>();
   for (const link of document.querySelectorAll<HTMLLinkElement>("link[rel~='stylesheet'][href]")) {
     const source = link.getAttribute("href");
@@ -165,7 +181,7 @@ function stylesheetCandidates(document: Document, baseUrl: string): StylesheetCa
 
 /** Inline external CSS so computed styles survive the opaque capture sandbox. */
 async function inlineStylesheets(html: string, baseUrl: string | undefined): Promise<string> {
-  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
   const candidates = stylesheetCandidates(document, baseUrl).slice(0, MAX_INLINE_STYLESHEETS);
   if (!candidates.length) return html;
@@ -200,10 +216,10 @@ function srcsetUrls(value: string): string[] {
 }
 
 function likelyImageUrl(url: string): boolean {
-  return Boolean(IMAGE_MIME_BY_EXTENSION[extensionOf(url)]);
+  return /^https?:\/\//i.test(url);
 }
 
-function rewriteSrcset(value: string, baseUrl: string, dataUrls: Map<string, string>): string {
+function rewriteSrcset(value: string, baseUrl: string | undefined, dataUrls: Map<string, string>): string {
   return value.split(",").map((candidate) => {
     const parts = candidate.trim().split(/\s+/);
     const source = parts.shift();
@@ -214,10 +230,53 @@ function rewriteSrcset(value: string, baseUrl: string, dataUrls: Map<string, str
   }).join(", ");
 }
 
+const LAZY_SOURCE_ATTRIBUTES = [
+  "data-src",
+  "data-original",
+  "data-lazy-src",
+  "data-image",
+  "data-lazyload",
+  "data-flickity-lazyload"
+];
+const LAZY_SRCSET_ATTRIBUTES = ["data-srcset", "data-lazy-srcset"];
+
+function transparentPlaceholder(value: string | null): boolean {
+  return Boolean(value && /^(?:about:blank|data:image\/(?:gif|png);base64,(?:R0lGODlh|iVBORw0KGgo))/i.test(value.trim()));
+}
+
+/** Promote common lazy-image attributes before the sandbox waits for layout. */
+function promoteLazyImages(document: Document): boolean {
+  let changed = false;
+  for (const image of document.querySelectorAll<HTMLImageElement>("img")) {
+    const current = image.getAttribute("src");
+    const lazySource = LAZY_SOURCE_ATTRIBUTES.map((attribute) => image.getAttribute(attribute)?.trim()).find(Boolean);
+    if (lazySource && (!current || transparentPlaceholder(current))) {
+      image.setAttribute("src", lazySource);
+      changed = true;
+    }
+    const currentSrcset = image.getAttribute("srcset");
+    const lazySrcset = LAZY_SRCSET_ATTRIBUTES.map((attribute) => image.getAttribute(attribute)?.trim()).find(Boolean);
+    if (lazySrcset && !currentSrcset) {
+      image.setAttribute("srcset", lazySrcset);
+      changed = true;
+    }
+  }
+  for (const source of document.querySelectorAll<HTMLSourceElement>("source")) {
+    const current = source.getAttribute("srcset");
+    const lazySrcset = LAZY_SRCSET_ATTRIBUTES.map((attribute) => source.getAttribute(attribute)?.trim()).find(Boolean);
+    if (lazySrcset && !current) {
+      source.setAttribute("srcset", lazySrcset);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /** Inline ordinary image assets so Penpot receives bytes instead of fetching remote URLs server-side. */
 async function inlineImageAssets(html: string, baseUrl: string | undefined): Promise<string> {
-  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
+  let changed = promoteLazyImages(document);
   const targets = new Set<string>();
   const images = [...document.querySelectorAll("img[src]")];
   for (const image of images) {
@@ -233,6 +292,12 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
       const target = absoluteAssetUrl(source, baseUrl);
       if (target && !isSvgUrl(target)) targets.add(target);
     }
+  }
+  const svgImages = [...document.querySelectorAll<SVGImageElement>("svg image")];
+  for (const image of svgImages) {
+    const source = image.getAttribute("href") || image.getAttribute("xlink:href");
+    const target = source && absoluteAssetUrl(source, baseUrl);
+    if (target) targets.add(target);
   }
   for (const element of document.querySelectorAll("[style]")) {
     const style = element.getAttribute("style") || "";
@@ -264,7 +329,7 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
       // A blocked or unsupported image remains a best-effort remote asset.
     }
   }
-  if (!dataUrls.size) return html;
+  if (!dataUrls.size) return changed ? "<!doctype html>\n" + document.documentElement.outerHTML : html;
 
   for (const image of images) {
     const source = image.getAttribute("src");
@@ -276,6 +341,15 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
     const source = element.getAttribute("srcset") || "";
     const rewritten = rewriteSrcset(source, baseUrl, dataUrls);
     if (rewritten !== source) element.setAttribute("srcset", rewritten);
+  }
+  for (const image of svgImages) {
+    const source = image.getAttribute("href") || image.getAttribute("xlink:href");
+    const target = source && absoluteAssetUrl(source, baseUrl);
+    const dataUrl = target && dataUrls.get(target);
+    if (dataUrl) {
+      if (image.hasAttribute("href")) image.setAttribute("href", dataUrl);
+      if (image.hasAttribute("xlink:href")) image.setAttribute("xlink:href", dataUrl);
+    }
   }
   for (const element of document.querySelectorAll("[style]")) {
     const style = element.getAttribute("style") || "";
@@ -355,16 +429,16 @@ function isSvgUrl(value: string): boolean {
 }
 
 async function inlineSvgImages(html: string, baseUrl: string | undefined): Promise<string> {
-  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
+  let changed = promoteLazyImages(document);
   const images = [...document.querySelectorAll("img[src]")];
-  let changed = false;
   await Promise.all(images.map(async (image) => {
     const source = image.getAttribute("src");
     if (!source || source.startsWith("data:")) return;
-    let target: URL;
-    try { target = new URL(source, baseUrl); } catch { return; }
-    if (!isSvgUrl(target.href)) return;
+    const targetHref = absoluteAssetUrl(source, baseUrl);
+    if (!targetHref || !isSvgUrl(targetHref)) return;
+    const target = new URL(targetHref);
     let response: Response;
     try {
       response = await fetchDocument(target.href, "svg");

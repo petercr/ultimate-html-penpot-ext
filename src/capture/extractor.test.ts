@@ -27,6 +27,10 @@ describe("extractor script", () => {
     expect(script).toContain("one fixed text box per source line");
     expect(script).toContain("textNoWrap: true");
     expect(script).toContain("const paintOfElement");
+    expect(script).toContain("const svgMarkupOf");
+    expect(script).toContain("http://www.w3.org/2000/svg");
+    expect(script).toContain("presentationProperties");
+    expect(script).toContain('if (tag === "svg") return id');
     expect(script).toContain("backgroundUrl(paint.backgroundImage)");
     expect(script).toContain("document.documentElement");
     expect(script).toContain("rgb(255, 255, 255)");

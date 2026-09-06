@@ -13,8 +13,10 @@ function fakeShape(type: string): FakeShape {
     opacity: 1,
     strokes: [],
     children: [],
+    pluginData: {},
     resize: vi.fn(),
-    setPluginData: vi.fn(),
+    setPluginData: vi.fn(function (this: FakeShape, key: string, value: string) { (this.pluginData as Record<string, string>)[key] = value; }),
+    getPluginData: vi.fn(function (this: FakeShape, key: string) { return String((this.pluginData as Record<string, string>)[key] || ""); }),
     appendChild: vi.fn(function (this: FakeShape, child: FakeShape) { this.children?.push(child); }),
     remove: vi.fn(function (this: FakeShape) { this.removed = true; })
   };
@@ -62,6 +64,7 @@ describe("Penpot importer", () => {
         return shape;
       }),
       group: vi.fn((shapes: FakeShape[]) => Object.assign(fakeShape("group"), { children: shapes })),
+      createShapeFromSvg: vi.fn(() => null),
       createShapeFromSvgWithImages: vi.fn(),
       uploadMediaData: vi.fn().mockResolvedValue({}),
       uploadMediaUrl: vi.fn().mockResolvedValue({})
@@ -124,6 +127,43 @@ describe("Penpot importer", () => {
     const result = await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
     expect(createSvg).toHaveBeenCalledWith("<svg viewBox=\"0 0 10 10\"></svg>");
     expect((result[0] as unknown as FakeShape).children?.[0]).toBe(svgGroup);
+  });
+
+  it("keeps SVGs visible when vector conversion fails", async () => {
+    const svgScene = scene();
+    svgScene.nodes[0].children = ["logo"];
+    svgScene.nodes = [svgScene.nodes[0], { id: "logo", parentId: "root", children: [], kind: "svg", name: "logo", source: "svg", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "logo-asset" }];
+    svgScene.assets = [{ id: "logo-asset", dataUrl: "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2010%2010%22%3E%3CforeignObject%20width%3D%2210%22%20height%3D%2210%22%3E%3C%2FforeignObject%3E%3C%2Fsvg%3E", mimeType: "image/svg+xml" }];
+    const createSvg = (globalThis as typeof globalThis & { penpot: { createShapeFromSvgWithImages: ReturnType<typeof vi.fn>; createShapeFromSvg: ReturnType<typeof vi.fn> } }).penpot;
+    createSvg.createShapeFromSvgWithImages.mockRejectedValueOnce(new Error("unsupported SVG"));
+    createSvg.createShapeFromSvg.mockImplementationOnce(() => { throw new Error("unsupported SVG"); });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/svg+xml" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const imported = (result[0] as unknown as FakeShape).children?.[0];
+    expect(imported).toMatchObject({ type: "rectangle", fills: [{ fillImage: {}, fillOpacity: 1 }] });
+    expect((imported?.setPluginData as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(["asset-fallback", expect.stringContaining("SVG")]);
+    expect(imported?.name).toBe("SVG fallback: logo");
+    vi.unstubAllGlobals();
+  });
+
+  it("shows one placeholder and caches failed image uploads across boards", async () => {
+    const image = (name: string): SceneDocument => {
+      const result = scene(name);
+      result.nodes[0].children = ["image"];
+      result.nodes = [result.nodes[0], { id: "image", parentId: "root", children: [], kind: "image", name: "logo", source: "img", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "logo-asset" }];
+      result.assets = [{ id: "logo-asset", url: "https://example.com/logo.png", mimeType: "image/png" }];
+      return result;
+    };
+    const upload = (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl;
+    upload.mockRejectedValueOnce(new Error("media unavailable"));
+
+    const result = await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
+    expect(upload).toHaveBeenCalledOnce();
+    expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
+    expect((result[1] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
+    expect((result[0] as unknown as FakeShape).children?.[0]?.name).toBe("Image unavailable: logo");
   });
 
   it("uploads inlined raster assets and reuses them across responsive boards", async () => {

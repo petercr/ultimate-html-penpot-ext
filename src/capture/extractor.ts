@@ -191,6 +191,34 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     flush();
     return { text: lines.map((line) => line.text).join("\\n") || fallback, lines, rects, measuredLineHeight };
   };
+  const svgMarkupOf = (element) => {
+    const clone = element.cloneNode(true);
+    if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    if (!clone.getAttribute("xmlns:xlink")) clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    // Inline SVGs often get their paint from the page stylesheet (classes,
+    // inherited color, or CSS variables). Penpot receives only the SVG
+    // string, so carry the computed presentation values onto each descendant
+    // before converting it to editable vectors.
+    const presentationProperties = [
+      "color", "fill", "fill-opacity", "fill-rule", "stroke", "stroke-width",
+      "stroke-opacity", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+      "stroke-dasharray", "stroke-dashoffset", "clip-rule", "opacity", "visibility",
+      "display", "stop-color", "stop-opacity", "paint-order", "vector-effect",
+      "font-family", "font-size", "font-weight", "font-style", "text-anchor",
+      "dominant-baseline"
+    ];
+    const originalElements = [element, ...element.querySelectorAll("*")];
+    const clonedElements = [clone, ...clone.querySelectorAll("*")];
+    for (let index = 0; index < Math.min(originalElements.length, clonedElements.length); index += 1) {
+      const computed = getComputedStyle(originalElements[index]);
+      const target = clonedElements[index];
+      for (const property of presentationProperties) {
+        const value = computed.getPropertyValue(property);
+        if (value) target.style.setProperty(property, value);
+      }
+    }
+    return clone.outerHTML;
+  };
   const appendText = (parent, textNode, style) => {
     const layout = textLayout(textNode);
     for (const [index, line] of (layout.lines || []).entries()) {
@@ -275,7 +303,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         }
       }
     }
-    if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(element.outerHTML), "image/svg+xml"); }
+    if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(svgMarkupOf(element)), "image/svg+xml"); }
     nodes.push(scene);
     nodeById.set(id, scene);
     if (parentId) nodeById.get(parentId)?.children.push(id);
@@ -283,6 +311,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       diagnostics.push({ severity: "warning", code: "UNSUPPORTED_SUBTREE", message: reason, viewportId: viewport.id, source });
       return id;
     }
+    // The serialized SVG already contains the complete subtree. Traversing
+    // its paths and groups again would create duplicate rectangle layers and
+    // can visibly distort the imported vector when the host conversion also
+    // succeeds.
+    if (tag === "svg") return id;
     if (expandedDirectText && directTextNode) appendText(scene, directTextNode, style);
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style);
