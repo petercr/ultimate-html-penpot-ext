@@ -19,6 +19,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const compact = (value) => String(value || "").replace(/\\s+/g, " ").trim();
   const rectOf = (rect) => ({ x: Math.round(rect.x * 100) / 100, y: Math.round(rect.y * 100) / 100, width: Math.round(rect.width * 100) / 100, height: Math.round(rect.height * 100) / 100 });
   const visible = (element, style, rect) => style.display !== "none" && style.visibility !== "hidden" && number(style.opacity) !== 0 && (rect.width > 0 || rect.height > 0);
+  const suppressesSubtree = (style) => style.display === "none" || number(style.opacity) === 0;
   const sourceOf = (element) => {
     if (element.id) return "#" + CSS.escape(element.id);
     const parts = [];
@@ -119,12 +120,13 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     textDecoration: style.textDecorationLine,
     textTransform: style.textTransform
   });
+  const textMaxWidthOf = (containerRect, lineRect) => Math.max(0.1, Math.min(lineRect.width, containerRect.x + containerRect.width - lineRect.x) - 1);
   const textFitScaleOf = (containerRect, lineRect) => {
     // Capture preserves the browser's line breaks, but Penpot can still
     // render a captured line a little wider when its editable font metrics
     // differ. Keep the line inside the source element's right edge instead
     // of allowing it to paint over the next card or the board clip.
-    const available = containerRect.x + containerRect.width - lineRect.x - 1;
+    const available = textMaxWidthOf(containerRect, lineRect);
     if (available <= 0 || lineRect.width <= available) return undefined;
     return Math.max(0.01, Math.min(1, available / lineRect.width));
   };
@@ -194,7 +196,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     for (const [index, line] of (layout.lines || []).entries()) {
       if (!line.text || !line.rect) continue;
       const id = "node-" + (++sequence);
-      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: parent.source + " ::text", rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
+      // The parent scene node carries the element's CSS opacity as a
+      // compositing group. Applying it again to its synthetic text child
+      // would incorrectly square the opacity.
+      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: parent.source + " ::text", rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: 1 }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textMaxWidth: textMaxWidthOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
       parent.children.push(id);
     }
   };
@@ -205,7 +210,19 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (tag === "br") return;
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
-    if (!visible(element, style, rect)) return;
+    // A wrapper can have no box of its own (for example display: contents), or a
+    // zero-size element with visible overflow) while its descendants paint.
+    // Visibility can also be restored by a descendant. Only properties
+    // that suppress the whole compositing subtree let us stop traversal.
+    if (suppressesSubtree(style)) return;
+    if (!visible(element, style, rect)) {
+      const survivingParent = parentId ? nodeById.get(parentId) : undefined;
+      for (const child of element.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE && style.visibility !== "hidden" && survivingParent) appendText(survivingParent, child, style);
+        if (child.nodeType === Node.ELEMENT_NODE) visit(child, parentId, inlineControlAncestor);
+      }
+      return parentId;
+    }
     const source = sourceOf(element);
     const reason = unsupported(element, style);
     const id = "node-" + (++sequence);
@@ -215,15 +232,21 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // this capture model, so preserve their source browser line as one line.
     const inlineControl = inlineControlAncestor || tag === "a" || tag === "button";
     const textNoWrap = directText && (style.whiteSpace === "nowrap" || inlineControl);
-    const childElements = [...element.children].filter((child) => { const childStyle = getComputedStyle(child); const childRect = child.getBoundingClientRect(); return visible(child, childStyle, childRect); });
-    const imageUrl = tag === "img" ? element.currentSrc || element.src : backgroundUrl(style.backgroundImage);
+    // Include wrappers which do not have their own box: they may still carry
+    // visible descendants and therefore require this node to remain a parent
+    // container rather than collapsing into a text-only layer.
+    const childElements = [...element.children].filter((child) => !suppressesSubtree(getComputedStyle(child)));
+    // Use the effective paint here rather than the body's raw computed style:
+    // a transparent body inherits the html element's visible page background.
+    const paint = paintOfElement(element, style);
+    const imageUrl = tag === "img" ? element.currentSrc || element.src : backgroundUrl(paint.backgroundImage);
     const imageAsset = asset(imageUrl, tag === "img" ? element.currentSrc?.split(".").pop() : undefined);
     // A text-only node cannot carry fills, borders, or radii, so any element
     // with direct text and visible decoration keeps those surfaces by becoming
     // a container with the text as a child layer.
     const decorated = style.backgroundColor !== "rgba(0, 0, 0, 0)" || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
-    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint: paintOfElement(element, style), layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
+    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint, layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
     let directTextNode;
     let directTextLayout;
     let expandedDirectText = false;
@@ -242,7 +265,14 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         // Penpot's fixed text box when its font metrics differ from the page.
         scene.textNoWrap = Boolean(scene.text);
         const line = directTextLayout?.lines?.[0];
-        if (line?.rect) scene.textFitScale = textFitScaleOf(scene.rect, line.rect);
+        if (line?.rect) {
+          scene.textFitScale = textFitScaleOf(scene.rect, line.rect);
+          scene.textMaxWidth = textMaxWidthOf(scene.rect, line.rect);
+          // Use the glyph line's position, not the enclosing element's box
+          // (which includes padding and text-align offsets).
+          scene.rect = line.rect;
+          scene.textStyle.textAlign = "left";
+        }
       }
     }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(element.outerHTML), "image/svg+xml"); }
