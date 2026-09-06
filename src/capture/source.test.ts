@@ -43,6 +43,33 @@ describe("page source resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("inlines CSS class presentation from exported SVG image assets", async () => {
+    const svg = [
+      '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10">',
+      "<style type=\"text/css\">.st0{fill:#FFFFFF;stroke:none;}</style>",
+      '<g style="display:none"><image xlink:href="data:image/jpeg;base64,AAAA" /></g>',
+      '<path class="st0" d="M0 0h10v10z"/>',
+      "</svg>"
+    ].join("");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="/social.svg"></main>', { status: 200 }))
+      .mockResolvedValueOnce(new Response(svg, {
+        status: 200,
+        headers: { "content-type": "image/svg+xml" }
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    const encoded = result.html.match(/src="data:image\/svg\+xml,([^\"]+)"/)?.[1];
+    expect(encoded).toBeTruthy();
+    const normalized = decodeURIComponent(encoded || "");
+    expect(normalized).toContain('style="fill: #FFFFFF; stroke: none;"');
+    expect(normalized).toContain('xmlns:xlink="http://www.w3.org/1999/xlink"');
+    expect(normalized).not.toContain("<image");
+    vi.unstubAllGlobals();
+  });
+
   it("inlines raster image assets so Penpot receives bytes instead of remote URLs", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response('<main><img src="/logo.png"><div style="background-image: url(\'/hero.jpg\')"></div></main>', { status: 200 }))
@@ -98,6 +125,70 @@ describe("page source resolution", () => {
     expect(result.html).toContain("data:image/svg+xml,");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "https://example.com/logo.png", expect.objectContaining({ credentials: "omit" }));
     expect(fetchMock).toHaveBeenNthCalledWith(3, "https://example.com/social.svg", expect.objectContaining({ credentials: "omit" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("sniffs extensionless image bytes when the response omits an image MIME type", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="https://cdn.example.com/image?id=1"></main>', { status: 200 }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]), { status: 200, headers: { "content-type": "application/octet-stream" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    expect(result.html).toContain("data:image/png;base64,");
+    expect(result.html).not.toContain("https://cdn.example.com/image?id=1");
+    vi.unstubAllGlobals();
+  });
+
+  it("sniffs extensionless SVG bytes so the importer can keep them editable", async () => {
+    const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><style>.st0{fill:#FFFFFF}</style><path class=\"st0\" d=\"M0 0h10v10z\"/></svg>";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="https://cdn.example.com/vector?id=1"></main>', { status: 200 }))
+      .mockResolvedValueOnce(new Response(new TextEncoder().encode(svg), { status: 200, headers: { "content-type": "application/octet-stream" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    expect(result.html).toContain("data:image/svg+xml;base64,");
+    expect(result.html).not.toContain("https://cdn.example.com/vector?id=1");
+    const encoded = result.html.match(/src="data:image\/svg\+xml;base64,([^\"]+)"/)?.[1] || "";
+    const normalized = new TextDecoder().decode(Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0)));
+    expect(normalized).toContain('style="fill: #FFFFFF;"');
+    vi.unstubAllGlobals();
+  });
+
+  it("inlines absolute pasted images without requiring a base URL", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource('<main><img src="https://cdn.example.com/logo"></main>');
+
+    expect(result.html).toContain("data:image/png;base64,AQID");
+    expect(fetchMock).toHaveBeenCalledWith("https://cdn.example.com/logo", expect.objectContaining({ credentials: "omit" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("promotes common lazy image sources before capture", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource('<main><img src="data:image/gif;base64,R0lGODlhAQABA" data-src="https://cdn.example.com/hero.png"></main>');
+
+    expect(result.html).toContain("data:image/png;base64,AQID");
+    expect(result.html).toContain("data-src=\"https://cdn.example.com/hero.png\"");
+    expect(result.html).toContain("src=\"data:image/png;base64,AQID\"");
+    vi.unstubAllGlobals();
+  });
+
+  it("inlines raster references embedded inside inline SVGs", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource('<main><svg viewBox="0 0 10 10"><image href="https://cdn.example.com/texture?id=1" width="10" height="10" /></svg></main>');
+
+    expect(result.html).toContain("href=\"data:image/png;base64,AQID\"");
+    expect(fetchMock).toHaveBeenCalledWith("https://cdn.example.com/texture?id=1", expect.objectContaining({ credentials: "omit" }));
     vi.unstubAllGlobals();
   });
 

@@ -96,26 +96,145 @@ function extensionOf(url: string): string {
   }
 }
 
-function assetMimeType(response: Response, url: string): string | undefined {
+function startsWithBytes(bytes: Uint8Array, signature: number[]): boolean {
+  return signature.every((value, index) => bytes[index] === value);
+}
+
+function sniffImageMime(bytes: Uint8Array): string | undefined {
+  if (startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (startsWithBytes(bytes, [0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (startsWithBytes(bytes, [0x47, 0x49, 0x46, 0x38])) return "image/gif";
+  if (startsWithBytes(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWithBytes(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50])) return "image/webp";
+  if (startsWithBytes(bytes.subarray(4), [0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66])) return "image/avif";
+  const text = String.fromCharCode(...bytes.subarray(0, Math.min(bytes.length, 512)));
+  if (/^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(text)) return "image/svg+xml";
+  return undefined;
+}
+
+function assetMimeType(response: Response, url: string, bytes: Uint8Array): string | undefined {
   const declared = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (declared?.startsWith("image/")) return declared;
-  return IMAGE_MIME_BY_EXTENSION[extensionOf(url)];
+  return IMAGE_MIME_BY_EXTENSION[extensionOf(url)] || sniffImageMime(bytes);
+}
+
+interface SvgStyleRule {
+  selectors: string[];
+  declarations: Array<[string, string, "" | "important"]>;
+}
+
+/**
+ * Expand the small, static CSS dialect commonly embedded in exported SVGs.
+ *
+ * SVGs loaded through an <img> do not participate in the page's computed
+ * style tree, so the Penpot SVG parser only sees the raw XML. Illustrator and
+ * similar exporters frequently put the actual fills/strokes in class rules
+ * such as `.st0 { fill: #fff; }`. Inlining those declarations keeps the SVG
+ * self-contained without attaching untrusted markup to the live document.
+ */
+function normalizeSvgMarkup(svg: string): string {
+  if (typeof DOMParser === "undefined") return svg;
+  let document: Document;
+  try {
+    document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  } catch {
+    return svg;
+  }
+  const root = document.documentElement;
+  if (!root || root.tagName.toLowerCase() !== "svg") return svg;
+
+  if (!root.getAttribute("xmlns")) {
+    root.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns", "http://www.w3.org/2000/svg");
+  }
+  if (!root.getAttribute("xmlns:xlink")) {
+    root.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xlink", "http://www.w3.org/1999/xlink");
+  }
+
+  const rules: SvgStyleRule[] = [];
+  for (const style of root.querySelectorAll("style")) {
+    const css = (style.textContent || "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/<!\[CDATA\[|\]\]>/g, "");
+    for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selectors = match[1].split(",").map((selector) => selector.trim()).filter((selector) => selector && !selector.startsWith("@"));
+      const declarations: SvgStyleRule["declarations"] = [];
+      for (const declaration of match[2].matchAll(/([-\w]+)\s*:\s*([^;{}]+?)(?:;|$)/g)) {
+        const property = declaration[1].trim();
+        let value = declaration[2].trim();
+        if (!property || !value) continue;
+        const important = /\s*!important\s*$/i.test(value) ? "important" : "";
+        if (important) value = value.replace(/\s*!important\s*$/i, "").trim();
+        declarations.push([property, value, important]);
+      }
+      if (selectors.length && declarations.length) rules.push({ selectors, declarations });
+    }
+  }
+
+  if (rules.length) {
+    const elements = [root, ...root.querySelectorAll("*")];
+    for (const element of elements) {
+      const style = (element as SVGElement).style;
+      if (!style) continue;
+      const matched = new Map<string, [string, "" | "important"]>();
+      for (const rule of rules) {
+        const applies = rule.selectors.some((selector) => {
+          try { return element.matches(selector); } catch { return false; }
+        });
+        if (!applies) continue;
+        for (const [property, value, priority] of rule.declarations) {
+          matched.set(property.toLowerCase(), [value, priority]);
+        }
+      }
+      for (const [property, [value, priority]] of matched) {
+        // Preserve an existing inline declaration because it has higher CSS
+        // precedence than a class/tag rule in the original SVG.
+        if (style.getPropertyValue(property)) continue;
+        try { style.setProperty(property, value, priority); } catch { /* Ignore malformed declarations. */ }
+      }
+    }
+  }
+
+  // Exporters often leave hidden source layers in the SVG (for example, an
+  // embedded raster reference kept in an Inkscape layer). They are invisible
+  // in the browser but can still be traversed or uploaded by Penpot's SVG
+  // converter. Remove only explicit display/visibility-hidden descendants;
+  // visible vector content and opacity-based artwork remain untouched.
+  for (const element of [...root.querySelectorAll("*")].reverse()) {
+    const style = (element as SVGElement).style;
+    const display = style?.getPropertyValue("display").trim().toLowerCase();
+    const visibility = style?.getPropertyValue("visibility").trim().toLowerCase();
+    if (display === "none" || visibility === "hidden") element.remove();
+  }
+
+  return root.outerHTML || svg;
 }
 
 async function imageDataUrl(url: string): Promise<{ dataUrl: string; bytes: number } | undefined> {
   const response = await fetchDocument(url, "asset");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.byteLength || bytes.byteLength > MAX_INLINE_IMAGE_BYTES) return undefined;
-  const mimeType = assetMimeType(response, url);
+  const mimeType = assetMimeType(response, url, bytes);
   if (!mimeType) return undefined;
+  if (mimeType === "image/svg+xml" && typeof TextDecoder === "function" && typeof TextEncoder === "function") {
+    try {
+      const svg = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      if (/<svg[\s>]/i.test(svg)) {
+        const normalized = normalizeSvgMarkup(svg);
+        const normalizedBytes = new TextEncoder().encode(normalized);
+        return { dataUrl: `data:${mimeType};base64,${base64Of(normalizedBytes)}`, bytes: normalizedBytes.byteLength };
+      }
+    } catch {
+      // Fall through to the original bytes when an SVG cannot be decoded.
+    }
+  }
   return { dataUrl: `data:${mimeType};base64,${base64Of(bytes)}`, bytes: bytes.byteLength };
 }
 
-function absoluteAssetUrl(value: string, baseUrl: string): string | undefined {
+function absoluteAssetUrl(value: string, baseUrl?: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed || trimmed.startsWith("data:") || trimmed.startsWith("blob:") || trimmed.startsWith("#")) return undefined;
   try {
-    const target = new URL(trimmed, baseUrl);
+    if (!baseUrl && !/^https?:\/\//i.test(trimmed)) return undefined;
+    const target = baseUrl ? new URL(trimmed, baseUrl) : new URL(trimmed);
     return target.protocol === "http:" || target.protocol === "https:" ? target.href : undefined;
   } catch {
     return undefined;
@@ -133,7 +252,7 @@ interface StylesheetCandidate {
   link?: HTMLLinkElement;
 }
 
-function rebaseCssUrls(css: string, baseUrl: string): string {
+function rebaseCssUrls(css: string, baseUrl?: string): string {
   return css.replace(INLINE_STYLE_URL_PATTERN, (match, _quote: string, source: string) => {
     const target = absoluteAssetUrl(source, baseUrl);
     return target ? `url("${target}")` : match;
@@ -146,7 +265,7 @@ function rebaseCssUrls(css: string, baseUrl: string): string {
  * scripts are intentionally disabled by default, so those styles need to be
  * copied into the capture document before it is rendered.
  */
-function stylesheetCandidates(document: Document, baseUrl: string): StylesheetCandidate[] {
+function stylesheetCandidates(document: Document, baseUrl?: string): StylesheetCandidate[] {
   const candidates = new Map<string, StylesheetCandidate>();
   for (const link of document.querySelectorAll<HTMLLinkElement>("link[rel~='stylesheet'][href]")) {
     const source = link.getAttribute("href");
@@ -165,7 +284,7 @@ function stylesheetCandidates(document: Document, baseUrl: string): StylesheetCa
 
 /** Inline external CSS so computed styles survive the opaque capture sandbox. */
 async function inlineStylesheets(html: string, baseUrl: string | undefined): Promise<string> {
-  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
   const candidates = stylesheetCandidates(document, baseUrl).slice(0, MAX_INLINE_STYLESHEETS);
   if (!candidates.length) return html;
@@ -200,10 +319,10 @@ function srcsetUrls(value: string): string[] {
 }
 
 function likelyImageUrl(url: string): boolean {
-  return Boolean(IMAGE_MIME_BY_EXTENSION[extensionOf(url)]);
+  return /^https?:\/\//i.test(url);
 }
 
-function rewriteSrcset(value: string, baseUrl: string, dataUrls: Map<string, string>): string {
+function rewriteSrcset(value: string, baseUrl: string | undefined, dataUrls: Map<string, string>): string {
   return value.split(",").map((candidate) => {
     const parts = candidate.trim().split(/\s+/);
     const source = parts.shift();
@@ -214,10 +333,53 @@ function rewriteSrcset(value: string, baseUrl: string, dataUrls: Map<string, str
   }).join(", ");
 }
 
+const LAZY_SOURCE_ATTRIBUTES = [
+  "data-src",
+  "data-original",
+  "data-lazy-src",
+  "data-image",
+  "data-lazyload",
+  "data-flickity-lazyload"
+];
+const LAZY_SRCSET_ATTRIBUTES = ["data-srcset", "data-lazy-srcset"];
+
+function transparentPlaceholder(value: string | null): boolean {
+  return Boolean(value && /^(?:about:blank|data:image\/(?:gif|png);base64,(?:R0lGODlh|iVBORw0KGgo))/i.test(value.trim()));
+}
+
+/** Promote common lazy-image attributes before the sandbox waits for layout. */
+function promoteLazyImages(document: Document): boolean {
+  let changed = false;
+  for (const image of document.querySelectorAll<HTMLImageElement>("img")) {
+    const current = image.getAttribute("src");
+    const lazySource = LAZY_SOURCE_ATTRIBUTES.map((attribute) => image.getAttribute(attribute)?.trim()).find(Boolean);
+    if (lazySource && (!current || transparentPlaceholder(current))) {
+      image.setAttribute("src", lazySource);
+      changed = true;
+    }
+    const currentSrcset = image.getAttribute("srcset");
+    const lazySrcset = LAZY_SRCSET_ATTRIBUTES.map((attribute) => image.getAttribute(attribute)?.trim()).find(Boolean);
+    if (lazySrcset && !currentSrcset) {
+      image.setAttribute("srcset", lazySrcset);
+      changed = true;
+    }
+  }
+  for (const source of document.querySelectorAll<HTMLSourceElement>("source")) {
+    const current = source.getAttribute("srcset");
+    const lazySrcset = LAZY_SRCSET_ATTRIBUTES.map((attribute) => source.getAttribute(attribute)?.trim()).find(Boolean);
+    if (lazySrcset && !current) {
+      source.setAttribute("srcset", lazySrcset);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /** Inline ordinary image assets so Penpot receives bytes instead of fetching remote URLs server-side. */
 async function inlineImageAssets(html: string, baseUrl: string | undefined): Promise<string> {
-  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
+  let changed = promoteLazyImages(document);
   const targets = new Set<string>();
   const images = [...document.querySelectorAll("img[src]")];
   for (const image of images) {
@@ -233,6 +395,12 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
       const target = absoluteAssetUrl(source, baseUrl);
       if (target && !isSvgUrl(target)) targets.add(target);
     }
+  }
+  const svgImages = [...document.querySelectorAll<SVGImageElement>("svg image")];
+  for (const image of svgImages) {
+    const source = image.getAttribute("href") || image.getAttribute("xlink:href");
+    const target = source && absoluteAssetUrl(source, baseUrl);
+    if (target) targets.add(target);
   }
   for (const element of document.querySelectorAll("[style]")) {
     const style = element.getAttribute("style") || "";
@@ -264,7 +432,7 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
       // A blocked or unsupported image remains a best-effort remote asset.
     }
   }
-  if (!dataUrls.size) return html;
+  if (!dataUrls.size) return changed ? "<!doctype html>\n" + document.documentElement.outerHTML : html;
 
   for (const image of images) {
     const source = image.getAttribute("src");
@@ -276,6 +444,15 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
     const source = element.getAttribute("srcset") || "";
     const rewritten = rewriteSrcset(source, baseUrl, dataUrls);
     if (rewritten !== source) element.setAttribute("srcset", rewritten);
+  }
+  for (const image of svgImages) {
+    const source = image.getAttribute("href") || image.getAttribute("xlink:href");
+    const target = source && absoluteAssetUrl(source, baseUrl);
+    const dataUrl = target && dataUrls.get(target);
+    if (dataUrl) {
+      if (image.hasAttribute("href")) image.setAttribute("href", dataUrl);
+      if (image.hasAttribute("xlink:href")) image.setAttribute("xlink:href", dataUrl);
+    }
   }
   for (const element of document.querySelectorAll("[style]")) {
     const style = element.getAttribute("style") || "";
@@ -355,16 +532,16 @@ function isSvgUrl(value: string): boolean {
 }
 
 async function inlineSvgImages(html: string, baseUrl: string | undefined): Promise<string> {
-  if (!baseUrl || typeof DOMParser === "undefined") return html;
+  if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
+  let changed = promoteLazyImages(document);
   const images = [...document.querySelectorAll("img[src]")];
-  let changed = false;
   await Promise.all(images.map(async (image) => {
     const source = image.getAttribute("src");
     if (!source || source.startsWith("data:")) return;
-    let target: URL;
-    try { target = new URL(source, baseUrl); } catch { return; }
-    if (!isSvgUrl(target.href)) return;
+    const targetHref = absoluteAssetUrl(source, baseUrl);
+    if (!targetHref || !isSvgUrl(targetHref)) return;
+    const target = new URL(targetHref);
     let response: Response;
     try {
       response = await fetchDocument(target.href, "svg");
@@ -375,7 +552,8 @@ async function inlineSvgImages(html: string, baseUrl: string | undefined): Promi
     if (contentLength > MAX_INLINE_SVG_BYTES) return;
     const svg = await response.text();
     if (utf8ByteLength(svg) > MAX_INLINE_SVG_BYTES || !/<svg[\s>]/i.test(svg)) return;
-    image.setAttribute("src", `data:image/svg+xml,${encodeURIComponent(svg)}`);
+    const normalized = normalizeSvgMarkup(svg);
+    image.setAttribute("src", `data:image/svg+xml,${encodeURIComponent(normalized)}`);
     changed = true;
   }));
   return changed ? "<!doctype html>\n" + document.documentElement.outerHTML : html;

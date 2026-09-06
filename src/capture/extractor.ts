@@ -49,6 +49,163 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const match = /url\\(["']?(.+?)["']?\\)/.exec(value || "");
     return match ? match[1] : undefined;
   };
+  const decodeSvgDataUrl = (value) => {
+    const source = String(value || "");
+    const comma = source.indexOf(",");
+    if (comma < 0 || !/^data:image\\/svg\\+xml(?:;[^,]*)?,/i.test(source)) return undefined;
+    const header = source.slice(0, comma);
+    const encoded = source.slice(comma + 1);
+    try {
+      if (/;base64(?:;|$)/i.test(header)) {
+        const binary = atob(encoded);
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        if (typeof TextDecoder === "function") return new TextDecoder("utf-8", { fatal: false }).decode(bytes).trim();
+        return binary.trim();
+      }
+      const decoded = decodeURIComponent(encoded).trim();
+      return /<svg[\\s>]/i.test(decoded) ? decoded : undefined;
+    } catch (_) {
+      return undefined;
+    }
+  };
+  const positiveNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  };
+  const svgViewport = (root) => {
+    const viewBox = String(root.getAttribute("viewBox") || "").trim().split(/[\\s,]+/).map(Number);
+    if (viewBox.length === 4 && viewBox.every((value) => Number.isFinite(value)) && viewBox[2] > 0 && viewBox[3] > 0) {
+      const intrinsicWidth = positiveNumber(String(root.getAttribute("width") || "").replace(/px$/i, "")) || viewBox[2];
+      const intrinsicHeight = positiveNumber(String(root.getAttribute("height") || "").replace(/px$/i, "")) || viewBox[3];
+      return { x: viewBox[0], y: viewBox[1], width: viewBox[2], height: viewBox[3], intrinsicWidth, intrinsicHeight };
+    }
+    const width = positiveNumber(String(root.getAttribute("width") || "").replace(/px$/i, ""));
+    const height = positiveNumber(String(root.getAttribute("height") || "").replace(/px$/i, ""));
+    return width && height ? { x: 0, y: 0, width, height, intrinsicWidth: width, intrinsicHeight: height } : undefined;
+  };
+  const cssSize = (value, target, natural) => {
+    const token = String(value || "").trim().toLowerCase();
+    if (!token || token === "auto") return undefined;
+    if (token.endsWith("%")) return positiveNumber(target * Number.parseFloat(token) / 100);
+    return positiveNumber(Number.parseFloat(token.replace(/px$/i, ""))) || natural;
+  };
+  const backgroundTileSize = (value, targetWidth, targetHeight, sourceWidth, sourceHeight) => {
+    const tokens = String(value || "auto auto").trim().split(/\\s+/).filter(Boolean);
+    const first = tokens[0] || "auto";
+    const second = tokens[1] || "auto";
+    if (first === "cover" || first === "contain") {
+      const factor = first === "cover"
+        ? Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight)
+        : Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
+      return { width: sourceWidth * factor, height: sourceHeight * factor };
+    }
+    let width = cssSize(first, targetWidth, sourceWidth);
+    let height = cssSize(second, targetHeight, sourceHeight);
+    if (!width && !height) return { width: sourceWidth, height: sourceHeight };
+    if (!width) width = height * sourceWidth / sourceHeight;
+    if (!height) height = width * sourceHeight / sourceWidth;
+    return width && height ? { width, height } : undefined;
+  };
+  const backgroundPositionValue = (token, target, tile, axis) => {
+    const normalized = String(token || "").trim().toLowerCase();
+    if (normalized === (axis === "x" ? "left" : "top")) return 0;
+    if (normalized === "center") return (target - tile) / 2;
+    if (normalized === (axis === "x" ? "right" : "bottom")) return target - tile;
+    if (normalized.endsWith("%")) return (target - tile) * Number.parseFloat(normalized) / 100;
+    const pixels = Number.parseFloat(normalized.replace(/px$/i, ""));
+    return Number.isFinite(pixels) ? pixels : 0;
+  };
+  const backgroundPosition = (value, targetWidth, targetHeight, tileWidth, tileHeight, positionX, positionY) => {
+    const tokens = String(value || "0% 0%").trim().split(/\\s+/).filter(Boolean);
+    const xToken = positionX || tokens[0] || "0%";
+    const yToken = positionY || tokens[1] || (tokens[0] === "center" ? "center" : "0%");
+    // Four-token edge-offset positions (for example, right 12px bottom 8px)
+    // are uncommon for data SVG backgrounds. Leave them at the CSS origin
+    // rather than guessing an offset that could move a repeated pattern.
+    if (!positionX && !positionY && tokens.length > 2) return { x: 0, y: 0 };
+    return {
+      x: backgroundPositionValue(xToken, targetWidth, tileWidth, "x"),
+      y: backgroundPositionValue(yToken, targetHeight, tileHeight, "y")
+    };
+  };
+  const backgroundRepeat = (paint) => {
+    const shorthand = String(paint.backgroundRepeat || "repeat").trim().toLowerCase().split(/\\s+/).filter(Boolean);
+    let repeatX = String(paint.backgroundRepeatX || "").trim().toLowerCase();
+    let repeatY = String(paint.backgroundRepeatY || "").trim().toLowerCase();
+    if (!repeatX || !repeatY) {
+      if (shorthand[0] === "repeat-x") { repeatX = "repeat"; repeatY = "no-repeat"; }
+      else if (shorthand[0] === "repeat-y") { repeatX = "no-repeat"; repeatY = "repeat"; }
+      else {
+        repeatX ||= shorthand[0] || "repeat";
+        repeatY ||= shorthand[1] || shorthand[0] || "repeat";
+      }
+    }
+    const supported = [repeatX, repeatY].every((value) => value === "repeat" || value === "no-repeat");
+    return { x: repeatX === "repeat", y: repeatY === "repeat", supported };
+  };
+  const serializeSvgNode = (node) => {
+    try { return typeof XMLSerializer === "function" ? new XMLSerializer().serializeToString(node) : node.outerHTML || ""; } catch (_) { return node.outerHTML || ""; }
+  };
+  const xmlAttribute = (value) => String(value).replace(/&/g, "&amp;").replace(/\"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const numberString = (value) => Number.isInteger(value) ? String(value) : String(Math.round(value * 1_000_000) / 1_000_000);
+  const repeatedPositions = (target, tile, offset, repeats) => {
+    if (!repeats) return [offset];
+    const first = Math.floor((0 - offset) / tile);
+    const last = Math.ceil((target - offset) / tile) - 1;
+    const count = last - first + 1;
+    if (count < 1 || count > 4096) return undefined;
+    return Array.from({ length: count }, (_, index) => offset + (first + index) * tile);
+  };
+  const materializeSvgBackground = (paint, rect) => {
+    const originalUrl = backgroundUrl(paint.backgroundImage);
+    const sourceText = decodeSvgDataUrl(originalUrl);
+    const targetWidth = positiveNumber(rect.width);
+    const targetHeight = positiveNumber(rect.height);
+    // A repeated background can multiply a large source SVG many times. Keep
+    // this capture-side expansion bounded; the original asset remains a safe
+    // fallback when materializing it would exceed the scene payload budget.
+    if (!originalUrl || !sourceText || sourceText.length > 512 * 1024 || !targetWidth || !targetHeight || typeof DOMParser !== "function") return originalUrl;
+    let sourceRoot;
+    try { sourceRoot = new DOMParser().parseFromString(sourceText, "image/svg+xml").documentElement; } catch (_) { return originalUrl; }
+    if (!sourceRoot || sourceRoot.tagName.toLowerCase() !== "svg") return originalUrl;
+    const source = svgViewport(sourceRoot);
+    if (!source) return originalUrl;
+    const tile = backgroundTileSize(paint.backgroundSize, targetWidth, targetHeight, source.intrinsicWidth, source.intrinsicHeight);
+    if (!tile || !tile.width || !tile.height) return originalUrl;
+    const position = backgroundPosition(paint.backgroundPosition, targetWidth, targetHeight, tile.width, tile.height, paint.backgroundPositionX, paint.backgroundPositionY);
+    const repeat = backgroundRepeat(paint);
+    if (!repeat.supported) return originalUrl;
+    const xPositions = repeatedPositions(targetWidth, tile.width, position.x, repeat.x);
+    const yPositions = repeatedPositions(targetHeight, tile.height, position.y, repeat.y);
+    if (!xPositions || !yPositions || xPositions.length * yPositions.length > 4096) return originalUrl;
+    const rootAttributes = Array.from(sourceRoot.attributes || [])
+      .filter((attribute) => !["xmlns", "xmlns:xlink", "width", "height", "viewbox"].includes(attribute.name.toLowerCase()))
+      .map((attribute) => attribute.name + '=\"' + xmlAttribute(attribute.value) + '\"')
+      .join(" ");
+    const definitions = [];
+    const styles = [];
+    const drawing = [];
+    for (const child of Array.from(sourceRoot.childNodes || [])) {
+      if (child.nodeType !== 1) continue;
+      const name = String(child.tagName || "").toLowerCase();
+      if (name === "defs") definitions.push(serializeSvgNode(child));
+      else if (name === "style") styles.push(serializeSvgNode(child));
+      else if (!["title", "desc", "metadata"].includes(name)) drawing.push(serializeSvgNode(child));
+    }
+    if (!drawing.length) return originalUrl;
+    const content = definitions.concat(styles).join("");
+    const drawingText = drawing.join("");
+    const groups = [];
+    const scaleX = tile.width / source.width;
+    const scaleY = tile.height / source.height;
+    const groupCount = xPositions.length * yPositions.length;
+    if (content.length + drawingText.length * groupCount > 4 * 1024 * 1024) return originalUrl;
+    for (const y of yPositions) for (const x of xPositions) {
+      groups.push('<g transform=\"translate(' + numberString(x) + ' ' + numberString(y) + ') scale(' + numberString(scaleX) + ' ' + numberString(scaleY) + ') translate(' + numberString(-source.x) + ' ' + numberString(-source.y) + ')\">' + drawingText + "</g>");
+    }
+    const attributes = 'xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"' + numberString(targetWidth) + '\" height=\"' + numberString(targetHeight) + '\" viewBox=\"0 0 ' + numberString(targetWidth) + ' ' + numberString(targetHeight) + '\"' + (rootAttributes ? " " + rootAttributes : "");
+    return "data:image/svg+xml," + encodeURIComponent("<svg " + attributes + ">" + content + groups.join("") + "</svg>");
+  };
   const transparent = (value) => {
     const normalized = String(value || "").replace(/\\s+/g, "").toLowerCase();
     return !normalized || normalized === "transparent" || normalized === "rgba(0,0,0,0)";
@@ -64,6 +221,13 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const paintOf = (style) => ({
     backgroundColor: style.backgroundColor,
     backgroundImage: style.backgroundImage,
+    backgroundRepeat: style.backgroundRepeat,
+    backgroundRepeatX: style.backgroundRepeatX,
+    backgroundRepeatY: style.backgroundRepeatY,
+    backgroundSize: style.backgroundSize,
+    backgroundPosition: style.backgroundPosition,
+    backgroundPositionX: style.backgroundPositionX,
+    backgroundPositionY: style.backgroundPositionY,
     color: style.color,
     borderColor: style.borderTopColor,
     borderWidth: number(style.borderTopWidth),
@@ -191,6 +355,34 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     flush();
     return { text: lines.map((line) => line.text).join("\\n") || fallback, lines, rects, measuredLineHeight };
   };
+  const svgMarkupOf = (element) => {
+    const clone = element.cloneNode(true);
+    if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    if (!clone.getAttribute("xmlns:xlink")) clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    // Inline SVGs often get their paint from the page stylesheet (classes,
+    // inherited color, or CSS variables). Penpot receives only the SVG
+    // string, so carry the computed presentation values onto each descendant
+    // before converting it to editable vectors.
+    const presentationProperties = [
+      "color", "fill", "fill-opacity", "fill-rule", "stroke", "stroke-width",
+      "stroke-opacity", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+      "stroke-dasharray", "stroke-dashoffset", "clip-rule", "opacity", "visibility",
+      "display", "stop-color", "stop-opacity", "paint-order", "vector-effect",
+      "font-family", "font-size", "font-weight", "font-style", "text-anchor",
+      "dominant-baseline"
+    ];
+    const originalElements = [element, ...element.querySelectorAll("*")];
+    const clonedElements = [clone, ...clone.querySelectorAll("*")];
+    for (let index = 0; index < Math.min(originalElements.length, clonedElements.length); index += 1) {
+      const computed = getComputedStyle(originalElements[index]);
+      const target = clonedElements[index];
+      for (const property of presentationProperties) {
+        const value = computed.getPropertyValue(property);
+        if (value) target.style.setProperty(property, value);
+      }
+    }
+    return clone.outerHTML;
+  };
   const appendText = (parent, textNode, style) => {
     const layout = textLayout(textNode);
     for (const [index, line] of (layout.lines || []).entries()) {
@@ -239,7 +431,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Use the effective paint here rather than the body's raw computed style:
     // a transparent body inherits the html element's visible page background.
     const paint = paintOfElement(element, style);
-    const imageUrl = tag === "img" ? element.currentSrc || element.src : backgroundUrl(paint.backgroundImage);
+    const imageUrl = tag === "img" ? element.currentSrc || element.src : materializeSvgBackground(paint, rect);
     const imageAsset = asset(imageUrl, tag === "img" ? element.currentSrc?.split(".").pop() : undefined);
     // A text-only node cannot carry fills, borders, or radii, so any element
     // with direct text and visible decoration keeps those surfaces by becoming
@@ -275,7 +467,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         }
       }
     }
-    if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(element.outerHTML), "image/svg+xml"); }
+    if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(svgMarkupOf(element)), "image/svg+xml"); }
     nodes.push(scene);
     nodeById.set(id, scene);
     if (parentId) nodeById.get(parentId)?.children.push(id);
@@ -283,6 +475,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       diagnostics.push({ severity: "warning", code: "UNSUPPORTED_SUBTREE", message: reason, viewportId: viewport.id, source });
       return id;
     }
+    // The serialized SVG already contains the complete subtree. Traversing
+    // its paths and groups again would create duplicate rectangle layers and
+    // can visibly distort the imported vector when the host conversion also
+    // succeeds.
+    if (tag === "svg") return id;
     if (expandedDirectText && directTextNode) appendText(scene, directTextNode, style);
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style);
