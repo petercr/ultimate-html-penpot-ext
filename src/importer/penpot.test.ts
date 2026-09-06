@@ -147,6 +147,81 @@ describe("Penpot importer", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps color beneath a container background image", async () => {
+    const backgroundScene = scene();
+    const root = backgroundScene.nodes[0];
+    const text = backgroundScene.nodes[1];
+    const hero = {
+      ...root,
+      id: "hero",
+      parentId: root.id,
+      children: [text.id],
+      name: "hero",
+      source: "body > section",
+      paint: { backgroundColor: "rgba(20, 30, 40, 0.5)", backgroundImage: "url(https://example.com/hero.png)" },
+      assetId: "hero-image"
+    };
+    text.parentId = hero.id;
+    root.children = [hero.id];
+    backgroundScene.nodes = [root, hero, text];
+    backgroundScene.assets = [{ id: "hero-image", url: "https://example.com/hero.png" }];
+
+    await importScenes([backgroundScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group.mock.results[0]?.value as FakeShape;
+    const backdrop = group.children?.[0];
+    expect(backdrop?.fills).toEqual([
+      { fillColor: "#141e28", fillOpacity: 0.5 },
+      { fillImage: {}, fillOpacity: 1 }
+    ]);
+    expect((globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl).toHaveBeenCalledOnce();
+  });
+
+  it("applies root background images without re-uploading shared media", async () => {
+    const desktop = scene();
+    const mobile = scene("Mobile");
+    for (const document of [desktop, mobile]) {
+      document.nodes[0].paint.backgroundImage = "url(https://example.com/page.png)";
+      document.nodes[0].assetId = "page-image";
+      document.assets = [{ id: "page-image", url: "https://example.com/page.png" }];
+    }
+
+    const result = await importScenes([desktop, mobile], { isCancelled: () => false, onProgress: vi.fn() });
+
+    expect((result[0] as unknown as FakeShape).fills).toEqual([{ fillColor: "#ffffff", fillOpacity: 1 }, { fillImage: {}, fillOpacity: 1 }]);
+    expect((globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl).toHaveBeenCalledOnce();
+  });
+
+  it("preserves color alpha and applies element opacity once", async () => {
+    const alphaScene = scene();
+    alphaScene.nodes[0].paint = { backgroundColor: "rgba(255, 0, 128, 0.4)", opacity: 0.5 };
+    const text = alphaScene.nodes[1];
+    text.paint = { color: "#1234", opacity: 0.5 };
+
+    const result = await importScenes([alphaScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const board = result[0] as unknown as FakeShape;
+    const importedText = board.children?.[0];
+    expect(board).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#ff0080", fillOpacity: 0.4 }] });
+    expect(importedText).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#112233", fillOpacity: 4 / 15 }] });
+  });
+
+  it("retains overflow containers as ordinary groups until masking is verified in Penpot", async () => {
+    const clippedScene = scene();
+    const root = clippedScene.nodes[0];
+    const text = clippedScene.nodes[1];
+    const clipped = { ...root, id: "clipped", parentId: root.id, children: [text.id], name: "card", source: "body > section", paint: { overflow: "hidden" as const } };
+    text.parentId = clipped.id;
+    root.children = [clipped.id];
+    clippedScene.nodes = [root, clipped, text];
+
+    await importScenes([clippedScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group.mock.results[0]?.value as FakeShape;
+    expect(group.children).toHaveLength(2);
+    expect(group).not.toHaveProperty("makeMask");
+  });
+
   it("commits each responsive board in its own undo block", async () => {
     await importScenes([scene("Desktop"), scene("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
     expect(undoFinish).toHaveBeenCalledTimes(2);
@@ -175,6 +250,45 @@ describe("Penpot importer", () => {
       lineHeight: "1.875",
       letterSpacing: "1.6"
     });
+  });
+
+  it("shrinks an auto-width Penpot line when its fallback font exceeds the captured parent width", async () => {
+    const fittedScene = scene();
+    const textNode = fittedScene.nodes.find((node) => node.kind === "text");
+    if (!textNode || !textNode.textStyle) throw new Error("test scene is missing its text node");
+    textNode.textNoWrap = true;
+    textNode.textMaxWidth = 200;
+    // The enclosing content edge is x=100 despite the inline width of 200.
+    fittedScene.nodes[0].rect.width = 120;
+    fittedScene.nodes[0].layout.padding = [0, 20, 0, 0];
+    const createText = (globalThis as typeof globalThis & { penpot: { createText: ReturnType<typeof vi.fn> } }).penpot.createText;
+    createText.mockImplementationOnce((characters: string) => {
+      const shape = Object.assign(fakeShape("text"), { characters, fills: [], width: 80 });
+      let growType = "fixed";
+      let fontSize = "16";
+      Object.defineProperty(shape, "fontSize", {
+        get: () => fontSize,
+        set: (value: string) => {
+          fontSize = value;
+          if (growType === "auto-width") shape.width = Number(value) * 10;
+        }
+      });
+      Object.defineProperty(shape, "growType", {
+        configurable: true,
+        get: () => growType,
+        set: (value: string) => {
+          growType = value;
+          if (value === "auto-width") setTimeout(() => { shape.width = Number(fontSize) * 10; }, 50);
+        }
+      });
+      return shape;
+    });
+
+    const result = await importScenes([fittedScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const imported = (result[0] as unknown as FakeShape).children?.[0];
+    expect(Number(imported?.fontSize)).toBeCloseTo(7.95);
+    expect(Number(imported?.width)).toBeLessThanOrEqual(80);
+    expect(Number(imported?.lineHeight) * Number(imported?.fontSize)).toBeCloseTo(24);
   });
 
   it("groups painted containers instead of creating nested boards", async () => {

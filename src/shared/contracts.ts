@@ -98,6 +98,8 @@ export interface SceneNode {
   textNoWrap?: boolean;
   /** Horizontal fit scale for a captured line that exceeds its source bounds. */
   textFitScale?: number;
+  /** Right-edge space available to a non-wrapping captured text line. */
+  textMaxWidth?: number;
   textStyle?: TextStyle;
   assetId?: string;
   fallbackReason?: string;

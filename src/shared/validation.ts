@@ -66,6 +66,7 @@ function validateNode(value: unknown, index: number): asserts value is SceneNode
     const scale = number(node.textFitScale, `nodes[${index}].textFitScale`, 0.01);
     if (scale > 1) fail(`nodes[${index}].textFitScale must be no greater than 1.`);
   }
+  if (node.textMaxWidth !== undefined) number(node.textMaxWidth, `nodes[${index}].textMaxWidth`, 0.1);
   if (node.assetId !== undefined) string(node.assetId, `nodes[${index}].assetId`, 200);
   if (node.fallbackReason !== undefined) string(node.fallbackReason, `nodes[${index}].fallbackReason`, 1_000);
 }

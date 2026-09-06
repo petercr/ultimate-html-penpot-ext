@@ -18,19 +18,43 @@ export interface ImportOptions {
 
 const IMPORT_NAMESPACE = "ultimate-html-to-penpot";
 
-function cssColor(value: string | undefined): string | undefined {
+interface ParsedColor {
+  color: string;
+  opacity: number;
+}
+
+function clampOpacity(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function cssColorWithOpacity(value: string | undefined): ParsedColor | undefined {
   if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") return undefined;
-  if (value.startsWith("#")) return value;
-  const match = value.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  const hex = value.match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
+  if (hex) {
+    const expanded = hex.length <= 4 ? [...hex].map((part) => part + part).join("") : hex;
+    const color = `#${expanded.slice(0, 6)}`;
+    const alpha = expanded.length === 8 ? Number.parseInt(expanded.slice(6), 16) / 255 : 1;
+    return { color, opacity: alpha };
+  }
+  const match = value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
   if (!match) return undefined;
-  return `#${match.slice(1).map((part) => Number(part).toString(16).padStart(2, "0")).join("")}`;
+  const channels = match.slice(1, 4).map((part) => Math.round(Number(part)));
+  if (channels.some((part) => !Number.isFinite(part) || part < 0 || part > 255)) return undefined;
+  return {
+    color: `#${channels.map((part) => part.toString(16).padStart(2, "0")).join("")}`,
+    opacity: clampOpacity(match[4] === undefined ? 1 : Number(match[4]))
+  };
+}
+
+function cssColor(value: string | undefined): string | undefined {
+  return cssColorWithOpacity(value)?.color;
 }
 
 function cssGradient(value: string | undefined): Gradient | undefined {
   if (!value || (!value.startsWith("linear-gradient") && !value.startsWith("radial-gradient"))) return undefined;
-  const colors = (value.match(/(?:rgba?\([^)]*\)|#[\da-f]{3,8})/gi) || []).map(cssColor).filter((color): color is string => Boolean(color));
+  const colors = (value.match(/(?:rgba?\([^)]*\)|#[\da-f]{3,8})/gi) || []).map(cssColorWithOpacity).filter((color): color is ParsedColor => Boolean(color));
   if (colors.length < 2) return undefined;
-  const stops = colors.map((color, index) => ({ color, offset: index / (colors.length - 1), opacity: 1 }));
+  const stops = colors.map(({ color, opacity }, index) => ({ color, offset: index / (colors.length - 1), opacity }));
   if (value.startsWith("radial-gradient")) return { type: "radial", startX: 0.5, startY: 0.5, endX: 1, endY: 0.5, width: 0.5, stops };
   const angle = value.match(/(-?\d+(?:\.\d+)?)deg/);
   const degrees = angle ? Number(angle[1]) : 180;
@@ -40,16 +64,22 @@ function cssGradient(value: string | undefined): Gradient | undefined {
 
 function applyShadow(shape: Shape, value: string | undefined): void {
   if (!value || value === "none") return;
-  const color = cssColor((value.match(/rgba?\([^)]*\)|#[\da-f]{3,8}/i) || [])[0]);
+  const color = cssColorWithOpacity((value.match(/rgba?\([^)]*\)|#[\da-f]{3,8}/i) || [])[0]);
   const dimensions = (value.match(/-?\d+(?:\.\d+)?px/g) || []).map((dimension) => Number.parseFloat(dimension));
   if (!color || dimensions.length < 3) return;
-  shape.shadows = [{ style: value.includes("inset") ? "inner-shadow" : "drop-shadow", offsetX: dimensions[0], offsetY: dimensions[1], blur: dimensions[2], spread: dimensions[3] || 0, color: { color } }];
+  shape.shadows = [{ style: value.includes("inset") ? "inner-shadow" : "drop-shadow", offsetX: dimensions[0], offsetY: dimensions[1], blur: dimensions[2], spread: dimensions[3] || 0, color: { color: color.color, opacity: color.opacity } }];
 }
 
 function applyPaint(shape: Shape, paint: ScenePaint): void {
-  const color = cssColor(paint.backgroundColor);
+  const color = cssColorWithOpacity(paint.backgroundColor);
   const gradient = cssGradient(paint.backgroundImage);
-  const fills: Fill[] = gradient ? [{ fillColorGradient: gradient }] : color ? [{ fillColor: color, fillOpacity: paint.opacity ?? 1 }] : [];
+  // CSS paints a background color before its image layers. Keep the element
+  // opacity on the shape, otherwise a translucent color receives opacity
+  // twice (once in its fill and once on its container).
+  const fills: Fill[] = [
+    ...(color ? [{ fillColor: color.color, fillOpacity: color.opacity }] : []),
+    ...(gradient ? [{ fillColorGradient: gradient }] : [])
+  ];
   if ("fills" in shape && shape.type !== "group") (shape as Shape & { fills: Fill[] }).fills = fills;
   shape.opacity = paint.opacity ?? 1;
   if (paint.radius) {
@@ -136,6 +166,18 @@ function textFitScale(node: SceneNode): number {
   return Math.min(1, Math.max(0.01, node.textFitScale ?? 1));
 }
 
+function applyTextSizing(text: Text, style: NonNullable<SceneNode["textStyle"]>, scale: number): void {
+  const baseFontSize = Math.max(1, style.fontSize);
+  const effectiveScale = Math.max(0.01, scale);
+  text.fontSize = String(Math.max(1, baseFontSize * effectiveScale));
+  // Scene text styles use Penpot's unitless line-height multiplier. Scale
+  // the multiplier inversely so reducing width does not collapse the source
+  // line box vertically.
+  text.lineHeight = String(Math.max(0.01, style.lineHeight / effectiveScale));
+  // CSS permits negative tracking; Penpot's text API currently does not.
+  text.letterSpacing = String(Math.max(0, style.letterSpacing * effectiveScale));
+}
+
 function createText(node: SceneNode): Text {
   const text = penpot.createText(node.text || "");
   if (!text) throw new Error(`Unable to create text layer: ${node.name}`);
@@ -153,28 +195,27 @@ function createText(node: SceneNode): Text {
     // the entire import.
     applyPenpotFontFamily(text, style.fontFamily);
     // Penpot's plugin API expects numeric string values, not CSS units.
-    const requestedScale = textFitScale(node);
-    const baseFontSize = Math.max(1, style.fontSize);
-    const fontSize = Math.max(1, baseFontSize * requestedScale);
-    const effectiveScale = fontSize / baseFontSize;
-    text.fontSize = String(fontSize);
+    applyTextSizing(text, style, textFitScale(node));
     text.fontWeight = String(style.fontWeight);
     text.fontStyle = style.fontStyle === "italic" ? "italic" : "normal";
-    // Scene text styles use Penpot's unitless line-height multiplier.
-    // Compensate for the fit scale so the captured line box keeps its
-    // original vertical rhythm after the horizontal overflow is corrected.
-    text.lineHeight = String(Math.max(0.01, style.lineHeight / effectiveScale));
-    // CSS permits negative tracking; Penpot's text API currently does not.
-    text.letterSpacing = String(Math.max(0, style.letterSpacing * effectiveScale));
-    text.align = textAlign(style.textAlign);
+    // Captured line coordinates already include browser alignment offsets.
+    text.align = node.textNoWrap ? "left" : textAlign(style.textAlign);
     const textTransform = ["uppercase", "lowercase", "capitalize"].find((value) => value === style.textTransform);
     if (textTransform) text.textTransform = textTransform as Text["textTransform"];
     if (style.textDecoration.includes("line-through")) text.textDecoration = "line-through";
     else if (style.textDecoration.includes("underline")) text.textDecoration = "underline";
   }
-  const color = cssColor(node.paint.color);
-  if (color) text.fills = [{ fillColor: color, fillOpacity: node.paint.opacity ?? 1 }];
+  const color = cssColorWithOpacity(node.paint.color);
+  if (color) text.fills = [{ fillColor: color.color, fillOpacity: color.opacity }];
+  text.opacity = node.paint.opacity ?? 1;
   return text;
+}
+
+function constrainTextToCapturedWidth(text: Text, node: SceneNode, maximum: number): void {
+  const actual = text.width;
+  if (!maximum || !Number.isFinite(actual) || actual <= maximum + 0.01 || !node.textStyle) return;
+  const scale = Number(text.fontSize) / Math.max(1, node.textStyle.fontSize) * (maximum - 0.5) / actual;
+  applyTextSizing(text, node.textStyle, scale);
 }
 
 async function mediaFor(asset: AssetRef) {
@@ -217,12 +258,33 @@ function needsContainerBackdrop(node: SceneNode): boolean {
   );
 }
 
-function createContainerBackdrop(node: SceneNode): Shape {
+type Media = Awaited<ReturnType<typeof mediaFor>>;
+
+async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: Map<string, Media>): Promise<void> {
+  if (!asset || shape.type === "group") return;
+  const key = mediaKey(asset);
+  let uploaded = media.get(key);
+  if (!uploaded) {
+    try {
+      uploaded = await mediaFor(asset);
+      if (uploaded) media.set(key, uploaded);
+    } catch {
+      // A later phase adds visible placeholders and surfaced diagnostics.
+      return;
+    }
+  }
+  if (!uploaded) return;
+  const fillTarget = shape as Shape & { fills: Fill[] };
+  fillTarget.fills = [...(fillTarget.fills || []), { fillImage: uploaded, fillOpacity: 1 }];
+}
+
+async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: Map<string, Media>): Promise<Shape> {
   const backdrop = penpot.createRectangle();
   // Opacity belongs to the complete container compositing group. Keeping
   // the backdrop fully opaque lets the group apply it once to both the
   // background and editable descendants.
   applyPaint(backdrop, { ...node.paint, opacity: 1 });
+  await applyAssetFill(backdrop, node.assetId ? assets.get(node.assetId) : undefined, media);
   return backdrop;
 }
 
@@ -240,7 +302,7 @@ function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
   if (node.fallbackReason) shape.setPluginData("fallback", node.fallbackReason);
 }
 
-async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: Map<string, Awaited<ReturnType<typeof mediaFor>>>): Promise<Shape> {
+async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: Map<string, Media>): Promise<Shape> {
   if (node.kind === "text") return createText(node);
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
   const svg = svgTextOf(asset);
@@ -262,12 +324,7 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
   }
   if ((node.kind === "image" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
     if (asset) {
-      const key = mediaKey(asset);
-      let uploaded = media.get(key);
-      if (!uploaded) {
-        try { uploaded = await mediaFor(asset); media.set(key, uploaded); } catch { /* A placeholder remains visible. */ }
-      }
-      if (uploaded) (shape as Shape & { fills: Fill[] }).fills = [{ fillImage: uploaded, fillOpacity: 1 }];
+      await applyAssetFill(shape, asset, media);
     }
   }
   return shape;
@@ -282,7 +339,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
   // Keep one uploaded media object per source URL across responsive boards.
   // Re-uploading the same page asset for each viewport creates noisy failed
   // requests in Penpot and needlessly increases the file update payload.
-  const media = new Map<string, Awaited<ReturnType<typeof mediaFor>>>();
+  const media = new Map<string, Media>();
 
   try {
     for (const scene of scenes) {
@@ -310,6 +367,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         }
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
         const shapes = new Map<string, Shape>();
+        const textLines: { text: Text; node: SceneNode; maximum: number }[] = [];
         const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId));
 
         const append = (parentShape: Board | Shape, shape: Shape) => {
@@ -333,7 +391,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               if (childShape) children.push(childShape);
             }
 
-            const backdrop = needsContainerBackdrop(node) ? createContainerBackdrop(node) : undefined;
+            const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media) : undefined;
             if (backdrop) {
               metadata(backdrop, node, scene.viewport.id);
               append(parentShape, backdrop);
@@ -374,7 +432,21 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // non-wrapping layer per browser line by the extractor, so each
             // imported line remains readable without relying on auto-height.
             if (shape.type === "text" && node.textNoWrap && !node.text?.includes("\n")) {
-              (shape as Text).growType = "auto-width";
+              const text = shape as Text;
+              text.growType = "auto-width";
+              // Bound old captures too, and include enclosing cards: inline
+              // elements can themselves have a bounding box wider than a card.
+              let maximum = node.textMaxWidth ?? node.rect.width;
+              let ancestor = node.parentId ? nodes.get(node.parentId) : undefined;
+              const visited = new Set<string>();
+              while (ancestor && !visited.has(ancestor.id)) {
+                visited.add(ancestor.id);
+                const right = ancestor.rect.x + ancestor.rect.width
+                  - (ancestor.layout.padding?.[1] ?? 0) - (ancestor.paint.borderWidth ?? 0);
+                if (right > node.rect.x) maximum = Math.min(maximum, right - node.rect.x);
+                ancestor = ancestor.parentId ? nodes.get(ancestor.parentId) : undefined;
+              }
+              textLines.push({ text, node, maximum: Math.max(1, maximum) });
             }
           } catch (error) {
             throw new Error(`Unable to place ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
@@ -388,10 +460,19 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           // again creates an offset nested board and makes its size misleading.
           if (root.kind === "container") {
             applyPaint(board, root.paint);
+            await applyAssetFill(board, root.assetId ? assets.get(root.assetId) : undefined, media);
             board.setPluginData("source", root.source);
             for (const child of childrenByParent.get(root.id) || []) await render(child, board);
             reportProgress();
           } else await render(root, board);
+        }
+        // Font loading and host text layout are asynchronous. A zero-delay
+        // check immediately after creation can still see the source width.
+        // Fit all lines together, then remeasure the result of each adjustment.
+        for (let pass = 0; textLines.length && pass < 4; pass += 1) {
+          await new Promise<void>((resolve) => setTimeout(resolve, pass === 0 ? 250 : 100));
+          if (options.isCancelled()) throw new ImportCancelledError();
+          for (const { text, node, maximum } of textLines) constrainTextToCapturedWidth(text, node, maximum);
         }
       } finally {
         // Each responsive board gets its own persistence-sized transaction.
