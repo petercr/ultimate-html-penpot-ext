@@ -140,7 +140,7 @@ describe("page source resolution", () => {
   });
 
   it("sniffs extensionless SVG bytes so the importer can keep them editable", async () => {
-    const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><path d=\"M0 0h10v10z\"/></svg>";
+    const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><style>.st0{fill:#FFFFFF}</style><path class=\"st0\" d=\"M0 0h10v10z\"/></svg>";
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response('<main><img src="https://cdn.example.com/vector?id=1"></main>', { status: 200 }))
       .mockResolvedValueOnce(new Response(new TextEncoder().encode(svg), { status: 200, headers: { "content-type": "application/octet-stream" } }));
@@ -150,6 +150,9 @@ describe("page source resolution", () => {
 
     expect(result.html).toContain("data:image/svg+xml;base64,");
     expect(result.html).not.toContain("https://cdn.example.com/vector?id=1");
+    const encoded = result.html.match(/src="data:image\/svg\+xml;base64,([^\"]+)"/)?.[1] || "";
+    const normalized = new TextDecoder().decode(Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0)));
+    expect(normalized).toContain('style="fill: #FFFFFF;"');
     vi.unstubAllGlobals();
   });
 
