@@ -193,6 +193,18 @@ function normalizeSvgMarkup(svg: string): string {
     }
   }
 
+  // Exporters often leave hidden source layers in the SVG (for example, an
+  // embedded raster reference kept in an Inkscape layer). They are invisible
+  // in the browser but can still be traversed or uploaded by Penpot's SVG
+  // converter. Remove only explicit display/visibility-hidden descendants;
+  // visible vector content and opacity-based artwork remain untouched.
+  for (const element of [...root.querySelectorAll("*")].reverse()) {
+    const style = (element as SVGElement).style;
+    const display = style?.getPropertyValue("display").trim().toLowerCase();
+    const visibility = style?.getPropertyValue("visibility").trim().toLowerCase();
+    if (display === "none" || visibility === "hidden") element.remove();
+  }
+
   return root.outerHTML || svg;
 }
 

@@ -45,8 +45,9 @@ describe("page source resolution", () => {
 
   it("inlines CSS class presentation from exported SVG image assets", async () => {
     const svg = [
-      '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">',
+      '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10">',
       "<style type=\"text/css\">.st0{fill:#FFFFFF;stroke:none;}</style>",
+      '<g style="display:none"><image xlink:href="data:image/jpeg;base64,AAAA" /></g>',
       '<path class="st0" d="M0 0h10v10z"/>',
       "</svg>"
     ].join("");
@@ -65,6 +66,7 @@ describe("page source resolution", () => {
     const normalized = decodeURIComponent(encoded || "");
     expect(normalized).toContain('style="fill: #FFFFFF; stroke: none;"');
     expect(normalized).toContain('xmlns:xlink="http://www.w3.org/1999/xlink"');
+    expect(normalized).not.toContain("<image");
     vi.unstubAllGlobals();
   });
 
