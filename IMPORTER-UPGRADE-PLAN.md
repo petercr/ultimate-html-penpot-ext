@@ -6,7 +6,7 @@ Status: in progress.
 
 Improve visual fidelity and predictable imports first, then improve performance and native Penpot editability. Preserve the separation between browser capture, the scene document, and Penpot object creation.
 
-This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 136 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
+This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 137 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
 
 ## Phase 1 — Regression fixtures and visual baseline
 
@@ -96,7 +96,7 @@ Acceptance: fixture text retains its content, spacing, and line placement withou
 ### 4.1 Asset failures and diagnostics
 
 - [x] Inline absolute, lazy-loaded, `srcset`, extensionless, and SVG-embedded image references before sandbox capture.
-- [x] Normalize inline SVG namespaces/styles and keep the serialized SVG as one scene asset to avoid duplicate layers.
+- [x] Normalize serialized SVG namespaces/presentation styles (including CSS classes from external SVG `<img>` assets) and keep each SVG as one scene asset to avoid duplicate layers.
 - [x] Cache both successful and failed asset resolutions across responsive boards.
 - [x] Render a visible, named placeholder when an image cannot be imported.
 - [ ] Return import-time diagnostics to the UI, including asset source and failure reason.

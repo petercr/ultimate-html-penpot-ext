@@ -117,12 +117,103 @@ function assetMimeType(response: Response, url: string, bytes: Uint8Array): stri
   return IMAGE_MIME_BY_EXTENSION[extensionOf(url)] || sniffImageMime(bytes);
 }
 
+interface SvgStyleRule {
+  selectors: string[];
+  declarations: Array<[string, string, "" | "important"]>;
+}
+
+/**
+ * Expand the small, static CSS dialect commonly embedded in exported SVGs.
+ *
+ * SVGs loaded through an <img> do not participate in the page's computed
+ * style tree, so the Penpot SVG parser only sees the raw XML. Illustrator and
+ * similar exporters frequently put the actual fills/strokes in class rules
+ * such as `.st0 { fill: #fff; }`. Inlining those declarations keeps the SVG
+ * self-contained without attaching untrusted markup to the live document.
+ */
+function normalizeSvgMarkup(svg: string): string {
+  if (typeof DOMParser === "undefined") return svg;
+  let document: Document;
+  try {
+    document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  } catch {
+    return svg;
+  }
+  const root = document.documentElement;
+  if (!root || root.tagName.toLowerCase() !== "svg") return svg;
+
+  if (!root.getAttribute("xmlns")) {
+    root.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns", "http://www.w3.org/2000/svg");
+  }
+  if (!root.getAttribute("xmlns:xlink")) {
+    root.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xlink", "http://www.w3.org/1999/xlink");
+  }
+
+  const rules: SvgStyleRule[] = [];
+  for (const style of root.querySelectorAll("style")) {
+    const css = (style.textContent || "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/<!\[CDATA\[|\]\]>/g, "");
+    for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selectors = match[1].split(",").map((selector) => selector.trim()).filter((selector) => selector && !selector.startsWith("@"));
+      const declarations: SvgStyleRule["declarations"] = [];
+      for (const declaration of match[2].matchAll(/([-\w]+)\s*:\s*([^;{}]+?)(?:;|$)/g)) {
+        const property = declaration[1].trim();
+        let value = declaration[2].trim();
+        if (!property || !value) continue;
+        const important = /\s*!important\s*$/i.test(value) ? "important" : "";
+        if (important) value = value.replace(/\s*!important\s*$/i, "").trim();
+        declarations.push([property, value, important]);
+      }
+      if (selectors.length && declarations.length) rules.push({ selectors, declarations });
+    }
+  }
+
+  if (rules.length) {
+    const elements = [root, ...root.querySelectorAll("*")];
+    for (const element of elements) {
+      const style = (element as SVGElement).style;
+      if (!style) continue;
+      const matched = new Map<string, [string, "" | "important"]>();
+      for (const rule of rules) {
+        const applies = rule.selectors.some((selector) => {
+          try { return element.matches(selector); } catch { return false; }
+        });
+        if (!applies) continue;
+        for (const [property, value, priority] of rule.declarations) {
+          matched.set(property.toLowerCase(), [value, priority]);
+        }
+      }
+      for (const [property, [value, priority]] of matched) {
+        // Preserve an existing inline declaration because it has higher CSS
+        // precedence than a class/tag rule in the original SVG.
+        if (style.getPropertyValue(property)) continue;
+        try { style.setProperty(property, value, priority); } catch { /* Ignore malformed declarations. */ }
+      }
+    }
+  }
+
+  return root.outerHTML || svg;
+}
+
 async function imageDataUrl(url: string): Promise<{ dataUrl: string; bytes: number } | undefined> {
   const response = await fetchDocument(url, "asset");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.byteLength || bytes.byteLength > MAX_INLINE_IMAGE_BYTES) return undefined;
   const mimeType = assetMimeType(response, url, bytes);
   if (!mimeType) return undefined;
+  if (mimeType === "image/svg+xml" && typeof TextDecoder === "function" && typeof TextEncoder === "function") {
+    try {
+      const svg = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      if (/<svg[\s>]/i.test(svg)) {
+        const normalized = normalizeSvgMarkup(svg);
+        const normalizedBytes = new TextEncoder().encode(normalized);
+        return { dataUrl: `data:${mimeType};base64,${base64Of(normalizedBytes)}`, bytes: normalizedBytes.byteLength };
+      }
+    } catch {
+      // Fall through to the original bytes when an SVG cannot be decoded.
+    }
+  }
   return { dataUrl: `data:${mimeType};base64,${base64Of(bytes)}`, bytes: bytes.byteLength };
 }
 
@@ -449,7 +540,8 @@ async function inlineSvgImages(html: string, baseUrl: string | undefined): Promi
     if (contentLength > MAX_INLINE_SVG_BYTES) return;
     const svg = await response.text();
     if (utf8ByteLength(svg) > MAX_INLINE_SVG_BYTES || !/<svg[\s>]/i.test(svg)) return;
-    image.setAttribute("src", `data:image/svg+xml,${encodeURIComponent(svg)}`);
+    const normalized = normalizeSvgMarkup(svg);
+    image.setAttribute("src", `data:image/svg+xml,${encodeURIComponent(normalized)}`);
     changed = true;
   }));
   return changed ? "<!doctype html>\n" + document.documentElement.outerHTML : html;

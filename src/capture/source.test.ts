@@ -43,6 +43,31 @@ describe("page source resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("inlines CSS class presentation from exported SVG image assets", async () => {
+    const svg = [
+      '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">',
+      "<style type=\"text/css\">.st0{fill:#FFFFFF;stroke:none;}</style>",
+      '<path class="st0" d="M0 0h10v10z"/>',
+      "</svg>"
+    ].join("");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<main><img src="/social.svg"></main>', { status: 200 }))
+      .mockResolvedValueOnce(new Response(svg, {
+        status: 200,
+        headers: { "content-type": "image/svg+xml" }
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveSource("https://example.com/page");
+
+    const encoded = result.html.match(/src="data:image\/svg\+xml,([^\"]+)"/)?.[1];
+    expect(encoded).toBeTruthy();
+    const normalized = decodeURIComponent(encoded || "");
+    expect(normalized).toContain('style="fill: #FFFFFF; stroke: none;"');
+    expect(normalized).toContain('xmlns:xlink="http://www.w3.org/1999/xlink"');
+    vi.unstubAllGlobals();
+  });
+
   it("inlines raster image assets so Penpot receives bytes instead of remote URLs", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response('<main><img src="/logo.png"><div style="background-image: url(\'/hero.jpg\')"></div></main>', { status: 200 }))
