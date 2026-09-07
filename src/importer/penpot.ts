@@ -50,11 +50,81 @@ function cssColor(value: string | undefined): string | undefined {
   return cssColorWithOpacity(value)?.color;
 }
 
+function cssFunctionArguments(value: string): string[] {
+  const argumentsText = value.slice(value.indexOf("(") + 1, value.lastIndexOf(")"));
+  const result: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  for (let index = 0; index < argumentsText.length; index += 1) {
+    const character = argumentsText[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === '"' || character === "'") { quote = character; continue; }
+    if (character === "(") { depth += 1; continue; }
+    if (character === ")") { depth = Math.max(0, depth - 1); continue; }
+    if (character === "," && depth === 0) {
+      result.push(argumentsText.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  result.push(argumentsText.slice(start).trim());
+  return result.filter(Boolean);
+}
+
+interface GradientStop {
+  color: string;
+  opacity: number;
+  offset?: number;
+}
+
+function gradientStop(value: string): GradientStop | undefined {
+  const match = value.match(/^\s*(rgba?\([^)]*\)|#[\da-f]{3,8})(?:\s+(.+))?\s*$/i);
+  const parsed = cssColorWithOpacity(match?.[1]);
+  if (!parsed) return undefined;
+  // Percentages map directly to Penpot's normalized stop offsets. Pixel and
+  // length-based positions depend on the rendered gradient line, which is
+  // not available in the scene document, so retain CSS's interpolated offset
+  // for those cases rather than inventing an incorrect absolute position.
+  const percentage = match?.[2]?.match(/(?:^|\s)(-?\d+(?:\.\d+)?)%/);
+  const offset = percentage ? clampOpacity(Number(percentage[1]) / 100) : undefined;
+  return { ...parsed, offset };
+}
+
+function resolvedGradientOffsets(stops: GradientStop[]): number[] {
+  const offsets = stops.map((stop) => stop.offset);
+  if (offsets[0] === undefined) offsets[0] = 0;
+  if (offsets[offsets.length - 1] === undefined) offsets[offsets.length - 1] = 1;
+  let previous = 0;
+  for (let index = 0; index < offsets.length; index += 1) {
+    if (offsets[index] !== undefined) {
+      previous = offsets[index] as number;
+      continue;
+    }
+    let next = index + 1;
+    while (next < offsets.length && offsets[next] === undefined) next += 1;
+    const end = offsets[next] ?? 1;
+    const count = next - index + 1;
+    for (let fill = index; fill < next; fill += 1) offsets[fill] = previous + (end - previous) * (fill - index + 1) / count;
+    index = next - 1;
+    previous = offsets[index] as number;
+  }
+  // CSS clamps a stop that would move backwards to its preceding position.
+  return offsets.map((offset, index) => Math.max(index ? offsets[index - 1] as number : 0, clampOpacity(offset as number)));
+}
+
 function cssGradient(value: string | undefined): Gradient | undefined {
   if (!value || (!value.startsWith("linear-gradient") && !value.startsWith("radial-gradient"))) return undefined;
-  const colors = (value.match(/(?:rgba?\([^)]*\)|#[\da-f]{3,8})/gi) || []).map(cssColorWithOpacity).filter((color): color is ParsedColor => Boolean(color));
+  const parts = cssFunctionArguments(value);
+  const colors = parts.map(gradientStop).filter((stop): stop is GradientStop => Boolean(stop));
   if (colors.length < 2) return undefined;
-  const stops = colors.map(({ color, opacity }, index) => ({ color, offset: index / (colors.length - 1), opacity }));
+  const offsets = resolvedGradientOffsets(colors);
+  const stops = colors.map(({ color, opacity }, index) => ({ color, opacity, offset: offsets[index] }));
   if (value.startsWith("radial-gradient")) return { type: "radial", startX: 0.5, startY: 0.5, endX: 1, endY: 0.5, width: 0.5, stops };
   const angle = value.match(/(-?\d+(?:\.\d+)?)deg/);
   const degrees = angle ? Number(angle[1]) : 180;

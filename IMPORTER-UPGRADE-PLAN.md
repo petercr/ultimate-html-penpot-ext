@@ -52,7 +52,7 @@ Relevant code: `cssColor()`, `cssGradient()`, `applyPaint()`, `createText()`, an
 - [x] Represent color and alpha separately for fills, strokes, shadows, and gradient stops.
 - [x] Apply CSS element opacity once to the appropriate shape or compositing container.
 - [x] Remove duplicated parent opacity from synthetic direct-text children.
-- [ ] Preserve gradient stop positions and alpha for supported gradients.
+- [x] Preserve percentage gradient stop positions and alpha for supported linear and radial gradients; length-based stop positions retain interpolated offsets.
 - [ ] Define normalization or diagnostics for color formats outside the supported parser.
 - [ ] Test translucent backgrounds, shadows, nested opacity, and decorated text at 50% opacity.
 

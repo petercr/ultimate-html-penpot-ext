@@ -246,6 +246,26 @@ describe("Penpot importer", () => {
     expect(importedText).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#112233", fillOpacity: 4 / 15 }] });
   });
 
+  it("preserves explicit percentage gradient stops and stop alpha", async () => {
+    const gradientScene = scene();
+    gradientScene.nodes[0].paint = {
+      backgroundImage: "linear-gradient(90deg, rgba(255, 0, 0, 0.25) 15%, #00ff00 70%, rgb(0, 0, 255))"
+    };
+
+    const result = await importScenes([gradientScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const board = result[0] as unknown as FakeShape;
+    expect(board.fills).toEqual([{
+      fillColorGradient: expect.objectContaining({
+        type: "linear",
+        stops: [
+          { color: "#ff0000", opacity: 0.25, offset: 0.15 },
+          { color: "#00ff00", opacity: 1, offset: 0.7 },
+          { color: "#0000ff", opacity: 1, offset: 1 }
+        ]
+      })
+    }]);
+  });
+
   it("retains overflow containers as ordinary groups until masking is verified in Penpot", async () => {
     const clippedScene = scene();
     const root = clippedScene.nodes[0];
