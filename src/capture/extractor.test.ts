@@ -28,6 +28,8 @@ describe("extractor script", () => {
     expect(script).toContain("textNoWrap: true");
     expect(script).toContain("const paintOfElement");
     expect(script).toContain("const materializeSvgBackground");
+    expect(script).toContain("const backgroundLayers");
+    expect(script).toContain("MULTIPLE_BACKGROUND_LAYERS");
     expect(script).toContain("backgroundRepeat");
     expect(script).toContain("backgroundPosition");
     expect(script).toContain("backgroundSize");
@@ -97,5 +99,37 @@ describe("extractor script", () => {
     expect(materialized.match(/<g /g)?.length).toBe(6);
     expect(materialized).toContain("translate(0 0)");
     expect(materialized).toContain("translate(20 10)");
+  });
+
+  it("keeps the topmost background layer and reports omitted lower layers", async () => {
+    document.body.innerHTML = `<div id="layered" style="width:25px;height:15px;opacity:1;visibility:visible"></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const layered = document.querySelector("#layered") as HTMLElement;
+    layered.style.backgroundImage = 'linear-gradient(rgb(1, 2, 3), rgb(4, 5, 6)), url("https://example.com/lower.png")';
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalComputedStyle = window.getComputedStyle;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    window.getComputedStyle = ((element: Element) => originalComputedStyle.call(window, element)) as typeof window.getComputedStyle;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    const messages: MessageEvent[] = [];
+    const receive = (event: MessageEvent) => messages.push(event);
+    window.addEventListener("message", receive);
+    try {
+      window.eval(buildExtractorScript("layered-test", { id: "test", name: "Test", width: 25, height: 15 }, 0));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    } finally {
+      window.removeEventListener("message", receive);
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      window.getComputedStyle = originalComputedStyle;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+    const result = messages.find((event) => event.data?.type === "CAPTURE_RESULT")?.data?.scene;
+    const node = result?.nodes?.find((candidate: { source: string }) => candidate.source === "#layered");
+    expect(node?.paint.backgroundImage).toMatch(/^linear-gradient/);
+    expect(result?.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "MULTIPLE_BACKGROUND_LAYERS", source: "#layered" })
+    ]));
   });
 });

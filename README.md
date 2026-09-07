@@ -26,6 +26,8 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 - Pasted HTML/CSS, an optional HTTP(S) base URL for resolving relative assets, responsive viewport boards, and editable text, boxes, flex layouts, images, and inline SVG.
 - Capture preparation inlines common `img`, `srcset`, lazy-load, CSS background, and SVG-embedded image references when their bytes are available; missing assets remain visible as named placeholders.
 - Repeating data-URI SVG CSS backgrounds are expanded into viewport-sized tiled assets so decorative patterns keep their source positions after import.
+- For layered CSS backgrounds, the topmost layer and background color are imported; lower layers are listed as capture diagnostics.
+- Supported linear and radial gradients retain percentage stop positions and alpha values.
 - Best-effort HTTP(S) page URLs when the target site permits credential-free browser requests through CORS.
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.

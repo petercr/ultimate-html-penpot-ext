@@ -45,9 +45,41 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       : { id, url, mimeType: hint });
     return id;
   };
+  // CSS separates background layers with commas, but commas may also appear
+  // inside gradients and data URLs. Split only at the top level so the
+  // importer can deliberately retain the topmost layer it knows how to draw.
+  const backgroundLayers = (value) => {
+    const layers = [];
+    let start = 0;
+    let depth = 0;
+    let quote = "";
+    let escaped = false;
+    const source = String(value || "");
+    for (let index = 0; index < source.length; index += 1) {
+      const character = source[index];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (character === "\\\\") escaped = true;
+        else if (character === quote) quote = "";
+        continue;
+      }
+      if (character.charCodeAt(0) === 34 || character === "'") { quote = character; continue; }
+      if (character === "(") { depth += 1; continue; }
+      if (character === ")") { depth = Math.max(0, depth - 1); continue; }
+      if (character === "," && depth === 0) {
+        const layer = source.slice(start, index).trim();
+        if (layer) layers.push(layer);
+        start = index + 1;
+      }
+    }
+    const layer = source.slice(start).trim();
+    if (layer) layers.push(layer);
+    return layers;
+  };
   const backgroundUrl = (value) => {
-    const match = /url\\(["']?(.+?)["']?\\)/.exec(value || "");
-    return match ? match[1] : undefined;
+    const layer = backgroundLayers(value)[0] || "";
+    const match = /^url\\(\\s*(?:"([^"]*)"|'([^']*)'|(.+?))\\s*\\)$/i.exec(layer);
+    return match ? (match[1] ?? match[2] ?? match[3])?.trim() : undefined;
   };
   const decodeSvgDataUrl = (value) => {
     const source = String(value || "");
@@ -220,7 +252,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   };
   const paintOf = (style) => ({
     backgroundColor: style.backgroundColor,
-    backgroundImage: style.backgroundImage,
+    // Penpot has one image/gradient fill per imported source surface. CSS
+    // paints its first background image on top, so preserve that layer and
+    // report any lower layers during capture instead of letting a regex pick
+    // an arbitrary URL from the entire shorthand.
+    backgroundImage: backgroundLayers(style.backgroundImage)[0] || "none",
     backgroundRepeat: style.backgroundRepeat,
     backgroundRepeatX: style.backgroundRepeatX,
     backgroundRepeatY: style.backgroundRepeatY,
@@ -248,7 +284,17 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (element === document.body && transparent(paint.backgroundColor) && paint.backgroundImage === "none") {
       const htmlStyle = getComputedStyle(document.documentElement);
       paint.backgroundColor = transparent(htmlStyle.backgroundColor) ? "rgb(255, 255, 255)" : htmlStyle.backgroundColor;
-      if (paint.backgroundImage === "none" && htmlStyle.backgroundImage !== "none") paint.backgroundImage = htmlStyle.backgroundImage;
+      if (paint.backgroundImage === "none" && htmlStyle.backgroundImage !== "none") {
+        const htmlPaint = paintOf(htmlStyle);
+        paint.backgroundImage = htmlPaint.backgroundImage;
+        paint.backgroundRepeat = htmlPaint.backgroundRepeat;
+        paint.backgroundRepeatX = htmlPaint.backgroundRepeatX;
+        paint.backgroundRepeatY = htmlPaint.backgroundRepeatY;
+        paint.backgroundSize = htmlPaint.backgroundSize;
+        paint.backgroundPosition = htmlPaint.backgroundPosition;
+        paint.backgroundPositionX = htmlPaint.backgroundPositionX;
+        paint.backgroundPositionY = htmlPaint.backgroundPositionY;
+      }
     }
     return paint;
   };
@@ -431,6 +477,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Use the effective paint here rather than the body's raw computed style:
     // a transparent body inherits the html element's visible page background.
     const paint = paintOfElement(element, style);
+    const rawBackgroundImage = element === document.body && transparent(style.backgroundColor) && style.backgroundImage === "none"
+      ? getComputedStyle(document.documentElement).backgroundImage
+      : style.backgroundImage;
+    const visibleBackgroundLayers = backgroundLayers(rawBackgroundImage).filter((layer) => layer !== "none");
     const imageUrl = tag === "img" ? element.currentSrc || element.src : materializeSvgBackground(paint, rect);
     const imageAsset = asset(imageUrl, tag === "img" ? element.currentSrc?.split(".").pop() : undefined);
     // A text-only node cannot carry fills, borders, or radii, so any element
@@ -474,6 +524,9 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (reason) {
       diagnostics.push({ severity: "warning", code: "UNSUPPORTED_SUBTREE", message: reason, viewportId: viewport.id, source });
       return id;
+    }
+    if (visibleBackgroundLayers.length > 1) {
+      diagnostics.push({ severity: "warning", code: "MULTIPLE_BACKGROUND_LAYERS", message: "Only the topmost of " + visibleBackgroundLayers.length + " CSS background layers was imported; lower layers were omitted.", viewportId: viewport.id, source });
     }
     // The serialized SVG already contains the complete subtree. Traversing
     // its paths and groups again would create duplicate rectangle layers and
