@@ -241,6 +241,37 @@ describe("extractor script", () => {
     }
   });
 
+  it("captures overflow per axis and diagnoses clipping Penpot cannot reproduce", async () => {
+    document.body.innerHTML = `<div id="single" style="width:25px;height:15px;opacity:1;visibility:visible;overflow-x:clip;overflow-y:visible"></div><div id="both" style="width:25px;height:15px;opacity:1;visibility:visible;overflow:auto"></div><div id="plain" style="width:25px;height:15px;opacity:1;visibility:visible"></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalComputedStyle = window.getComputedStyle;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    window.getComputedStyle = ((element: Element) => originalComputedStyle.call(window, element)) as typeof window.getComputedStyle;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("overflow-axes");
+      const paintOf = (source: string) => result.nodes.find((node) => node.source === source)?.paint;
+      // overflow-x: clip is the one computed combination that clips a single
+      // axis; every other single-axis value forces the other axis to auto.
+      expect(paintOf("#single")).toMatchObject({ overflowX: "clip", overflowY: "visible", overflow: "visible" });
+      // jsdom reports only the shorthand here, exercising the fallback that
+      // real engines never need.
+      expect(paintOf("#both")).toMatchObject({ overflowX: "auto", overflowY: "auto", overflow: "hidden" });
+      expect(paintOf("#plain")).toMatchObject({ overflowX: "visible", overflowY: "visible", overflow: "visible" });
+      const overflowDiagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === "UNSUPPORTED_OVERFLOW");
+      expect(overflowDiagnostics).toHaveLength(1);
+      expect(overflowDiagnostics[0]).toMatchObject({ severity: "warning", source: "#single" });
+      expect(overflowDiagnostics[0].message).toContain("clips only one axis");
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      window.getComputedStyle = originalComputedStyle;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
   it("captures decorated direct text at opacity one and imports it under the parent compositing opacity", async () => {
     document.body.innerHTML = `<div id="decorated" style="width:25px;height:15px;opacity:.5;visibility:visible;background-color:rgb(20, 40, 60)">Captured direct text</div>`;
     document.body.style.cssText = "opacity:1;visibility:visible";

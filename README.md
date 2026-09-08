@@ -30,11 +30,17 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 - Supported linear and radial gradients retain percentage stop positions and alpha values.
 - Translucent fills, borders, shadows, and text retain their alpha values; fully transparent text remains transparent rather than using Penpot's default text color.
 - CSS Color 4 values such as `color(display-p3 ...)` are reported as capture diagnostics. Unsupported gradient stops cause that gradient to be omitted as a whole, rather than importing a misleading partial gradient.
+- Elements that clip their content (`overflow: hidden`, `clip`, `scroll`, or `auto`) become nested Penpot boards that clip, keeping the source element's own bounds instead of growing to fit an overflowing child. Elements that do not clip stay ordinary groups.
+- CSS can clip a single axis only through `overflow-x: clip` with `overflow-y: visible`. Penpot clips both axes together, so that combination is imported unclipped and reported as a capture diagnostic rather than hiding content the browser shows.
 - Best-effort HTTP(S) page URLs when the target site permits credential-free browser requests through CORS.
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.
 
 Pasting HTML is the reliable workflow. Direct page URLs and remote images, fonts, stylesheets, or SVG assets can fail when their host does not permit browser access. When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. That proxy is intended for local development only: 15-second timeout, bounded responses of 3 MB for pages/assets, 2 MB for CSS/SVG, and 1.5 MB for fonts, with no credentials. Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.
+
+### Overflow clipping comparison fixture
+
+`src/capture/fixtures/overflow-clipping.html` is a deterministic manual fixture for oversized children, rounded clipped cards, nested clips, visible overflow, `overflow: auto`, and single-axis clipping. Chrome 152 smoke capture through the DevTools pipe produced 27 nodes at both 390 and 1440, with every clipping container keeping its own 200px box rather than its 420px child's and exactly one `UNSUPPORTED_OVERFLOW` diagnostic. To compare it in Penpot, import the capture into a disposable file and check at 100% zoom that each clipped section cuts its child at the container edge (following the 18px radius on the rounded card), that the nested clips cut twice, and that the visible-overflow and single-axis sections still spill. Live Penpot verification of the nested clipping boards is still outstanding.
 
 ### Color/opacity comparison fixture
 
