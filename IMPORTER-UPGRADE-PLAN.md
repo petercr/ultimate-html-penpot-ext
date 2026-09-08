@@ -72,8 +72,9 @@ Acceptance: color alpha and element opacity combine correctly; a solid element w
 - [x] Preserve subtree suppression for `display: none` and fully transparent compositing groups.
 - [x] Handle descendants that override an ancestor's `visibility: hidden`.
 - [ ] Assign children to the correct surviving scene ancestor when a wrapper has no node.
+- [ ] Stop an undecorated single-child container from taking over its child's identity. The importer collapses such a wrapper onto its only child and then applies the wrapper's name and source to it, so the child's own name is lost. Since Phase 2.2 that child can be a clipping board, which makes the layer tree name a clip after the wrapper around it. This is long-standing behavior, not a Phase 2.2 regression; the collapse itself is worth keeping, only the metadata overwrite is wrong.
 
-Acceptance: visible descendants survive wrapper omission, and hidden subtrees remain absent.
+Acceptance: visible descendants survive wrapper omission, hidden subtrees remain absent, and a collapsed wrapper does not rename the layer it collapses into.
 
 ### 3.2 Stacking order
 
