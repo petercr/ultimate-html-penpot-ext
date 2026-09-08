@@ -146,7 +146,10 @@ export type PluginToUiMessage =
 export const SCENE_LIMITS = {
   warningLayers: 5_000,
   warningHeight: 30_000,
+  maxScenes: 24,
   maxLayers: 20_000,
+  maxTotalLayers: 50_000,
+  maxDimension: 100_000,
   maxHeight: 100_000,
   maxMessageBytes: 25 * 1024 * 1024
 } as const;
