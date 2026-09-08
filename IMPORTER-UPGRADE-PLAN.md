@@ -6,7 +6,7 @@ Status: in progress.
 
 Improve visual fidelity and predictable imports first, then improve performance and native Penpot editability. Preserve the separation between browser capture, the scene document, and Penpot object creation.
 
-This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 138 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
+This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The suite has 145 tests across 14 files after the Phase 4.2 validation batch. The findings are code-based; live browser and Penpot validation remains to be done.
 
 ## Phase 1 — Regression fixtures and visual baseline
 
@@ -107,9 +107,9 @@ Acceptance: one failing shared asset does not trigger repeated uploads, silently
 
 ### 4.2 Scene validation and workload limits
 
-- [ ] Validate paint, text styles, layouts, asset fields, and diagnostics before host mutation.
-- [ ] Reject duplicate node IDs and cycles; define consistent handling of missing parents and conflicting child references.
-- [ ] Bound total scene count, aggregate layers, dimensions, and payload size for the whole import.
+- [x] Validate paint, text styles, layouts, asset fields, and diagnostics before host mutation.
+- [x] Reject duplicate node IDs and cycles; reject missing parents, conflicting child references, duplicate assets, and missing asset references.
+- [x] Bound total scene count, aggregate layers, dimensions, and payload size for the whole import.
 - [ ] Enforce capture limits during traversal so oversized documents stop before constructing and posting an excessive scene.
 - [ ] Show actionable errors and verify invalid scenes create no Penpot objects.
 

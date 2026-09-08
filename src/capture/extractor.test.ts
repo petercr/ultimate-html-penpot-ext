@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { buildExtractorScript } from "./extractor";
 
+/** The capture script finishes asynchronously. Waiting for its message keeps
+ * these tests from depending on how much other work shares the run. */
+async function settle(messages: MessageEvent[], token: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (messages.some((event) => event.data?.token === token && event.data?.type?.startsWith("CAPTURE_"))) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 describe("extractor script", () => {
   it("embeds the viewport, token, and protocol result", () => {
     const script = buildExtractorScript("nonce-token", { id: "mobile", name: "Mobile", width: 390, height: 844 }, 1200);
@@ -81,7 +90,7 @@ describe("extractor script", () => {
     window.addEventListener("message", receive);
     try {
       window.eval(buildExtractorScript("anchor-test", { id: "test", name: "Test", width: 25, height: 15 }, 0));
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await settle(messages, "anchor-test");
     } finally {
       window.removeEventListener("message", receive);
       HTMLElement.prototype.getBoundingClientRect = originalBounds;
@@ -118,7 +127,7 @@ describe("extractor script", () => {
     window.addEventListener("message", receive);
     try {
       window.eval(buildExtractorScript("layered-test", { id: "test", name: "Test", width: 25, height: 15 }, 0));
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await settle(messages, "layered-test");
     } finally {
       window.removeEventListener("message", receive);
       HTMLElement.prototype.getBoundingClientRect = originalBounds;
