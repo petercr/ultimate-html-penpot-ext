@@ -24,26 +24,64 @@ interface ParsedColor {
 }
 
 function clampOpacity(value: number): number {
-  return Math.min(1, Math.max(0, value));
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
-function cssColorWithOpacity(value: string | undefined): ParsedColor | undefined {
-  if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") return undefined;
-  const hex = value.match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
+function cssColorWithOpacity(value: string | undefined, preserveTransparent = false): ParsedColor | undefined {
+  // A transparent text run must still receive an explicit fill. Leaving its
+  // fills empty makes Penpot use the host's default (normally opaque black).
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === "transparent") return preserveTransparent ? { color: "#000000", opacity: 0 } : undefined;
+  const hex = normalized.match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
   if (hex) {
     const expanded = hex.length <= 4 ? [...hex].map((part) => part + part).join("") : hex;
     const color = `#${expanded.slice(0, 6)}`;
     const alpha = expanded.length === 8 ? Number.parseInt(expanded.slice(6), 16) / 255 : 1;
-    return { color, opacity: alpha };
+    return alpha === 0 && !preserveTransparent ? undefined : { color, opacity: alpha };
   }
-  const match = value.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+  const match = normalized.match(/^(rgba?)\((.*)\)$/i);
   if (!match) return undefined;
-  const channels = match.slice(1, 4).map((part) => Math.round(Number(part)));
-  if (channels.some((part) => !Number.isFinite(part) || part < 0 || part > 255)) return undefined;
-  return {
-    color: `#${channels.map((part) => part.toString(16).padStart(2, "0")).join("")}`,
-    opacity: clampOpacity(match[4] === undefined ? 1 : Number(match[4]))
+  const content = match[2].trim();
+  let channelParts: string[];
+  let alphaPart: string | undefined;
+  if (content.includes(",")) {
+    const parts = content.split(",").map((part) => part.trim());
+    if (parts.length !== 3 && parts.length !== 4 || parts.some((part) => !part)) return undefined;
+    channelParts = parts.slice(0, 3);
+    alphaPart = parts[3];
+  } else {
+    const slashParts = content.split("/");
+    if (slashParts.length > 2) return undefined;
+    channelParts = slashParts[0].trim().split(/\s+/).filter(Boolean);
+    alphaPart = slashParts[1]?.trim();
+    if (channelParts.length !== 3 || slashParts.length === 2 && !alphaPart) return undefined;
+  }
+  const numberToken = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+  const channel = (part: string): number | undefined => {
+    const source = part.trim();
+    const percent = source.endsWith("%");
+    const numeric = percent ? source.slice(0, -1) : source;
+    if (!numberToken.test(numeric)) return undefined;
+    const parsed = Number(numeric);
+    if (!Number.isFinite(parsed)) return undefined;
+    return Math.round(Math.min(255, Math.max(0, percent ? parsed * 255 / 100 : parsed)));
   };
+  const alpha = (part: string | undefined): number | undefined => {
+    if (part === undefined) return 1;
+    const source = part.trim();
+    const percent = source.endsWith("%");
+    const numeric = percent ? source.slice(0, -1) : source;
+    if (!numberToken.test(numeric)) return undefined;
+    const parsed = Number(numeric);
+    return Number.isFinite(parsed) ? clampOpacity(percent ? parsed / 100 : parsed) : undefined;
+  };
+  const channels = channelParts.map(channel);
+  const opacity = alpha(alphaPart);
+  if (channels.some((part) => part === undefined) || opacity === undefined) return undefined;
+  const color = `#${(channels as number[]).map((part) => part.toString(16).padStart(2, "0")).join("")}`;
+  return opacity === 0 && !preserveTransparent ? undefined : { color, opacity };
 }
 
 function cssColor(value: string | undefined): string | undefined {
@@ -84,8 +122,8 @@ interface GradientStop {
 }
 
 function gradientStop(value: string): GradientStop | undefined {
-  const match = value.match(/^\s*(rgba?\([^)]*\)|#[\da-f]{3,8})(?:\s+(.+))?\s*$/i);
-  const parsed = cssColorWithOpacity(match?.[1]);
+  const match = value.match(/^\s*(transparent|rgba?\([^)]*\)|#[\da-f]{3,8})(?:\s+(.+))?\s*$/i);
+  const parsed = cssColorWithOpacity(match?.[1], true);
   if (!parsed) return undefined;
   // Percentages map directly to Penpot's normalized stop offsets. Pixel and
   // length-based positions depend on the rendered gradient line, which is
@@ -100,33 +138,63 @@ function resolvedGradientOffsets(stops: GradientStop[]): number[] {
   const offsets = stops.map((stop) => stop.offset);
   if (offsets[0] === undefined) offsets[0] = 0;
   if (offsets[offsets.length - 1] === undefined) offsets[offsets.length - 1] = 1;
+  // CSS's color-stop fixup first clamps every explicit stop against its
+  // previous explicit/effective position. Only then are runs of omitted
+  // positions interpolated, so an omitted stop never creates a backwards
+  // segment that gets flattened after the fact.
   let previous = 0;
   for (let index = 0; index < offsets.length; index += 1) {
     if (offsets[index] !== undefined) {
-      previous = offsets[index] as number;
-      continue;
+      previous = Math.max(previous, clampOpacity(offsets[index] as number));
+      offsets[index] = previous;
     }
+  }
+  for (let index = 0; index < offsets.length; index += 1) {
+    if (offsets[index] !== undefined) continue;
     let next = index + 1;
     while (next < offsets.length && offsets[next] === undefined) next += 1;
-    const end = offsets[next] ?? 1;
+    const start = offsets[index - 1] as number;
+    const end = offsets[next] as number;
     const count = next - index + 1;
-    for (let fill = index; fill < next; fill += 1) offsets[fill] = previous + (end - previous) * (fill - index + 1) / count;
-    index = next - 1;
-    previous = offsets[index] as number;
+    for (let fill = index; fill < next; fill += 1) offsets[fill] = start + (end - start) * (fill - index + 1) / count;
+    index = next;
   }
-  // CSS clamps a stop that would move backwards to its preceding position.
-  return offsets.map((offset, index) => Math.max(index ? offsets[index - 1] as number : 0, clampOpacity(offset as number)));
+  return offsets as number[];
+}
+
+function gradientPrelude(type: "linear" | "radial", value: string | undefined): boolean {
+  const source = value?.trim().toLowerCase() || "";
+  if (type === "linear") {
+    return /^(?:-?(?:\d+(?:\.\d*)?|\.\d+)deg|to\s+(?:(?:left|right)(?:\s+(?:top|bottom))?|(?:top|bottom)(?:\s+(?:left|right))?))$/.test(source);
+  }
+  // Keep the existing radial approximation for CSS's common geometry
+  // preludes, including a position on its own and explicit radius lengths.
+  // This deliberately recognizes geometry syntax only; a color hint or an
+  // unsupported color function cannot take this path and be silently skipped.
+  const number = "-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+  const position = "(?:(?:left|center|right|top|bottom|" + number + "%)\\s*){1,2}";
+  const length = number + "(?:px|em|rem|vw|vh|vmin|vmax|cm|mm|q|in|pt|pc)";
+  const size = "(?:closest-side|closest-corner|farthest-side|farthest-corner|" + length + "(?:\\s+" + length + ")?)";
+  return new RegExp("^(?:at\\s+" + position + "|(?:(?:circle|ellipse)(?:\\s+" + size + ")?|" + size + ")(?:\\s+at\\s+" + position + ")?)$").test(source);
 }
 
 function cssGradient(value: string | undefined): Gradient | undefined {
-  if (!value || (!value.startsWith("linear-gradient") && !value.startsWith("radial-gradient"))) return undefined;
-  const parts = cssFunctionArguments(value);
-  const colors = parts.map(gradientStop).filter((stop): stop is GradientStop => Boolean(stop));
-  if (colors.length < 2) return undefined;
+  const normalized = value?.trim().toLowerCase();
+  const type = normalized?.startsWith("linear-gradient") ? "linear" : normalized?.startsWith("radial-gradient") ? "radial" : undefined;
+  if (!type) return undefined;
+  const source = value as string;
+  const parts = cssFunctionArguments(source);
+  // The optional first item is a direction/shape. Every remaining item must
+  // be understood: filtering failed stops would silently change a gradient's
+  // colors and stop interpolation.
+  const stopParts = gradientStop(parts[0]) ? parts : gradientPrelude(type, parts[0]) ? parts.slice(1) : [];
+  const parsedStops = stopParts.map(gradientStop);
+  if (parsedStops.length < 2 || parsedStops.some((stop) => !stop)) return undefined;
+  const colors = parsedStops as GradientStop[];
   const offsets = resolvedGradientOffsets(colors);
   const stops = colors.map(({ color, opacity }, index) => ({ color, opacity, offset: offsets[index] }));
-  if (value.startsWith("radial-gradient")) return { type: "radial", startX: 0.5, startY: 0.5, endX: 1, endY: 0.5, width: 0.5, stops };
-  const angle = value.match(/(-?\d+(?:\.\d+)?)deg/);
+  if (type === "radial") return { type: "radial", startX: 0.5, startY: 0.5, endX: 1, endY: 0.5, width: 0.5, stops };
+  const angle = source.match(/(-?\d+(?:\.\d+)?)deg/);
   const degrees = angle ? Number(angle[1]) : 180;
   const radians = (degrees - 90) * Math.PI / 180;
   return { type: "linear", startX: 0.5 - Math.cos(radians) / 2, startY: 0.5 - Math.sin(radians) / 2, endX: 0.5 + Math.cos(radians) / 2, endY: 0.5 + Math.sin(radians) / 2, width: 1, stops };
@@ -138,6 +206,11 @@ function applyShadow(shape: Shape, value: string | undefined): void {
   const dimensions = (value.match(/-?\d+(?:\.\d+)?px/g) || []).map((dimension) => Number.parseFloat(dimension));
   if (!color || dimensions.length < 3) return;
   shape.shadows = [{ style: value.includes("inset") ? "inner-shadow" : "drop-shadow", offsetX: dimensions[0], offsetY: dimensions[1], blur: dimensions[2], spread: dimensions[3] || 0, color: { color: color.color, opacity: color.opacity } }];
+}
+
+/** Capture reports clipping only when both CSS axes clip; see the extractor. */
+function clipsContent(paint: ScenePaint): boolean {
+  return paint.overflow === "hidden" || paint.overflow === "clip";
 }
 
 function applyPaint(shape: Shape, paint: ScenePaint): void {
@@ -155,9 +228,9 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
   if (paint.radius) {
     [shape.borderRadiusTopLeft, shape.borderRadiusTopRight, shape.borderRadiusBottomRight, shape.borderRadiusBottomLeft] = paint.radius;
   }
-  const stroke = cssColor(paint.borderColor);
+  const stroke = cssColorWithOpacity(paint.borderColor);
   if (stroke && paint.borderWidth && paint.borderStyle !== "none") {
-    shape.strokes = [{ strokeColor: stroke, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "center" }];
+    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "center" }];
   }
   applyShadow(shape, paint.boxShadow);
   const matrix = paint.transform?.match(/^matrix\(([^)]+)\)$/);
@@ -165,9 +238,7 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
     const values = matrix[1].split(",").map(Number);
     if (values.length >= 2) shape.rotation = Math.atan2(values[1], values[0]) * 180 / Math.PI;
   }
-  if (paint.overflow === "hidden" || paint.overflow === "clip") {
-    if (shape.type === "board") (shape as Board).clipContent = true;
-  }
+  if (clipsContent(paint) && shape.type === "board") (shape as Board).clipContent = true;
 }
 
 function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y: number }): void {
@@ -275,7 +346,7 @@ function createText(node: SceneNode): Text {
     if (style.textDecoration.includes("line-through")) text.textDecoration = "line-through";
     else if (style.textDecoration.includes("underline")) text.textDecoration = "underline";
   }
-  const color = cssColorWithOpacity(node.paint.color);
+  const color = cssColorWithOpacity(node.paint.color, true);
   if (color) text.fills = [{ fillColor: color.color, fillOpacity: color.opacity }];
   text.opacity = node.paint.opacity ?? 1;
   return text;
@@ -332,9 +403,7 @@ function needsContainerBackdrop(node: SceneNode): boolean {
     (paint.backgroundImage && paint.backgroundImage !== "none") ||
     (paint.borderWidth && paint.borderWidth > 0 && paint.borderStyle !== "none") ||
     (paint.boxShadow && paint.boxShadow !== "none") ||
-    paint.radius?.some((radius) => radius > 0) ||
-    paint.overflow === "hidden" ||
-    paint.overflow === "clip"
+    paint.radius?.some((radius) => radius > 0)
   );
 }
 
@@ -493,6 +562,31 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
 
         const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
           if (options.isCancelled()) throw new ImportCancelledError();
+          if (node.kind === "container" && clipsContent(node.paint)) {
+            // A Penpot board is the clipping-capable container. Unlike a
+            // group, its bounds stay at the captured element's box instead of
+            // growing to enclose its descendants, so an oversized child is
+            // hidden rather than resizing the container. The board also paints
+            // the element's own decoration, which keeps the clip and the
+            // rounded corners on one surface.
+            const clip = penpot.createBoard();
+            clip.clipContent = true;
+            applyPaint(clip, node.paint);
+            const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
+            if (clipAsset && !(await applyAssetFill(clip, clipAsset, media))) {
+              markAssetFallback(clip, "Background image could not be loaded; a placeholder is shown.");
+            }
+            metadata(clip, node, scene.viewport.id);
+            append(parentShape, clip);
+            // Establish parentage and the container's own bounds before its
+            // children: applyGeometry writes page-space coordinates, and the
+            // children are positioned against the same page origin.
+            applyGeometry(clip, node, { x: board.x, y: board.y });
+            shapes.set(node.id, clip);
+            for (const child of childrenByParent.get(node.id) || []) await render(child, clip);
+            reportProgress();
+            return clip;
+          }
           if (node.kind === "container") {
             const children: Shape[] = [];
             for (const child of childrenByParent.get(node.id) || []) {

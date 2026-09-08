@@ -119,6 +119,10 @@ function validatePaint(value: unknown, index: number): void {
   optionalNumber(paint.opacity, `nodes[${index}].paint.opacity`, 0, 1);
   optionalString(paint.boxShadow, `nodes[${index}].paint.boxShadow`, 2_000);
   enumValue(paint.overflow, `nodes[${index}].paint.overflow`, ["visible", "hidden", "clip"]);
+  // The per-axis values are diagnostic detail rather than an importer switch,
+  // so they are bounded as strings instead of restricted to a fixed set.
+  optionalString(paint.overflowX, `nodes[${index}].paint.overflowX`, 50);
+  optionalString(paint.overflowY, `nodes[${index}].paint.overflowY`, 50);
   optionalString(paint.transform, `nodes[${index}].paint.transform`, 500);
 }
 

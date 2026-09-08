@@ -105,13 +105,13 @@ describe("Penpot importer", () => {
     expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fontFamily: "Poppins" });
   });
 
-  it("parses CSS shadow dimensions as finite Penpot values", async () => {
+  it("preserves translucent shadow color while parsing finite dimensions", async () => {
     const shadowScene = scene();
     shadowScene.nodes[0].paint.boxShadow = "0px 4px 20px 0px rgba(0, 0, 0, 0.2)";
 
     const result = await importScenes([shadowScene], { isCancelled: () => false, onProgress: vi.fn() });
-    const shadows = (result[0] as unknown as FakeShape).shadows as Array<Record<string, number>>;
-    expect(shadows[0]).toMatchObject({ offsetX: 0, offsetY: 4, blur: 20, spread: 0 });
+    const shadows = (result[0] as unknown as FakeShape).shadows as Array<Record<string, unknown>>;
+    expect(shadows[0]).toMatchObject({ offsetX: 0, offsetY: 4, blur: 20, spread: 0, color: { color: "#000000", opacity: 0.2 } });
     expect(Object.values(shadows[0] || {}).every((value) => typeof value !== "number" || Number.isFinite(value))).toBe(true);
   });
 
@@ -234,7 +234,13 @@ describe("Penpot importer", () => {
 
   it("preserves color alpha and applies element opacity once", async () => {
     const alphaScene = scene();
-    alphaScene.nodes[0].paint = { backgroundColor: "rgba(255, 0, 128, 0.4)", opacity: 0.5 };
+    alphaScene.nodes[0].paint = {
+      backgroundColor: "rgba(255, 0, 128, 0.4)",
+      borderColor: "#12345680",
+      borderWidth: 2,
+      borderStyle: "solid",
+      opacity: 0.5
+    };
     const text = alphaScene.nodes[1];
     text.paint = { color: "#1234", opacity: 0.5 };
 
@@ -243,7 +249,56 @@ describe("Penpot importer", () => {
     const board = result[0] as unknown as FakeShape;
     const importedText = board.children?.[0];
     expect(board).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#ff0080", fillOpacity: 0.4 }] });
+    expect(board.strokes).toEqual([{ strokeColor: "#123456", strokeOpacity: 128 / 255, strokeWidth: 2, strokeStyle: "solid", strokeAlignment: "center" }]);
     expect(importedText).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#112233", fillOpacity: 4 / 15 }] });
+  });
+
+  it("creates an explicitly transparent text fill instead of the host default black", async () => {
+    const transparentTextScene = scene();
+    const text = transparentTextScene.nodes[1];
+    text.paint = { color: "transparent", opacity: 0.5 };
+
+    const result = await importScenes([transparentTextScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({
+      opacity: 0.5,
+      fills: [{ fillColor: "#000000", fillOpacity: 0 }]
+    });
+  });
+
+  it("keeps nested and decorated direct-text opacity on their separate compositing groups", async () => {
+    const opacityScene = scene();
+    const root = opacityScene.nodes[0];
+    const text = opacityScene.nodes[1];
+    const outer = { ...root, id: "outer", parentId: root.id, children: ["decorated"], kind: "container" as const, name: "outer", source: "body > section", paint: { opacity: 0.5 } };
+    const decorated = {
+      ...root,
+      id: "decorated",
+      parentId: outer.id,
+      children: [text.id],
+      kind: "container" as const,
+      name: "decorated text",
+      source: "body > section > span",
+      paint: { backgroundColor: "rgba(30, 60, 90, 0.4)", borderColor: "rgba(10, 20, 30, 0.5)", borderWidth: 1, borderStyle: "solid", opacity: 0.5 }
+    };
+    text.parentId = decorated.id;
+    text.paint = { color: "rgb(12, 34, 56)", opacity: 1 };
+    root.children = [outer.id];
+    opacityScene.nodes = [root, outer, decorated, text];
+
+    await importScenes([opacityScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const groups = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
+    // A decoration supplies the compositing group. The undecorated outer
+    // wrapper can reuse it, yielding CSS's .5 × .5 final opacity without
+    // applying the decorated element's opacity to its text twice.
+    expect(groups).toHaveBeenCalledOnce();
+    expect((groups.mock.results[0]?.value as FakeShape).opacity).toBe(0.25);
+    const decoratedBackdrop = groups.mock.calls[0]?.[0]?.[0] as FakeShape;
+    expect(decoratedBackdrop).toMatchObject({
+      fills: [{ fillColor: "#1e3c5a", fillOpacity: 0.4 }],
+      strokes: [{ strokeColor: "#0a141e", strokeOpacity: 0.5 }]
+    });
+    expect(groups.mock.calls[0]?.[0]?.[1]).toMatchObject({ opacity: 1, fills: [{ fillColor: "#0c2238", fillOpacity: 1 }] });
   });
 
   it("preserves explicit percentage gradient stops and stop alpha", async () => {
@@ -266,20 +321,203 @@ describe("Penpot importer", () => {
     }]);
   });
 
-  it("retains overflow containers as ordinary groups until masking is verified in Penpot", async () => {
+  it("omits an unsupported gradient instead of silently dropping its stop", async () => {
+    const gradientScene = scene();
+    gradientScene.nodes[0].paint = {
+      backgroundImage: "linear-gradient(90deg, #2563eb, color(display-p3 0.95 0.2 0.35), #facc15)"
+    };
+
+    const result = await importScenes([gradientScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).fills).toEqual([]);
+  });
+
+  it("rejects unsupported first, middle, last, and color-hint gradient components", async () => {
+    for (const backgroundImage of [
+      "linear-gradient(color(display-p3 0.95 0.2 0.35), rgb(1, 2, 3), rgb(4, 5, 6))",
+      "linear-gradient(rgb(1, 2, 3), color(display-p3 0.95 0.2 0.35), rgb(4, 5, 6))",
+      "linear-gradient(rgb(1, 2, 3), rgb(4, 5, 6), color(display-p3 0.95 0.2 0.35))",
+      "linear-gradient(30%, rgb(1, 2, 3), rgb(4, 5, 6))"
+    ]) {
+      const gradientScene = scene();
+      gradientScene.nodes[0].paint = { backgroundImage };
+      const result = await importScenes([gradientScene], { isCancelled: () => false, onProgress: vi.fn() });
+      expect((result[0] as unknown as FakeShape).fills).toEqual([]);
+    }
+  });
+
+  it("accepts only recognized direction and shape preludes for supported gradients", async () => {
+    const gradientScene = scene();
+    gradientScene.nodes[0].paint = {
+      backgroundImage: "linear-gradient(90deg, rgb(100% 0% 0% / 50%), rgb(0, 100%, 0))"
+    };
+    const radialScene = scene("Radial");
+    radialScene.nodes[0].paint = {
+      backgroundImage: "radial-gradient(at 25% 75%, rgb(0 0 100% / 25%), transparent)"
+    };
+    const lengthRadialScene = scene("Length radial");
+    lengthRadialScene.nodes[0].paint = {
+      backgroundImage: "radial-gradient(20px at center, rgb(0, 0, 0), rgb(255, 255, 255))"
+    };
+
+    const result = await importScenes([gradientScene, radialScene, lengthRadialScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).fills).toEqual([{
+      fillColorGradient: expect.objectContaining({
+        type: "linear",
+        stops: [
+          { color: "#ff0000", opacity: 0.5, offset: 0 },
+          { color: "#00ff00", opacity: 1, offset: 1 }
+        ]
+      })
+    }]);
+    expect((result[1] as unknown as FakeShape).fills).toEqual([{
+      fillColorGradient: expect.objectContaining({
+        type: "radial",
+        stops: [
+          { color: "#0000ff", opacity: 0.25, offset: 0 },
+          { color: "#000000", opacity: 0, offset: 1 }
+        ]
+      })
+    }]);
+    expect((result[2] as unknown as FakeShape).fills).toEqual([{
+      fillColorGradient: expect.objectContaining({ type: "radial" })
+    }]);
+  });
+
+  it("clamps explicit backwards percentage stops before interpolating omitted stops", async () => {
+    const gradientScene = scene();
+    gradientScene.nodes[0].paint = {
+      backgroundImage: "linear-gradient(rgb(1,2,3) 80%, rgb(4,5,6) 20%, rgb(7,8,9) 30%)"
+    };
+    const omittedScene = scene("Omitted");
+    omittedScene.nodes[0].paint = {
+      backgroundImage: "linear-gradient(rgb(1,2,3) 80%, rgb(4,5,6), rgb(7,8,9) 20%)"
+    };
+
+    const result = await importScenes([gradientScene, omittedScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const stops = ((result[0] as unknown as { fills: Array<{ fillColorGradient: { stops: Array<{ offset: number }> } }> }).fills[0]).fillColorGradient.stops;
+    const omitted = ((result[1] as unknown as { fills: Array<{ fillColorGradient: { stops: Array<{ offset: number }> } }> }).fills[0]).fillColorGradient.stops;
+    expect(stops.map((stop) => stop.offset)).toEqual([0.8, 0.8, 0.8]);
+    expect(omitted.map((stop) => stop.offset)).toEqual([0.8, 0.8, 0.8]);
+  });
+
+  it("rejects non-finite color alpha and leaves fully transparent containers without backdrops", async () => {
+    const invalid = scene();
+    invalid.nodes[0].paint = { backgroundImage: "linear-gradient(rgba(0, 0, 0, .), rgb(1, 2, 3), rgb(4, 5, 6))" };
+    const transparentContainer = {
+      ...invalid.nodes[0],
+      id: "transparent-container",
+      parentId: "root",
+      children: ["text"],
+      kind: "container" as const,
+      paint: { backgroundColor: " RGBA(0, 0, 0, 0) " }
+    };
+    invalid.nodes[0].children = [transparentContainer.id];
+    invalid.nodes[1].parentId = transparentContainer.id;
+    invalid.nodes.push(transparentContainer);
+
+    const result = await importScenes([invalid], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).fills).toEqual([]);
+    expect((globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group).not.toHaveBeenCalled();
+  });
+
+  it("clips an overflowing child inside a board that keeps the captured container bounds", async () => {
     const clippedScene = scene();
     const root = clippedScene.nodes[0];
     const text = clippedScene.nodes[1];
-    const clipped = { ...root, id: "clipped", parentId: root.id, children: [text.id], name: "card", source: "body > section", paint: { overflow: "hidden" as const } };
+    const clipped = {
+      ...root,
+      id: "clipped",
+      parentId: root.id,
+      children: [text.id],
+      name: "card",
+      source: "body > section",
+      rect: { x: 10, y: 10, width: 120, height: 60 },
+      paint: { backgroundColor: "rgb(255, 255, 255)", radius: [8, 8, 8, 8] as [number, number, number, number], overflow: "hidden" as const }
+    };
+    // A child far wider than its container: a group would grow to enclose it.
     text.parentId = clipped.id;
+    text.rect = { x: 10, y: 10, width: 400, height: 24 };
     root.children = [clipped.id];
     clippedScene.nodes = [root, clipped, text];
 
     await importScenes([clippedScene], { isCancelled: () => false, onProgress: vi.fn() });
 
-    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group.mock.results[0]?.value as FakeShape;
-    expect(group.children).toHaveLength(2);
-    expect(group).not.toHaveProperty("makeMask");
+    const penpotApi = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn>; createBoard: ReturnType<typeof vi.fn> } }).penpot;
+    expect(penpotApi.group).not.toHaveBeenCalled();
+    const clip = boards[1];
+    expect(clip).toMatchObject({ type: "board", clipContent: true, name: "card", x: 110, y: 210 });
+    expect(clip.resize).toHaveBeenCalledWith(120, 60);
+    expect(clip).toMatchObject({ fills: [{ fillColor: "#ffffff", fillOpacity: 1 }], borderRadiusTopLeft: 8 });
+    expect(clip.children?.map((child) => child.type)).toEqual(["text"]);
+    // The container's bounds come from its own captured rect, not from the
+    // overflowing child, and the child keeps its captured page position.
+    expect(clip.children?.[0]).toMatchObject({ x: 110, y: 210 });
+    expect(clip.pluginData).toMatchObject({ source: "body > section" });
+  });
+
+  it("nests clipping boards and keeps ordinary groups for visible overflow", async () => {
+    const nestedScene = scene();
+    const root = nestedScene.nodes[0];
+    const text = nestedScene.nodes[1];
+    const outerClip = { ...root, id: "outer", parentId: root.id, children: ["visible"], name: "outer", source: "body > section", rect: { x: 0, y: 0, width: 200, height: 100 }, paint: { overflow: "hidden" as const } };
+    const visible = { ...root, id: "visible", parentId: "outer", children: ["inner"], name: "visible wrapper", source: "body > section > div", rect: { x: 0, y: 0, width: 200, height: 100 }, paint: { backgroundColor: "rgb(1, 2, 3)" } };
+    const innerClip = { ...root, id: "inner", parentId: "visible", children: [text.id], name: "inner", source: "body > section > div > span", rect: { x: 5, y: 5, width: 50, height: 20 }, paint: { overflow: "clip" as const } };
+    text.parentId = innerClip.id;
+    root.children = [outerClip.id];
+    nestedScene.nodes = [root, outerClip, visible, innerClip, text];
+
+    await importScenes([nestedScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const outer = boards[1];
+    const inner = boards[2];
+    expect(outer).toMatchObject({ type: "board", clipContent: true, name: "outer" });
+    expect(inner).toMatchObject({ type: "board", clipContent: true, name: "inner" });
+    // The painted wrapper between the two clips stays an ordinary group, and
+    // the inner clip is placed inside the outer one rather than beside it.
+    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
+    expect(group).toHaveBeenCalledOnce();
+    const wrapper = group.mock.results[0]?.value as FakeShape;
+    expect(wrapper).toMatchObject({ type: "group", name: "visible wrapper" });
+    expect(wrapper.children?.map((child) => child.type)).toEqual(["rectangle", "board"]);
+    expect(wrapper.children?.[1]).toBe(inner);
+    expect(outer.children).toContain(inner);
+    expect(inner.children?.map((child) => child.type)).toEqual(["text"]);
+  });
+
+  it("leaves single-axis clipping unclipped rather than hiding content the browser shows", async () => {
+    const partialScene = scene();
+    const root = partialScene.nodes[0];
+    const text = partialScene.nodes[1];
+    // Capture only sets overflow when both axes clip, so overflow-x: clip with
+    // overflow-y: visible arrives as visible plus a capture diagnostic.
+    const partial = { ...root, id: "partial", parentId: root.id, children: [text.id], name: "partial", source: "body > section", paint: { overflowX: "clip", overflowY: "visible", overflow: "visible" as const } };
+    text.parentId = partial.id;
+    root.children = [partial.id];
+    partialScene.nodes = [root, partial, text];
+
+    await importScenes([partialScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    expect(boards).toHaveLength(1);
+    expect(boards[0].children?.map((child) => child.type)).toEqual(["text"]);
+  });
+
+  it("keeps the clipping container's own background image and reports a failed one", async () => {
+    const backgroundScene = scene();
+    const root = backgroundScene.nodes[0];
+    const text = backgroundScene.nodes[1];
+    const clipped = { ...root, id: "clipped", parentId: root.id, children: [text.id], name: "hero", source: "body > section", paint: { backgroundImage: 'url("https://example.test/hero.png")', overflow: "hidden" as const }, assetId: "hero" };
+    text.parentId = clipped.id;
+    root.children = [clipped.id];
+    backgroundScene.nodes = [root, clipped, text];
+    backgroundScene.assets = [{ id: "hero", url: "https://example.test/hero.png", mimeType: "image/png" }];
+    (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl.mockRejectedValue(new Error("blocked"));
+
+    await importScenes([backgroundScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const clip = boards[1];
+    expect(clip).toMatchObject({ type: "board", clipContent: true });
+    expect(clip.name).toBe("Image unavailable: hero");
+    expect(clip.pluginData).toMatchObject({ "asset-fallback": expect.stringContaining("Background image could not be loaded") });
   });
 
   it("commits each responsive board in its own undo block", async () => {

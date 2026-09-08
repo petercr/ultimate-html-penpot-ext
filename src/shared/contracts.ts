@@ -52,7 +52,11 @@ export interface ScenePaint {
   radius?: [number, number, number, number];
   opacity?: number;
   boxShadow?: string;
+  /** Effective clipping, set only when both axes clip; Penpot containers cannot clip one axis alone. */
   overflow?: "visible" | "hidden" | "clip";
+  /** Computed per-axis CSS overflow, retained so single-axis clipping can be diagnosed rather than guessed at. */
+  overflowX?: string;
+  overflowY?: string;
   transform?: string;
 }
 

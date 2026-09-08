@@ -13,6 +13,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const assets = new Map();
   const nodes = [];
   const nodeById = new Map();
+  const reportedDiagnostics = new Set();
   let sequence = 0;
 
   const number = (value) => { const parsed = parseFloat(value || "0"); return Number.isFinite(parsed) ? parsed : 0; };
@@ -242,6 +243,47 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const normalized = String(value || "").replace(/\\s+/g, "").toLowerCase();
     return !normalized || normalized === "transparent" || normalized === "rgba(0,0,0,0)";
   };
+  const unsupportedModernColor = (value) => /(?:^|[\\s,(])(?:color|color-mix|lab|lch|oklab|oklch)\\(/i.test(String(value || ""));
+  const reportUnsupportedColor = (field, value, source, message) => {
+    if (!unsupportedModernColor(value)) return;
+    const key = field + "\\n" + source + "\\n" + value;
+    if (reportedDiagnostics.has(key)) return;
+    reportedDiagnostics.add(key);
+    diagnostics.push({ severity: "warning", code: "UNSUPPORTED_COLOR_FORMAT", message, viewportId: viewport.id, source });
+  };
+  const reportUnsupportedPaintColors = (paint, source) => {
+    // Computed CSS colors normally arrive as sRGB rgb()/rgba() values. The
+    // importer deliberately has a small, predictable parser, so preserve
+    // fidelity by reporting CSS Color 4 values it cannot translate instead
+    // of silently replacing a fill, shadow, or gradient stop.
+    if (!transparent(paint.backgroundColor)) reportUnsupportedColor("background color", paint.backgroundColor, source, "The background color uses a CSS Color 4 format that this importer cannot represent; the affected fill was omitted rather than approximated.");
+    if (paint.borderWidth > 0 && paint.borderStyle !== "none") reportUnsupportedColor("border color", paint.borderColor, source, "The border color uses a CSS Color 4 format that this importer cannot represent; the affected border was omitted rather than approximated.");
+    if (paint.boxShadow && paint.boxShadow !== "none") reportUnsupportedColor("box shadow", paint.boxShadow, source, "The box shadow uses a CSS Color 4 format that this importer cannot represent; the affected shadow was omitted rather than approximated.");
+    // Do not inspect arbitrary image URLs: data payloads can contain color(
+    // without being a CSS gradient or a color value.
+    if (/^(?:linear|radial)-gradient\\(/i.test(String(paint.backgroundImage || "").trim())) reportUnsupportedColor("background gradient", paint.backgroundImage, source, "The background gradient uses a CSS Color 4 format that this importer cannot represent; the affected gradient was omitted rather than approximated.");
+  };
+  const reportUnsupportedTextColor = (value, source) => reportUnsupportedColor("text color", value, source, "The text color uses a CSS Color 4 format that this importer cannot represent; the affected text uses Penpot's default color.");
+  // scroll and auto clip their content just as hidden does; only the
+  // scrollbars and the ability to reach the hidden content differ, and a
+  // snapshot import cannot reproduce scrolling either way.
+  const clipsAxis = (value) => ["hidden", "clip", "scroll", "auto", "overlay"].includes(String(value || "visible").trim());
+  const axisOverflow = (style, axis) => {
+    const value = String(style["overflow" + axis] || "").trim();
+    if (value) return value;
+    // Fall back to the shorthand for engines that only report it. The first
+    // shorthand value is the x axis; a single value applies to both.
+    const shorthand = String(style.overflow || "").trim().split(/\s+/).filter(Boolean);
+    return (axis === "X" ? shorthand[0] : shorthand[1] || shorthand[0]) || "visible";
+  };
+  const reportPartialOverflowClip = (paint, source) => {
+    // A computed style can clip one axis only through overflow-x/y: clip,
+    // because every other single-axis value forces the other axis to auto.
+    // Penpot containers clip both axes together, so reproducing this would
+    // hide content the browser shows.
+    if (clipsAxis(paint.overflowX) === clipsAxis(paint.overflowY)) return;
+    diagnostics.push({ severity: "warning", code: "UNSUPPORTED_OVERFLOW", message: "This element clips only one axis (overflow-x: " + paint.overflowX + "; overflow-y: " + paint.overflowY + "). Penpot containers clip both axes together, so the imported layer is left unclipped rather than hiding content the browser shows.", viewportId: viewport.id, source });
+  };
   const unsupported = (element, style) => {
     if (["CANVAS", "VIDEO", "IFRAME", "OBJECT", "EMBED"].includes(element.tagName)) return element.tagName.toLowerCase() + " cannot be converted to editable layers";
     if (style.filter && style.filter !== "none") return "CSS filter needs a raster fallback";
@@ -250,30 +292,42 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (style.mixBlendMode && style.mixBlendMode !== "normal") return "CSS blend mode needs a raster fallback";
     return undefined;
   };
-  const paintOf = (style) => ({
-    backgroundColor: style.backgroundColor,
-    // Penpot has one image/gradient fill per imported source surface. CSS
-    // paints its first background image on top, so preserve that layer and
-    // report any lower layers during capture instead of letting a regex pick
-    // an arbitrary URL from the entire shorthand.
-    backgroundImage: backgroundLayers(style.backgroundImage)[0] || "none",
-    backgroundRepeat: style.backgroundRepeat,
-    backgroundRepeatX: style.backgroundRepeatX,
-    backgroundRepeatY: style.backgroundRepeatY,
-    backgroundSize: style.backgroundSize,
-    backgroundPosition: style.backgroundPosition,
-    backgroundPositionX: style.backgroundPositionX,
-    backgroundPositionY: style.backgroundPositionY,
-    color: style.color,
-    borderColor: style.borderTopColor,
-    borderWidth: number(style.borderTopWidth),
-    borderStyle: style.borderTopStyle,
-    radius: [number(style.borderTopLeftRadius), number(style.borderTopRightRadius), number(style.borderBottomRightRadius), number(style.borderBottomLeftRadius)],
-    opacity: number(style.opacity || "1"),
-    boxShadow: style.boxShadow,
-    overflow: ["hidden", "clip"].includes(style.overflow) ? style.overflow : "visible",
-    transform: style.transform
-  });
+  const paintOf = (style) => {
+    const overflowX = axisOverflow(style, "X");
+    const overflowY = axisOverflow(style, "Y");
+    return {
+      backgroundColor: style.backgroundColor,
+      // Penpot has one image/gradient fill per imported source surface. CSS
+      // paints its first background image on top, so preserve that layer and
+      // report any lower layers during capture instead of letting a regex pick
+      // an arbitrary URL from the entire shorthand.
+      backgroundImage: backgroundLayers(style.backgroundImage)[0] || "none",
+      backgroundRepeat: style.backgroundRepeat,
+      backgroundRepeatX: style.backgroundRepeatX,
+      backgroundRepeatY: style.backgroundRepeatY,
+      backgroundSize: style.backgroundSize,
+      backgroundPosition: style.backgroundPosition,
+      backgroundPositionX: style.backgroundPositionX,
+      backgroundPositionY: style.backgroundPositionY,
+      color: style.color,
+      borderColor: style.borderTopColor,
+      borderWidth: number(style.borderTopWidth),
+      borderStyle: style.borderTopStyle,
+      radius: [number(style.borderTopLeftRadius), number(style.borderTopRightRadius), number(style.borderBottomRightRadius), number(style.borderBottomLeftRadius)],
+      opacity: number(style.opacity || "1"),
+      boxShadow: style.boxShadow,
+      overflowX,
+      overflowY,
+      // Penpot clips a container on both axes together, so only a box that
+      // clips both is reported as clipping. A single clipped axis is reported
+      // as a diagnostic instead, because hiding content the browser shows is
+      // worse than leaving the overflow visible.
+      overflow: clipsAxis(overflowX) && clipsAxis(overflowY)
+        ? (overflowX === "clip" && overflowY === "clip" ? "clip" : "hidden")
+        : "visible",
+      transform: style.transform
+    };
+  };
   const paintOfElement = (element, style) => {
     const paint = paintOf(style);
     // The browser paints a transparent html/body pair against the default
@@ -429,15 +483,16 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     return clone.outerHTML;
   };
-  const appendText = (parent, textNode, style) => {
+  const appendText = (parent, textNode, style, textSource = parent.source + " ::text") => {
     const layout = textLayout(textNode);
+    if ((layout.lines || []).some((line) => line.text && line.rect)) reportUnsupportedTextColor(style.color, textSource);
     for (const [index, line] of (layout.lines || []).entries()) {
       if (!line.text || !line.rect) continue;
       const id = "node-" + (++sequence);
       // The parent scene node carries the element's CSS opacity as a
       // compositing group. Applying it again to its synthetic text child
       // would incorrectly square the opacity.
-      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: parent.source + " ::text", rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: 1 }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textMaxWidth: textMaxWidthOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
+      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: textSource, rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: 1 }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textMaxWidth: textMaxWidthOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
       parent.children.push(id);
     }
   };
@@ -455,8 +510,9 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (suppressesSubtree(style)) return;
     if (!visible(element, style, rect)) {
       const survivingParent = parentId ? nodeById.get(parentId) : undefined;
+      const textSource = sourceOf(element) + " ::text";
       for (const child of element.childNodes) {
-        if (child.nodeType === Node.TEXT_NODE && style.visibility !== "hidden" && survivingParent) appendText(survivingParent, child, style);
+        if (child.nodeType === Node.TEXT_NODE && style.visibility !== "hidden" && survivingParent) appendText(survivingParent, child, style, textSource);
         if (child.nodeType === Node.ELEMENT_NODE) visit(child, parentId, inlineControlAncestor);
       }
       return parentId;
@@ -477,6 +533,8 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Use the effective paint here rather than the body's raw computed style:
     // a transparent body inherits the html element's visible page background.
     const paint = paintOfElement(element, style);
+    reportUnsupportedPaintColors(paint, source);
+    reportPartialOverflowClip(paint, source);
     const rawBackgroundImage = element === document.body && transparent(style.backgroundColor) && style.backgroundImage === "none"
       ? getComputedStyle(document.documentElement).backgroundImage
       : style.backgroundImage;
@@ -486,7 +544,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // A text-only node cannot carry fills, borders, or radii, so any element
     // with direct text and visible decoration keeps those surfaces by becoming
     // a container with the text as a child layer.
-    const decorated = style.backgroundColor !== "rgba(0, 0, 0, 0)" || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
+    const decorated = !transparent(style.backgroundColor) || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
     const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint, layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
     let directTextNode;
@@ -515,6 +573,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
           scene.rect = line.rect;
           scene.textStyle.textAlign = "left";
         }
+        if (scene.text && (directTextLayout?.lines || []).some((line) => line.text && line.rect)) reportUnsupportedTextColor(style.color, source + " ::text");
       }
     }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(svgMarkupOf(element)), "image/svg+xml"); }
@@ -533,15 +592,16 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // can visibly distort the imported vector when the host conversion also
     // succeeds.
     if (tag === "svg") return id;
-    if (expandedDirectText && directTextNode) appendText(scene, directTextNode, style);
+    if (expandedDirectText && directTextNode) appendText(scene, directTextNode, style, source + " ::text");
     for (const child of element.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style);
+      if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style, source + " ::text");
       if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl);
     }
     for (const pseudo of ["::before", "::after"]) {
       const pseudoStyle = getComputedStyle(element, pseudo);
       const content = compact(pseudoStyle.content).replace(/^("|')|("|')$/g, "");
-      if (content && content !== "none" && content !== "normal") {
+      if (content && content !== "none" && content !== "normal" && pseudoStyle.display !== "none" && pseudoStyle.visibility !== "hidden" && number(pseudoStyle.opacity) !== 0) {
+        reportUnsupportedTextColor(pseudoStyle.color, source + " " + pseudo);
         const pseudoId = "node-" + (++sequence);
         nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex + 0.02, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
         scene.children.push(pseudoId);
