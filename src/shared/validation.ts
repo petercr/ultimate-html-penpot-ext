@@ -105,6 +105,12 @@ function validatePaint(value: unknown, index: number): void {
   const paint = record(value, `nodes[${index}].paint`);
   optionalString(paint.backgroundColor, `nodes[${index}].paint.backgroundColor`, 200);
   optionalString(paint.backgroundImage, `nodes[${index}].paint.backgroundImage`, 2_000_000);
+  // Background placement arrived on main while this validation was in review.
+  // These feed asset materialization, so they are bounded like other paint
+  // strings rather than reaching the importer unchecked.
+  for (const field of ["backgroundRepeat", "backgroundRepeatX", "backgroundRepeatY", "backgroundSize", "backgroundPosition", "backgroundPositionX", "backgroundPositionY"] as const) {
+    optionalString(paint[field], `nodes[${index}].paint.${field}`, 500);
+  }
   optionalString(paint.color, `nodes[${index}].paint.color`, 200);
   optionalString(paint.borderColor, `nodes[${index}].paint.borderColor`, 200);
   optionalNumber(paint.borderWidth, `nodes[${index}].paint.borderWidth`, 0, SCENE_LIMITS.maxDimension);

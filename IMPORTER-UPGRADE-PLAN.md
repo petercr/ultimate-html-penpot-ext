@@ -6,7 +6,7 @@ Status: in progress.
 
 Improve visual fidelity and predictable imports first, then improve performance and native Penpot editability. Preserve the separation between browser capture, the scene document, and Penpot object creation.
 
-This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 134 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
+This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The suite has 145 tests across 14 files after the Phase 4.2 validation batch. The findings are code-based; live browser and Penpot validation remains to be done.
 
 ## Phase 1 — Regression fixtures and visual baseline
 
@@ -27,9 +27,9 @@ Relevant code: `createShape()`, `createContainerBackdrop()`, and root rendering 
 
 - [x] Share asset-fill resolution between ordinary shapes, container backdrops, and root boards.
 - [x] Preserve background color beneath image fills where supported.
-- [ ] Extend the scene contract to capture background size, position, and repeat when needed for correct placement.
-- [ ] Define handling for multiple background layers; report unsupported combinations explicitly.
-- [ ] Test a hero image behind a heading, a body background, and reuse of the same asset across viewports.
+- [x] Extend the scene contract to capture background size, position, and repeat for correctly placing repeating data-URI SVG backgrounds; materialize those backgrounds into viewport-sized tiled SVG assets.
+- [x] Define handling for multiple background layers; preserve the topmost layer and report omitted lower layers explicitly.
+- [x] Test a hero image behind a heading, a body background, and reuse of the same asset across viewports.
 
 Acceptance: adding child content to an element does not cause its background image to disappear; supported background placement matches the fixture.
 
@@ -52,7 +52,7 @@ Relevant code: `cssColor()`, `cssGradient()`, `applyPaint()`, `createText()`, an
 - [x] Represent color and alpha separately for fills, strokes, shadows, and gradient stops.
 - [x] Apply CSS element opacity once to the appropriate shape or compositing container.
 - [x] Remove duplicated parent opacity from synthetic direct-text children.
-- [ ] Preserve gradient stop positions and alpha for supported gradients.
+- [x] Preserve percentage gradient stop positions and alpha for supported linear and radial gradients; length-based stop positions retain interpolated offsets.
 - [ ] Define normalization or diagnostics for color formats outside the supported parser.
 - [ ] Test translucent backgrounds, shadows, nested opacity, and decorated text at 50% opacity.
 
@@ -95,10 +95,12 @@ Acceptance: fixture text retains its content, spacing, and line placement withou
 
 ### 4.1 Asset failures and diagnostics
 
-- [ ] Cache both successful and failed asset resolutions across responsive boards.
-- [ ] Render a visible, named placeholder when an image cannot be imported.
+- [x] Inline absolute, lazy-loaded, `srcset`, extensionless, and SVG-embedded image references before sandbox capture.
+- [x] Normalize serialized SVG namespaces/presentation styles (including CSS classes from external SVG `<img>` assets) and keep each SVG as one scene asset to avoid duplicate layers.
+- [x] Cache both successful and failed asset resolutions across responsive boards.
+- [x] Render a visible, named placeholder when an image cannot be imported.
 - [ ] Return import-time diagnostics to the UI, including asset source and failure reason.
-- [ ] Distinguish editable SVG success, raster fallback, and complete failure.
+- [x] Distinguish editable SVG success, raster fallback, and complete failure.
 - [ ] Test a repeated failing URL and cancellation during an asset operation.
 
 Acceptance: one failing shared asset does not trigger repeated uploads, silently disappear, or prevent unrelated layers from importing.
