@@ -28,11 +28,17 @@ Then load `http://localhost:4173/manifest.json` in Penpot. This starts the HTTP 
 - Repeating data-URI SVG CSS backgrounds are expanded into viewport-sized tiled assets so decorative patterns keep their source positions after import.
 - For layered CSS backgrounds, the topmost layer and background color are imported; lower layers are listed as capture diagnostics.
 - Supported linear and radial gradients retain percentage stop positions and alpha values.
+- Translucent fills, borders, shadows, and text retain their alpha values; fully transparent text remains transparent rather than using Penpot's default text color.
+- CSS Color 4 values such as `color(display-p3 ...)` are reported as capture diagnostics. Unsupported gradient stops cause that gradient to be omitted as a whole, rather than importing a misleading partial gradient.
 - Best-effort HTTP(S) page URLs when the target site permits credential-free browser requests through CORS.
 - Trusted-source script execution as an explicit opt-in, inside an opaque sandbox.
 - Diagnostics and placeholders for canvas/video/iframe content, filters, masks, blend modes, blocked assets, and other content that cannot be safely represented.
 
 Pasting HTML is the reliable workflow. Direct page URLs and remote images, fonts, stylesheets, or SVG assets can fail when their host does not permit browser access. When running with `npm run dev`, URL imports first try the browser request and then use the local `/__html_to_penpot/fetch` proxy when the target does not allow CORS. That proxy is intended for local development only: 15-second timeout, bounded responses of 3 MB for pages/assets, 2 MB for CSS/SVG, and 1.5 MB for fonts, with no credentials. Pasted HTML remains available everywhere; provide its URL as the Base URL to resolve relative assets.
+
+### Color/opacity comparison fixture
+
+`src/capture/fixtures/color-opacity.html` is a deterministic manual fixture for translucent fills, borders, shadows, nested opacity, decorated text, transparent text, and unsupported CSS Color 4 diagnostics. Chrome 152 smoke capture through the DevTools pipe used `Emulation.setDeviceMetricsOverride` with verified `innerWidth` values of 390 and 1440; it produced 12 nodes, a decorated parent at opacity `.5`, a direct-text child at opacity `1`, and diagnostic output. Do not substitute raw `--window-size=390` for this check because Chrome clamps it to 500. To compare it in Penpot, open the fixture in Chrome at the target viewport, paste its contents into the plugin, then import the same capture into a disposable Penpot file and compare the card, nested-opacity, and decorated-text layers at 100% zoom. Record the Chrome and Penpot versions plus available fonts; CSS Color 4 samples should produce `UNSUPPORTED_COLOR_FORMAT` diagnostics. Screenshots and a live Penpot comparison remain unchecked, so this is smoke evidence and reproducible validation guidance rather than a host-visual-validation claim.
 
 ## URL import service (v0.2)
 

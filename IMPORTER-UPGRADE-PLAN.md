@@ -6,11 +6,11 @@ Status: in progress.
 
 Improve visual fidelity and predictable imports first, then improve performance and native Penpot editability. Preserve the separation between browser capture, the scene document, and Penpot object creation.
 
-This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The baseline suite passes: 138 tests across 14 files. The findings are code-based; live browser and Penpot validation remains to be done.
+This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The suite has 150 tests across 14 files after the Phase 2.3 regression batch. The findings are code-based; live browser and Penpot validation remains to be done.
 
 ## Phase 1 — Regression fixtures and visual baseline
 
-- [ ] Add browser-based extraction tests that execute the sandbox and inspect the resulting scene, supplementing the existing generated-script string checks.
+- [x] Add extraction tests that execute the sandbox and inspect the resulting scene, supplementing the generated-script string checks.
 - [ ] Create small HTML fixtures for background images, nested clipping, alpha/opacity, stacking, `display: contents`, whitespace, and failed assets.
 - [ ] Use bundled assets and fonts for deterministic fixtures; keep network-failure cases separate.
 - [ ] Capture reference screenshots at desktop, tablet, and mobile widths.
@@ -53,8 +53,10 @@ Relevant code: `cssColor()`, `cssGradient()`, `applyPaint()`, `createText()`, an
 - [x] Apply CSS element opacity once to the appropriate shape or compositing container.
 - [x] Remove duplicated parent opacity from synthetic direct-text children.
 - [x] Preserve percentage gradient stop positions and alpha for supported linear and radial gradients; length-based stop positions retain interpolated offsets.
-- [ ] Define normalization or diagnostics for color formats outside the supported parser.
-- [ ] Test translucent backgrounds, shadows, nested opacity, and decorated text at 50% opacity.
+- [x] Define capture diagnostics for CSS Color 4 formats outside the supported parser; unsupported gradient stops now omit the whole gradient rather than silently changing it.
+- [x] Test translucent fills, borders, shadows, nested opacity, transparent text, and decorated text at 50% opacity.
+
+Smoke evidence: Chrome 152 was run through the DevTools pipe using `Emulation.setDeviceMetricsOverride`, with `innerWidth` verified at both 390 and 1440 (rather than relying on Chrome's clamped `--window-size=390`). The color/opacity fixture produced 12 nodes, a decorated parent at opacity 0.5, a captured direct-text child at opacity 1, and the expected diagnostic output. Screenshots and a live Penpot visual comparison remain unchecked.
 
 Acceptance: color alpha and element opacity combine correctly; a solid element with `opacity: .5` is not unintentionally reduced to .25.
 
