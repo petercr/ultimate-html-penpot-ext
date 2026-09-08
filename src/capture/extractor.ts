@@ -264,6 +264,26 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (/^(?:linear|radial)-gradient\\(/i.test(String(paint.backgroundImage || "").trim())) reportUnsupportedColor("background gradient", paint.backgroundImage, source, "The background gradient uses a CSS Color 4 format that this importer cannot represent; the affected gradient was omitted rather than approximated.");
   };
   const reportUnsupportedTextColor = (value, source) => reportUnsupportedColor("text color", value, source, "The text color uses a CSS Color 4 format that this importer cannot represent; the affected text uses Penpot's default color.");
+  // scroll and auto clip their content just as hidden does; only the
+  // scrollbars and the ability to reach the hidden content differ, and a
+  // snapshot import cannot reproduce scrolling either way.
+  const clipsAxis = (value) => ["hidden", "clip", "scroll", "auto", "overlay"].includes(String(value || "visible").trim());
+  const axisOverflow = (style, axis) => {
+    const value = String(style["overflow" + axis] || "").trim();
+    if (value) return value;
+    // Fall back to the shorthand for engines that only report it. The first
+    // shorthand value is the x axis; a single value applies to both.
+    const shorthand = String(style.overflow || "").trim().split(/\s+/).filter(Boolean);
+    return (axis === "X" ? shorthand[0] : shorthand[1] || shorthand[0]) || "visible";
+  };
+  const reportPartialOverflowClip = (paint, source) => {
+    // A computed style can clip one axis only through overflow-x/y: clip,
+    // because every other single-axis value forces the other axis to auto.
+    // Penpot containers clip both axes together, so reproducing this would
+    // hide content the browser shows.
+    if (clipsAxis(paint.overflowX) === clipsAxis(paint.overflowY)) return;
+    diagnostics.push({ severity: "warning", code: "UNSUPPORTED_OVERFLOW", message: "This element clips only one axis (overflow-x: " + paint.overflowX + "; overflow-y: " + paint.overflowY + "). Penpot containers clip both axes together, so the imported layer is left unclipped rather than hiding content the browser shows.", viewportId: viewport.id, source });
+  };
   const unsupported = (element, style) => {
     if (["CANVAS", "VIDEO", "IFRAME", "OBJECT", "EMBED"].includes(element.tagName)) return element.tagName.toLowerCase() + " cannot be converted to editable layers";
     if (style.filter && style.filter !== "none") return "CSS filter needs a raster fallback";
@@ -272,30 +292,42 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (style.mixBlendMode && style.mixBlendMode !== "normal") return "CSS blend mode needs a raster fallback";
     return undefined;
   };
-  const paintOf = (style) => ({
-    backgroundColor: style.backgroundColor,
-    // Penpot has one image/gradient fill per imported source surface. CSS
-    // paints its first background image on top, so preserve that layer and
-    // report any lower layers during capture instead of letting a regex pick
-    // an arbitrary URL from the entire shorthand.
-    backgroundImage: backgroundLayers(style.backgroundImage)[0] || "none",
-    backgroundRepeat: style.backgroundRepeat,
-    backgroundRepeatX: style.backgroundRepeatX,
-    backgroundRepeatY: style.backgroundRepeatY,
-    backgroundSize: style.backgroundSize,
-    backgroundPosition: style.backgroundPosition,
-    backgroundPositionX: style.backgroundPositionX,
-    backgroundPositionY: style.backgroundPositionY,
-    color: style.color,
-    borderColor: style.borderTopColor,
-    borderWidth: number(style.borderTopWidth),
-    borderStyle: style.borderTopStyle,
-    radius: [number(style.borderTopLeftRadius), number(style.borderTopRightRadius), number(style.borderBottomRightRadius), number(style.borderBottomLeftRadius)],
-    opacity: number(style.opacity || "1"),
-    boxShadow: style.boxShadow,
-    overflow: ["hidden", "clip"].includes(style.overflow) ? style.overflow : "visible",
-    transform: style.transform
-  });
+  const paintOf = (style) => {
+    const overflowX = axisOverflow(style, "X");
+    const overflowY = axisOverflow(style, "Y");
+    return {
+      backgroundColor: style.backgroundColor,
+      // Penpot has one image/gradient fill per imported source surface. CSS
+      // paints its first background image on top, so preserve that layer and
+      // report any lower layers during capture instead of letting a regex pick
+      // an arbitrary URL from the entire shorthand.
+      backgroundImage: backgroundLayers(style.backgroundImage)[0] || "none",
+      backgroundRepeat: style.backgroundRepeat,
+      backgroundRepeatX: style.backgroundRepeatX,
+      backgroundRepeatY: style.backgroundRepeatY,
+      backgroundSize: style.backgroundSize,
+      backgroundPosition: style.backgroundPosition,
+      backgroundPositionX: style.backgroundPositionX,
+      backgroundPositionY: style.backgroundPositionY,
+      color: style.color,
+      borderColor: style.borderTopColor,
+      borderWidth: number(style.borderTopWidth),
+      borderStyle: style.borderTopStyle,
+      radius: [number(style.borderTopLeftRadius), number(style.borderTopRightRadius), number(style.borderBottomRightRadius), number(style.borderBottomLeftRadius)],
+      opacity: number(style.opacity || "1"),
+      boxShadow: style.boxShadow,
+      overflowX,
+      overflowY,
+      // Penpot clips a container on both axes together, so only a box that
+      // clips both is reported as clipping. A single clipped axis is reported
+      // as a diagnostic instead, because hiding content the browser shows is
+      // worse than leaving the overflow visible.
+      overflow: clipsAxis(overflowX) && clipsAxis(overflowY)
+        ? (overflowX === "clip" && overflowY === "clip" ? "clip" : "hidden")
+        : "visible",
+      transform: style.transform
+    };
+  };
   const paintOfElement = (element, style) => {
     const paint = paintOf(style);
     // The browser paints a transparent html/body pair against the default
@@ -502,6 +534,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // a transparent body inherits the html element's visible page background.
     const paint = paintOfElement(element, style);
     reportUnsupportedPaintColors(paint, source);
+    reportPartialOverflowClip(paint, source);
     const rawBackgroundImage = element === document.body && transparent(style.backgroundColor) && style.backgroundImage === "none"
       ? getComputedStyle(document.documentElement).backgroundImage
       : style.backgroundImage;

@@ -208,6 +208,11 @@ function applyShadow(shape: Shape, value: string | undefined): void {
   shape.shadows = [{ style: value.includes("inset") ? "inner-shadow" : "drop-shadow", offsetX: dimensions[0], offsetY: dimensions[1], blur: dimensions[2], spread: dimensions[3] || 0, color: { color: color.color, opacity: color.opacity } }];
 }
 
+/** Capture reports clipping only when both CSS axes clip; see the extractor. */
+function clipsContent(paint: ScenePaint): boolean {
+  return paint.overflow === "hidden" || paint.overflow === "clip";
+}
+
 function applyPaint(shape: Shape, paint: ScenePaint): void {
   const color = cssColorWithOpacity(paint.backgroundColor);
   const gradient = cssGradient(paint.backgroundImage);
@@ -233,9 +238,7 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
     const values = matrix[1].split(",").map(Number);
     if (values.length >= 2) shape.rotation = Math.atan2(values[1], values[0]) * 180 / Math.PI;
   }
-  if (paint.overflow === "hidden" || paint.overflow === "clip") {
-    if (shape.type === "board") (shape as Board).clipContent = true;
-  }
+  if (clipsContent(paint) && shape.type === "board") (shape as Board).clipContent = true;
 }
 
 function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y: number }): void {
@@ -400,9 +403,7 @@ function needsContainerBackdrop(node: SceneNode): boolean {
     (paint.backgroundImage && paint.backgroundImage !== "none") ||
     (paint.borderWidth && paint.borderWidth > 0 && paint.borderStyle !== "none") ||
     (paint.boxShadow && paint.boxShadow !== "none") ||
-    paint.radius?.some((radius) => radius > 0) ||
-    paint.overflow === "hidden" ||
-    paint.overflow === "clip"
+    paint.radius?.some((radius) => radius > 0)
   );
 }
 
@@ -561,6 +562,31 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
 
         const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
           if (options.isCancelled()) throw new ImportCancelledError();
+          if (node.kind === "container" && clipsContent(node.paint)) {
+            // A Penpot board is the clipping-capable container. Unlike a
+            // group, its bounds stay at the captured element's box instead of
+            // growing to enclose its descendants, so an oversized child is
+            // hidden rather than resizing the container. The board also paints
+            // the element's own decoration, which keeps the clip and the
+            // rounded corners on one surface.
+            const clip = penpot.createBoard();
+            clip.clipContent = true;
+            applyPaint(clip, node.paint);
+            const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
+            if (clipAsset && !(await applyAssetFill(clip, clipAsset, media))) {
+              markAssetFallback(clip, "Background image could not be loaded; a placeholder is shown.");
+            }
+            metadata(clip, node, scene.viewport.id);
+            append(parentShape, clip);
+            // Establish parentage and the container's own bounds before its
+            // children: applyGeometry writes page-space coordinates, and the
+            // children are positioned against the same page origin.
+            applyGeometry(clip, node, { x: board.x, y: board.y });
+            shapes.set(node.id, clip);
+            for (const child of childrenByParent.get(node.id) || []) await render(child, clip);
+            reportProgress();
+            return clip;
+          }
           if (node.kind === "container") {
             const children: Shape[] = [];
             for (const child of childrenByParent.get(node.id) || []) {

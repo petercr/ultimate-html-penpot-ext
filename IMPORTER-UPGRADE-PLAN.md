@@ -6,7 +6,7 @@ Status: in progress.
 
 Improve visual fidelity and predictable imports first, then improve performance and native Penpot editability. Preserve the separation between browser capture, the scene document, and Penpot object creation.
 
-This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The suite has 150 tests across 14 files after the Phase 2.3 regression batch. The findings are code-based; live browser and Penpot validation remains to be done.
+This plan follows a code review of `src/capture`, `src/importer/penpot.ts`, the scene contracts and validation, and the plugin/UI lifecycle. The suite has 154 tests across 14 files after the Phase 2.2 and 2.3 regression batches. The findings are code-based; live browser and Penpot validation remains to be done.
 
 ## Phase 1 — Regression fixtures and visual baseline
 
@@ -37,11 +37,14 @@ Acceptance: adding child content to an element does not cause its background ima
 
 Relevant code: `applyPaint()` and the container branch of `render()` in `src/importer/penpot.ts`.
 
-- [ ] Verify available clipping and masking behavior in the installed Penpot API and live host.
-- [ ] Use a clipping-capable container where CSS requires clipping, while retaining simple groups elsewhere. (Deferred: the initial `Group.makeMask()` implementation hid content in live Penpot mobile output; verify mask ordering and coordinate behavior before retrying.)
-- [ ] Preserve source bounds independently of descendant bounds and keep child coordinates correct.
-- [ ] Capture overflow axes separately; define and diagnose combinations that cannot be reproduced.
-- [ ] Test oversized children, rounded cards, nested clips, and visible overflow.
+- [x] Verify the clipping surface of the installed Penpot API: `Board.clipContent` clips deterministically on both axes, while `Group.makeMask()` depends on child ordering, which is what made the earlier attempt hide content.
+- [ ] Verify the new clipping boards in the live Penpot host, including layer-tree readability and undo behavior.
+- [x] Use a clipping-capable container where CSS requires clipping, while retaining simple groups elsewhere. A clipping container is now a nested board that paints its own fill, border, radius, and shadow, rather than a group plus a backdrop rectangle.
+- [x] Preserve source bounds independently of descendant bounds and keep child coordinates correct. A board keeps the captured element's box; a group would have grown to enclose an overflowing child.
+- [x] Capture overflow axes separately; define and diagnose combinations that cannot be reproduced. `scroll` and `auto` clip like `hidden`; a single clipped axis is left unclipped and reported as `UNSUPPORTED_OVERFLOW`, because hiding content the browser shows is worse than leaving it visible.
+- [x] Test oversized children, rounded cards, nested clips, and visible overflow.
+
+Smoke evidence: Chrome 152 was run through the DevTools pipe using `Emulation.setDeviceMetricsOverride`, with `innerWidth` verified at both 390 and 1440. `src/capture/fixtures/overflow-clipping.html` produced 27 nodes at both widths, with each clipping container keeping its own 200px-wide box rather than its 420px child's, `overflow: auto` captured as clipping, `overflow-x: clip` with `overflow-y: visible` captured as unclipped, and exactly one `UNSUPPORTED_OVERFLOW` diagnostic. Screenshots and a live Penpot visual comparison remain unchecked.
 
 Acceptance: content stays within the intended clip, including supported rounded corners, without shifting descendants.
 

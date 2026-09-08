@@ -420,20 +420,104 @@ describe("Penpot importer", () => {
     expect((globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group).not.toHaveBeenCalled();
   });
 
-  it("retains overflow containers as ordinary groups until masking is verified in Penpot", async () => {
+  it("clips an overflowing child inside a board that keeps the captured container bounds", async () => {
     const clippedScene = scene();
     const root = clippedScene.nodes[0];
     const text = clippedScene.nodes[1];
-    const clipped = { ...root, id: "clipped", parentId: root.id, children: [text.id], name: "card", source: "body > section", paint: { overflow: "hidden" as const } };
+    const clipped = {
+      ...root,
+      id: "clipped",
+      parentId: root.id,
+      children: [text.id],
+      name: "card",
+      source: "body > section",
+      rect: { x: 10, y: 10, width: 120, height: 60 },
+      paint: { backgroundColor: "rgb(255, 255, 255)", radius: [8, 8, 8, 8] as [number, number, number, number], overflow: "hidden" as const }
+    };
+    // A child far wider than its container: a group would grow to enclose it.
     text.parentId = clipped.id;
+    text.rect = { x: 10, y: 10, width: 400, height: 24 };
     root.children = [clipped.id];
     clippedScene.nodes = [root, clipped, text];
 
     await importScenes([clippedScene], { isCancelled: () => false, onProgress: vi.fn() });
 
-    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group.mock.results[0]?.value as FakeShape;
-    expect(group.children).toHaveLength(2);
-    expect(group).not.toHaveProperty("makeMask");
+    const penpotApi = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn>; createBoard: ReturnType<typeof vi.fn> } }).penpot;
+    expect(penpotApi.group).not.toHaveBeenCalled();
+    const clip = boards[1];
+    expect(clip).toMatchObject({ type: "board", clipContent: true, name: "card", x: 110, y: 210 });
+    expect(clip.resize).toHaveBeenCalledWith(120, 60);
+    expect(clip).toMatchObject({ fills: [{ fillColor: "#ffffff", fillOpacity: 1 }], borderRadiusTopLeft: 8 });
+    expect(clip.children?.map((child) => child.type)).toEqual(["text"]);
+    // The container's bounds come from its own captured rect, not from the
+    // overflowing child, and the child keeps its captured page position.
+    expect(clip.children?.[0]).toMatchObject({ x: 110, y: 210 });
+    expect(clip.pluginData).toMatchObject({ source: "body > section" });
+  });
+
+  it("nests clipping boards and keeps ordinary groups for visible overflow", async () => {
+    const nestedScene = scene();
+    const root = nestedScene.nodes[0];
+    const text = nestedScene.nodes[1];
+    const outerClip = { ...root, id: "outer", parentId: root.id, children: ["visible"], name: "outer", source: "body > section", rect: { x: 0, y: 0, width: 200, height: 100 }, paint: { overflow: "hidden" as const } };
+    const visible = { ...root, id: "visible", parentId: "outer", children: ["inner"], name: "visible wrapper", source: "body > section > div", rect: { x: 0, y: 0, width: 200, height: 100 }, paint: { backgroundColor: "rgb(1, 2, 3)" } };
+    const innerClip = { ...root, id: "inner", parentId: "visible", children: [text.id], name: "inner", source: "body > section > div > span", rect: { x: 5, y: 5, width: 50, height: 20 }, paint: { overflow: "clip" as const } };
+    text.parentId = innerClip.id;
+    root.children = [outerClip.id];
+    nestedScene.nodes = [root, outerClip, visible, innerClip, text];
+
+    await importScenes([nestedScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const outer = boards[1];
+    const inner = boards[2];
+    expect(outer).toMatchObject({ type: "board", clipContent: true, name: "outer" });
+    expect(inner).toMatchObject({ type: "board", clipContent: true, name: "inner" });
+    // The painted wrapper between the two clips stays an ordinary group, and
+    // the inner clip is placed inside the outer one rather than beside it.
+    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
+    expect(group).toHaveBeenCalledOnce();
+    const wrapper = group.mock.results[0]?.value as FakeShape;
+    expect(wrapper).toMatchObject({ type: "group", name: "visible wrapper" });
+    expect(wrapper.children?.map((child) => child.type)).toEqual(["rectangle", "board"]);
+    expect(wrapper.children?.[1]).toBe(inner);
+    expect(outer.children).toContain(inner);
+    expect(inner.children?.map((child) => child.type)).toEqual(["text"]);
+  });
+
+  it("leaves single-axis clipping unclipped rather than hiding content the browser shows", async () => {
+    const partialScene = scene();
+    const root = partialScene.nodes[0];
+    const text = partialScene.nodes[1];
+    // Capture only sets overflow when both axes clip, so overflow-x: clip with
+    // overflow-y: visible arrives as visible plus a capture diagnostic.
+    const partial = { ...root, id: "partial", parentId: root.id, children: [text.id], name: "partial", source: "body > section", paint: { overflowX: "clip", overflowY: "visible", overflow: "visible" as const } };
+    text.parentId = partial.id;
+    root.children = [partial.id];
+    partialScene.nodes = [root, partial, text];
+
+    await importScenes([partialScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    expect(boards).toHaveLength(1);
+    expect(boards[0].children?.map((child) => child.type)).toEqual(["text"]);
+  });
+
+  it("keeps the clipping container's own background image and reports a failed one", async () => {
+    const backgroundScene = scene();
+    const root = backgroundScene.nodes[0];
+    const text = backgroundScene.nodes[1];
+    const clipped = { ...root, id: "clipped", parentId: root.id, children: [text.id], name: "hero", source: "body > section", paint: { backgroundImage: 'url("https://example.test/hero.png")', overflow: "hidden" as const }, assetId: "hero" };
+    text.parentId = clipped.id;
+    root.children = [clipped.id];
+    backgroundScene.nodes = [root, clipped, text];
+    backgroundScene.assets = [{ id: "hero", url: "https://example.test/hero.png", mimeType: "image/png" }];
+    (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl.mockRejectedValue(new Error("blocked"));
+
+    await importScenes([backgroundScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    const clip = boards[1];
+    expect(clip).toMatchObject({ type: "board", clipContent: true });
+    expect(clip.name).toBe("Image unavailable: hero");
+    expect(clip.pluginData).toMatchObject({ "asset-fallback": expect.stringContaining("Background image could not be loaded") });
   });
 
   it("commits each responsive board in its own undo block", async () => {

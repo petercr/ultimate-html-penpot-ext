@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer overflow clipping fidelity fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 Arial, sans-serif; }
+  h2 { margin: 24px 0 8px; font-size: 14px; font-weight: 700; color: #475467; }
+  .wide { width: 420px; padding: 6px 10px; background: #bfdbfe; }
+
+  /* An oversized child must be hidden at the container edge, and the
+     container must keep its own 200px box rather than growing to 420px. */
+  #oversized { width: 200px; height: 44px; overflow: hidden; background: #e0f2fe; border: 2px solid #0284c7; }
+
+  /* The clip must follow the rounded corners, not just the bounding box. */
+  #rounded { width: 200px; height: 60px; overflow: hidden; border-radius: 18px; background: #fef3c7; box-shadow: 0 4px 10px rgb(15 23 42 / 20%); }
+
+  /* Two clips in sequence: the inner box is itself clipped by the outer one. */
+  #outer-clip { width: 200px; height: 70px; overflow: hidden; background: #dcfce7; border: 2px solid #16a34a; }
+  #inner-clip { width: 260px; height: 30px; margin: 8px; overflow: hidden; background: #bbf7d0; border: 2px solid #15803d; }
+
+  /* Visible overflow must stay visible: the child spills past its parent. */
+  #visible { width: 200px; height: 44px; overflow: visible; background: #ede9fe; border: 2px solid #7c3aed; }
+
+  /* scroll and auto clip in the browser exactly as hidden does. */
+  #scrollable { width: 200px; height: 44px; overflow: auto; background: #ffe4e6; border: 2px solid #e11d48; }
+
+  /* The one computed combination that clips a single axis. Penpot clips both
+     axes together, so this must import unclipped with a diagnostic. */
+  #single-axis { width: 200px; height: 44px; overflow-x: clip; overflow-y: visible; background: #f1f5f9; border: 2px dashed #64748b; }
+</style>
+<main>
+  <h2>overflow: hidden — oversized child</h2>
+  <section id="oversized"><div class="wide">This line is 420px wide and must be cut at 200px</div></section>
+
+  <h2>overflow: hidden — rounded card</h2>
+  <section id="rounded"><div class="wide">The clip must follow the 18px corner radius</div></section>
+
+  <h2>overflow: hidden — nested clips</h2>
+  <section id="outer-clip"><div id="inner-clip"><div class="wide">Clipped twice: inner box, then outer box</div></div></section>
+
+  <h2>overflow: visible — must not be clipped</h2>
+  <section id="visible"><div class="wide">This line must still spill past its parent</div></section>
+
+  <h2>overflow: auto — clips like hidden</h2>
+  <section id="scrollable"><div class="wide">Scrollable content is clipped at the box edge</div></section>
+
+  <h2>overflow-x: clip; overflow-y: visible — single axis</h2>
+  <section id="single-axis"><div class="wide">Left unclipped on import, with a diagnostic</div></section>
+</main>
