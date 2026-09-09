@@ -1,0 +1,41 @@
+<user_shell_command>
+<command>
+git pull
+</command>
+<result>
+Exit code: 0
+Duration: 0.4939 seconds
+Output:
+Updating d1db2d0..017231d
+Fast-forward
+ README.md                            |  10 +-
+ api/fetch-html.test.ts               |  34 ++++-
+ api/fetch-html.ts                    |  42 +++++-
+ cloudflare/front-proxy.test.ts       |  44 ++++++
+ cloudflare/front-proxy.ts            |  18 ++-
+ cloudflare/worker-configuration.d.ts |  19 +++
+ cloudflare/wrangler.jsonc            |   2 +-
+ src/App.tsx                          |  48 ++++++-
+ src/capture/extractor.test.ts        |   7 +
+ src/capture/extractor.ts             |  55 ++++++-
+ src/capture/fonts.test.ts            | 141 ++++++++++++++++++
+ src/capture/fonts.ts                 | 154 ++++++++++++++++++++
+ src/capture/prepareDocument.test.ts  |  51 ++++++-
+ src/capture/prepareDocument.ts       |  74 +++++++++-
+ src/capture/source.test.ts           |  58 ++++++++
+ src/capture/source.ts                | 268 ++++++++++++++++++++++++++++++++++-
+ src/importer/penpot.test.ts          |  47 +++++-
+ src/importer/penpot.ts               | 237 +++++++++++++++++--------------
+ src/shared/contracts.ts              |   4 +-
+ src/shared/validation.test.ts        |   7 +
+ src/shared/validation.ts             |   4 +
+ src/styles.css                       |   2 +
+ vite.config.ts                       |  33 +++--
+ 23 files changed, 1209 insertions(+), 150 deletions(-)
+ create mode 100644 cloudflare/front-proxy.test.ts
+ create mode 100644 cloudflare/worker-configuration.d.ts
+ create mode 100644 src/capture/fonts.test.ts
+ create mode 100644 src/capture/fonts.ts
+
+</result>
+</user_shell_command>
