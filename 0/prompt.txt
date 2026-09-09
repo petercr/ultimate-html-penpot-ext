@@ -1,0 +1,1 @@
+ok were on wsl and penpot is on windows, so it cant reach the manifest url
