@@ -1,0 +1,1 @@
+Yes but now we get "text encoder is not a constructor"
