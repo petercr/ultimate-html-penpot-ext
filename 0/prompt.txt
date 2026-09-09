@@ -1,0 +1,23 @@
+<user_shell_command>
+<command>
+git pull
+</command>
+<result>
+Exit code: 0
+Duration: 0.3222 seconds
+Output:
+Updating f67215a..a6265b8
+Fast-forward
+ src/capture/extractor.test.ts       |   5 ++
+ src/capture/extractor.ts            | 126 ++++++++++++++++++++++++++++--------
+ src/capture/prepareDocument.test.ts |   1 +
+ src/capture/prepareDocument.ts      |   9 +--
+ src/capture/source.test.ts          |  17 +++++
+ src/capture/source.ts               |  59 ++++++++++++++++-
+ src/importer/penpot.test.ts         |  48 +++++++++++++-
+ src/importer/penpot.ts              |  88 ++++++++++++++++++++-----
+ src/plugin.ts                       |   8 ++-
+ 9 files changed, 308 insertions(+), 53 deletions(-)
+
+</result>
+</user_shell_command>
