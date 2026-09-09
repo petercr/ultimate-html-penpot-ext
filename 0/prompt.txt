@@ -1,0 +1,1 @@
+greast this is doing much better now, but could still use more work. orca browser has a tab open to penpot with the new imports. some of the text does not fit in its partent element and gets cut off. lets fix that
