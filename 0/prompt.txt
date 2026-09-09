@@ -1,0 +1,30 @@
+<user_shell_command>
+<command>
+git pull
+</command>
+<result>
+Exit code: 0
+Duration: 0.7818 seconds
+Output:
+Updating 29fc781..f67215a
+Fast-forward
+ README.md                         |   4 +-
+ scripts/windows-static-server.mjs |  50 +++++++++++++-
+ src/App.tsx                       |  30 +++------
+ src/capture/extractor.test.ts     |  10 +++
+ src/capture/extractor.ts          |  76 ++++++++++++++++++---
+ src/capture/source.test.ts        |  46 +++++++++++++
+ src/capture/source.ts             |  70 ++++++++++++++++++++
+ src/importer/penpot.test.ts       |  40 ++++++++++-
+ src/importer/penpot.ts            | 135 ++++++++++++++++++++++++++++++++++----
+ src/shared/contracts.ts           |   3 +
+ src/shared/validation.ts          |   1 +
+ vite.config.ts                    |  93 +++++++++++++++++++++++---
+ 12 files changed, 500 insertions(+), 58 deletions(-)
+ create mode 100644 src/capture/source.test.ts
+ create mode 100644 src/capture/source.ts
+From https://github.com/petercr/ultimate-html-penpot-ext
+   29fc781..f67215a  main       -> origin/main
+
+</result>
+</user_shell_command>
