@@ -1,0 +1,1 @@
+powershell7 is availbe on win
