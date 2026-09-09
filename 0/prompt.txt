@@ -1,0 +1,1 @@
+ok the text and links are still out of place on tablet and mobile. more important were getting crazy line spacing that is throwing where the element and the content are showing up on the page
