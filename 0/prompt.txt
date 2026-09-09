@@ -1,0 +1,1 @@
+so were only getting the text from the plugin not from the content. use penpot mcp server to view try plugin: html to design to view the board and see the results. i will run new plugin queries no need for computer use
