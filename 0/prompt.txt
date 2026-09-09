@@ -1,0 +1,5 @@
+<image name=[Image #1] path="/mnt/c/Users/pcruc/Downloads/Page — Mobile 390 (1).png">
+
+</image>
+
+great much better but now it look like some of the text is running outside it parent elm in a few places [Image #1]
