@@ -1,0 +1,1 @@
+great now lets fix an issue where when a user puts a url in the top bar like it says the ext does not work. the urls only work if you put them in the 2nd textbox. they should work in the 1st
