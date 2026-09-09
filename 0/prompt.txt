@@ -1,0 +1,5 @@
+<image name=[Image #1] path="/mnt/c/Users/pcruc/Downloads/Page — Tablet 768 (1).png">
+
+</image>
+
+heres how the tablet screen looks [Image #1]
