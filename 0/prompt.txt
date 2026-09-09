@@ -1,0 +1,14 @@
+<user_shell_command>
+<command>
+git switch main
+</command>
+<result>
+Exit code: 0
+Duration: 0.0469 seconds
+Output:
+branch 'main' set up to track 'origin/main'.
+Your branch is up to date with 'origin/main'.
+Switched to a new branch 'main'
+
+</result>
+</user_shell_command>
