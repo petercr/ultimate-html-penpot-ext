@@ -1,0 +1,1 @@
+is this a static site or does it need a backend
