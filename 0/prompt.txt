@@ -1,0 +1,9 @@
+ok we got this info back in the analysis section and then an error: 251 editable layers across 3 boards · 5 diagnostics
+Desktop · 1440×900 — 1440×3900px, 85 layers
+Tablet · 768×1024 — 768×3844px, 85 layers
+Mobile · 390×844 — 390×4868px, 81 layers
+CSS filter needs a raster fallback (div:nth-of-type(2) > nav > div:nth-of-type(1) > a > img)
+CSS filter needs a raster fallback (div:nth-of-type(2) > div > main > div:nth-of-type(1) > img)
+CSS filter needs a raster fallback (div:nth-of-type(2) > nav > div:nth-of-type(1) > a > img)
+CSS filter needs a raster fallback (div:nth-of-type(2) > div > main > div:nth-of-type(1) > img)
++ 1 more diagnostics
