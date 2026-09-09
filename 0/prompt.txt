@@ -1,0 +1,1 @@
+no just use the orca browser tab with penpot open, it will be faster than computer use and have more debug info
