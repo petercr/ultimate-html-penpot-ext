@@ -1,0 +1,1 @@
+ok pr is merged try to use the open penpot tab in orca browser and test the new prod extention on the test url
