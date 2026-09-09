@@ -1,0 +1,1 @@
+now the plugin won't load i have opened penpot in an orca browser tab so that you will have access to it and the devtools there for more info
