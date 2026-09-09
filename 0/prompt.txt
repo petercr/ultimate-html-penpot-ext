@@ -1,0 +1,1 @@
+ok now it looks like were getting cors errors on the url fetching
