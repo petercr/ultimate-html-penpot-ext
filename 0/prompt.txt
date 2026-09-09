@@ -1,0 +1,14 @@
+<user_shell_command>
+<command>
+git switch main
+</command>
+<result>
+Exit code: 0
+Duration: 0.0396 seconds
+Output:
+Your branch is behind 'origin/main' by 2 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+Switched to branch 'main'
+
+</result>
+</user_shell_command>
