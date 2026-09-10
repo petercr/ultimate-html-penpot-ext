@@ -1,13 +1,1 @@
-ok lets finish up '\\wsl.localhost\Ubuntu\home\peterc\ultimate-html-penpot-ext\IMPORTER-UPGRADE-PLAN.md' phase 1. use luna xhigh as scout and terra xhigh as the implementor
-
----
-
-ok continue but try not to use too many tokens
-
----
-
-ok walk thru penpot testgin instruction
-
----
-
-ok those all look good in penpot
+ok great commit push and pr to main
