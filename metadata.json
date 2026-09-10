@@ -3,14 +3,21 @@
   "checkpoint_id": "01M26KM45E13XVP17DW54E1VNY",
   "strategy": "manual-commit",
   "branch": "test/importer-phase1-baselines",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     "IMPORTER-UPGRADE-PLAN.md",
     "README.md",
     "docs/importer-visual-baselines.md",
     "package.json",
+    "src/capture/fixtures/asset-failures.html",
+    "src/capture/fixtures/assets/DEJAVU-LICENSE.txt",
+    "src/capture/fixtures/assets/DejaVuSans.ttf",
+    "src/capture/fixtures/assets/checker-tile.svg",
+    "src/capture/fixtures/assets/fixture-illustration.svg",
+    "src/capture/fixtures/background-images.html",
     "src/capture/fixtures/color-opacity.html",
     "src/capture/fixtures/overflow-clipping.html",
+    "src/capture/fixtures/stacking-contents-whitespace.html",
     "src/importer/penpot.test.ts"
   ],
   "sessions": [
@@ -20,13 +27,20 @@
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
       "prompt": "/0/prompt.txt"
+    },
+    {
+      "metadata": "/1/metadata.json",
+      "transcript": "/1/full.jsonl",
+      "compact_transcript": "/1/transcript.jsonl",
+      "content_hash": "/1/content_hash.txt",
+      "prompt": "/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 804385,
+    "input_tokens": 942806,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 27618304,
-    "output_tokens": 59453,
-    "api_call_count": 688
+    "cache_read_tokens": 29396992,
+    "output_tokens": 73993,
+    "api_call_count": 712
   }
 }
