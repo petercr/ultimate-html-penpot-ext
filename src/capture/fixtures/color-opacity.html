@@ -3,7 +3,9 @@
 <title>Importer color and opacity fidelity fixture</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 Arial, sans-serif; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 "DejaVu Sans", sans-serif; }
   .card {
     width: 320px;
     padding: 20px;
@@ -30,10 +32,10 @@
   .unsupported-gradient { height: 32px; margin-top: 12px; background: linear-gradient(90deg, #2563eb, color(display-p3 0.95 0.2 0.35), #facc15); }
 </style>
 <main>
-  <section class="card">Translucent fill, border, and shadow</section>
-  <section class="outer"><div class="inner">Nested 50% opacity (.25 composited)</div></section>
-  <span class="decorated-text">Decorated direct text at 50% opacity</span>
-  <span class="transparent-text">This text must remain fully transparent</span>
-  <span class="unsupported-color">CSS Color 4 diagnostic</span>
-  <div class="unsupported-gradient" aria-label="CSS Color 4 gradient diagnostic"></div>
+  <section id="alpha-card" class="card">Translucent fill, border, and shadow</section>
+  <section id="nested-opacity" class="outer"><div class="inner">Nested 50% opacity (.25 composited)</div></section>
+  <span id="decorated-text" class="decorated-text">Decorated direct text at 50% opacity</span>
+  <span id="transparent-text" class="transparent-text">This text must remain fully transparent</span>
+  <span id="unsupported-color" class="unsupported-color">CSS Color 4 diagnostic</span>
+  <div id="unsupported-gradient" class="unsupported-gradient" aria-label="CSS Color 4 gradient diagnostic"></div>
 </main>

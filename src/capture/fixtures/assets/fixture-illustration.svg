@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="112" viewBox="0 0 160 112" role="img" aria-label="Fixture illustration">
+  <rect width="160" height="112" rx="16" fill="#0f172a"/>
+  <circle cx="45" cy="44" r="22" fill="#fbbf24"/>
+  <path d="M15 92c13-25 29-37 47-37s32 10 42 37" fill="#38bdf8"/>
+  <path d="M102 23h40v12h-40zm0 23h28v12h-28zm0 23h40v12h-40z" fill="#e2e8f0"/>
+</svg>

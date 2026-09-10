@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, type SceneDocument } from "../shared/contracts";
 import { ImportCancelledError, importScenes } from "./penpot";
@@ -14,12 +17,47 @@ function fakeShape(type: string): FakeShape {
     strokes: [],
     children: [],
     pluginData: {},
-    resize: vi.fn(),
+    resize: vi.fn(function (this: FakeShape, width: number, height: number) { this.width = width; this.height = height; }),
     setPluginData: vi.fn(function (this: FakeShape, key: string, value: string) { (this.pluginData as Record<string, string>)[key] = value; }),
     getPluginData: vi.fn(function (this: FakeShape, key: string) { return String((this.pluginData as Record<string, string>)[key] || ""); }),
     appendChild: vi.fn(function (this: FakeShape, child: FakeShape) { this.children?.push(child); }),
     remove: vi.fn(function (this: FakeShape) { this.removed = true; })
   };
+}
+
+type BaselineMetadata = {
+  inputs: { extractor: { path: string; sha256: string }; assets: Array<{ path: string; sha256: string }> };
+  fixtures: Array<{ file: string; sha256: string }>;
+};
+type BaselineSceneEvidence = {
+  fixtures: Array<{ file: string; sha256: string; viewports: Array<{ scene: SceneDocument }> }>;
+};
+
+function fixturePath(path: string): string {
+  return resolve(process.cwd(), "src", "capture", "fixtures", path);
+}
+
+function sha256File(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function baselineEvidence(): { metadata: BaselineMetadata; scenes: BaselineSceneEvidence } {
+  return {
+    metadata: JSON.parse(readFileSync(fixturePath("baselines/metadata.json"), "utf8")) as BaselineMetadata,
+    scenes: JSON.parse(readFileSync(fixturePath("baselines/scene-evidence.json"), "utf8")) as BaselineSceneEvidence
+  };
+}
+
+function scenesForFixture(evidence: BaselineSceneEvidence, file: string): SceneDocument[] {
+  const fixture = evidence.fixtures.find((candidate) => candidate.file === file);
+  if (!fixture) throw new Error(`Missing generated scene evidence for ${file}.`);
+  return fixture.viewports.map(({ scene }) => scene);
+}
+
+function shapesBelow(shape: FakeShape, seen = new Set<FakeShape>()): FakeShape[] {
+  if (seen.has(shape)) return [];
+  seen.add(shape);
+  return [shape, ...(shape.children || []).flatMap((child) => shapesBelow(child, seen))];
 }
 
 function scene(name = "Desktop"): SceneDocument {
@@ -69,6 +107,82 @@ describe("Penpot importer", () => {
       uploadMediaData: vi.fn().mockResolvedValue({}),
       uploadMediaUrl: vi.fn().mockResolvedValue({})
     });
+  });
+
+  it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {
+    const { metadata, scenes } = baselineEvidence();
+    expect(metadata.inputs.extractor.path).toBe("src/capture/extractor.ts");
+    expect(metadata.inputs.extractor.sha256).toBe(sha256File(resolve(process.cwd(), "src", "capture", "extractor.ts")));
+
+    const expectedAssetPaths = readdirSync(fixturePath("assets"))
+      .filter((file) => [".svg", ".ttf", ".otf", ".woff", ".woff2"].some((extension) => file.endsWith(extension)))
+      .sort()
+      .map((file) => `src/capture/fixtures/assets/${file}`);
+    expect(metadata.inputs.assets.map((asset) => asset.path)).toEqual(expectedAssetPaths);
+    for (const asset of metadata.inputs.assets) {
+      expect(asset.sha256).toBe(sha256File(fixturePath(asset.path.replace("src/capture/fixtures/", ""))));
+    }
+
+    expect(scenes.fixtures.map((fixture) => fixture.file)).toEqual(metadata.fixtures.map((fixture) => fixture.file));
+    for (const fixture of metadata.fixtures) {
+      const generated = scenes.fixtures.find((candidate) => candidate.file === fixture.file);
+      expect(generated?.sha256).toBe(fixture.sha256);
+      expect(fixture.sha256).toBe(sha256File(fixturePath(fixture.file)));
+    }
+  });
+
+  it("imports generated clipping scenes with bounded clip boards and nested ancestry", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "overflow-clipping.html");
+    const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(result).toHaveLength(3);
+
+    for (const [index, scene] of scenes.entries()) {
+      const board = result[index] as unknown as FakeShape;
+      const outerNode = scene.nodes.find((node) => node.source === "#outer-clip");
+      const innerNode = scene.nodes.find((node) => node.source === "#inner-clip");
+      if (!outerNode || !innerNode) throw new Error("Generated clipping scene is incomplete.");
+      const viewportId = scene.viewport.id;
+      const clipFor = (source: string) => boards.find((shape) => shape !== board && (shape.pluginData as Record<string, string>).source === source && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      const outerClip = clipFor("#outer-clip");
+      const innerClip = clipFor("#inner-clip");
+      const boardX = Number(board.x);
+      const boardY = Number(board.y);
+      expect(board).toMatchObject({ clipContent: true, width: scene.viewport.width, height: scene.documentSize.height });
+      expect(outerClip).toMatchObject({ type: "board", clipContent: true, x: boardX + outerNode.rect.x, y: boardY + outerNode.rect.y, width: outerNode.rect.width, height: outerNode.rect.height });
+      expect(innerClip).toMatchObject({ type: "board", clipContent: true, x: boardX + innerNode.rect.x, y: boardY + innerNode.rect.y, width: innerNode.rect.width, height: innerNode.rect.height });
+      expect(board.children).toContain(outerClip);
+      expect(outerClip?.children).toContain(innerClip);
+    }
+  });
+
+  it("imports generated opacity scenes with each compositing opacity applied once", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "color-opacity.html");
+    await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    const groups = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group.mock.results.map((result) => result.value as FakeShape);
+
+    for (const scene of scenes) {
+      const viewportId = scene.viewport.id;
+      const nestedOpacity = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "#nested-opacity" && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      const decoratedText = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "#decorated-text" && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      expect(nestedOpacity?.opacity).toBe(0.25);
+      expect(decoratedText?.opacity).toBe(0.5);
+    }
+  });
+
+  it("imports generated failed-asset scenes with a placeholder per element and one upload across three boards", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "asset-failures.html");
+    const upload = (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl;
+    upload.mockRejectedValueOnce(new Error("controlled fixture asset failure"));
+
+    const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(result).toHaveLength(3);
+    expect(upload).toHaveBeenCalledOnce();
+    for (const board of result as unknown as FakeShape[]) {
+      const placeholders = shapesBelow(board).filter((shape) => Boolean((shape.pluginData as Record<string, string>)["asset-fallback"]));
+      expect(placeholders).toHaveLength(3);
+      expect(placeholders.map((shape) => (shape.pluginData as Record<string, string>).source).sort()).toEqual(["#missing-background", "#missing-image-a", "#missing-image-b"]);
+      expect(placeholders.map((shape) => shape.name).sort()).toEqual(["Image unavailable: missing-background", "Image unavailable: missing-image-a", "Image unavailable: missing-image-b"]);
+    }
   });
 
   it("creates a top-level board and native children in one undo block", async () => {
@@ -164,6 +278,25 @@ describe("Penpot importer", () => {
     expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
     expect((result[1] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
     expect((result[0] as unknown as FakeShape).children?.[0]?.name).toBe("Image unavailable: logo");
+  });
+
+  it("keeps a named placeholder for every element that shares one failed asset", async () => {
+    const failing = scene();
+    const root = failing.nodes[0];
+    root.children = ["first", "second"];
+    failing.nodes = [
+      root,
+      { id: "first", parentId: root.id, children: [], kind: "image", name: "first broken image", source: "#missing-image-a", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "missing-asset" },
+      { id: "second", parentId: root.id, children: [], kind: "image", name: "second broken image", source: "#missing-image-b", rect: { x: 120, y: 20, width: 80, height: 50 }, zIndex: 3, paint: {}, layout: { kind: "none" }, assetId: "missing-asset" }
+    ];
+    failing.assets = [{ id: "missing-asset", url: "http://127.0.0.1:4174/assets/intentional-missing.png", mimeType: "image/png" }];
+    const upload = (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl;
+    upload.mockRejectedValueOnce(new Error("controlled local failure"));
+
+    const result = await importScenes([failing], { isCancelled: () => false, onProgress: vi.fn() });
+    const names = (result[0] as unknown as FakeShape).children?.map((child) => child.name);
+    expect(upload).toHaveBeenCalledOnce();
+    expect(names).toEqual(["Image unavailable: first broken image", "Image unavailable: second broken image"]);
   });
 
   it("uploads inlined raster assets and reuses them across responsive boards", async () => {

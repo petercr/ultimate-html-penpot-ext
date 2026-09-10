@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer stacking, display contents, and whitespace fixture</title>
+<style>
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px; background: #f8fafc; color: #172033; font: 16px/1.45 "DejaVu Sans", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { margin: 0 0 18px; font-size: 26px; }
+  .card { margin-top: 18px; padding: 20px; border: 1px solid #cbd5e1; border-radius: 16px; background: #fff; }
+  #stacking-stage { position: relative; height: 180px; overflow: hidden; border-radius: 12px; background: #e0f2fe; isolation: isolate; }
+  .layer { position: absolute; width: 180px; height: 92px; padding: 14px; border: 2px solid rgb(15 23 42 / 38%); border-radius: 12px; font-weight: 700; }
+  #stack-negative { left: 38px; top: 50px; z-index: -1; background: #c4b5fd; }
+  #stack-auto { left: 92px; top: 26px; z-index: auto; background: #fef08a; }
+  #stack-zero { left: 146px; top: 58px; z-index: 0; background: #86efac; }
+  #stack-positive { left: 198px; top: 34px; z-index: 2; background: #fb7185; }
+  #contents { display: contents; }
+  #contents-child { display: inline-block; padding: 8px 12px; border-radius: 8px; background: #dcfce7; color: #14532d; font-weight: 700; }
+  #whitespace-sample { margin: 14px 0 0; padding: 12px; border-radius: 8px; background: #0f172a; color: #e2e8f0; font: 14px/1.5 "DejaVu Sans", monospace; white-space: pre-wrap; }
+  #inline-space { margin-top: 12px; text-align: center; white-space: normal; }
+  #inline-space strong { color: #7c3aed; }
+  #nbsp-comment-sample { margin: 12px 0 0; padding: 10px 12px; border-left: 3px solid #7c3aed; background: #f5f3ff; }
+  @media (max-width: 520px) { body { padding: 16px; } .card { padding: 16px; } #stacking-stage { height: 224px; } #stack-positive { left: 122px; top: 120px; } }
+</style>
+<main>
+  <h1>Stacking, wrapper omission, and text-space reference</h1>
+  <section class="card">
+    <h2>Overlapping positioned siblings</h2>
+    <div id="stacking-stage" aria-label="stacking reference">
+      <div id="stack-negative" class="layer">negative</div>
+      <div id="stack-auto" class="layer">auto</div>
+      <div id="stack-zero" class="layer">zero</div>
+      <div id="stack-positive" class="layer">positive</div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>display: contents</h2>
+    <p>Text before <span id="contents"><span id="contents-child">surviving child</span></span> text after.</p>
+  </section>
+  <section class="card">
+    <h2>Whitespace</h2>
+    <pre id="whitespace-sample">  leading  spaces
+tabs	and   repeated spaces
+line three</pre>
+    <p id="inline-space">Inline <strong>formatting</strong> keeps a meaningful boundary.</p>
+    <p id="nbsp-comment-sample">NBSP&nbsp;boundary stays together.<br><!-- extractor must ignore this comment -->Second line follows a forced break.</p>
+  </section>
+</main>

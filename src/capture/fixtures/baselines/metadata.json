@@ -1,0 +1,994 @@
+{
+  "schemaVersion": 1,
+  "command": "npm run baseline:importer",
+  "browser": {
+    "product": "Chrome/153.0.8010.36",
+    "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+  },
+  "fixtureServer": "loopback only; all external http(s) requests are failed through CDP Fetch interception",
+  "externalRequestsRejected": [],
+  "inputs": {
+    "extractor": {
+      "path": "src/capture/extractor.ts",
+      "sha256": "213a0cdd3e5f3ef2785135cf57a839c53d25a38b25f522b13966b29965ca16e9"
+    },
+    "assets": [
+      {
+        "path": "src/capture/fixtures/assets/DejaVuSans-Bold.ttf",
+        "sha256": "5c1247acef7f2b8522a31742c76d6adcb5569bacc0be7ceaa4dc39dd252ce895"
+      },
+      {
+        "path": "src/capture/fixtures/assets/DejaVuSans.ttf",
+        "sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280"
+      },
+      {
+        "path": "src/capture/fixtures/assets/checker-tile.svg",
+        "sha256": "e522062cefbec35b5423348efa0dda200f27dc44c4631dedbfbfa6cfb90d9cc8"
+      },
+      {
+        "path": "src/capture/fixtures/assets/fixture-illustration.svg",
+        "sha256": "fa42c6064fc5b5e91e2b2a5873929212a1d50b5a98cbbb6a961339eb50b32062"
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "file": "background-images.html",
+      "sha256": "460ab3007c34dd5a0ebb79ad39b97808e9099c5e4e5014f1b85db58e22404ff2",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "background-images-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1440,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1440,
+            "height": 900
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "background-images-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 768,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 768,
+            "height": 1024
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "background-images-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 390,
+              "clientHeight": 844
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 844
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 844,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 390,
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "file": "overflow-clipping.html",
+      "sha256": "8c7cfd046dc9ba43a54ff7f92a38b438b662dda742ba53c633594cedad9a8d05",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "overflow-clipping-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1440,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1440,
+            "height": 900
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "overflow-clipping-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 768,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 768,
+            "height": 1024
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "overflow-clipping-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 390,
+              "clientHeight": 829
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 446,
+              "height": 829
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 446,
+              "height": 829,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 446,
+            "height": 829
+          }
+        }
+      ]
+    },
+    {
+      "file": "color-opacity.html",
+      "sha256": "a8bc9eaef321329eb52319a1810472cf2220ef5ed7082de73b87622b6f06213f",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "color-opacity-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1440,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1440,
+            "height": 900
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "color-opacity-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 768,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 768,
+            "height": 1024
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "color-opacity-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 390,
+              "clientHeight": 844
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 844
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 844,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 390,
+            "height": 844
+          }
+        }
+      ]
+    },
+    {
+      "file": "stacking-contents-whitespace.html",
+      "sha256": "1cc62a7fbd2d3bd1b0667fad8d846630e7dabf9c1662674edce9cf9aa60f06f7",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "stacking-contents-whitespace-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1425,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1425,
+              "height": 983
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1425,
+              "height": 983,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1425,
+            "height": 983
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "stacking-contents-whitespace-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 768,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 768,
+            "height": 1024
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "stacking-contents-whitespace-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 375,
+              "clientHeight": 844
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 375,
+              "height": 1090
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 375,
+              "height": 1090,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 375,
+            "height": 1090
+          }
+        }
+      ]
+    },
+    {
+      "file": "asset-failures.html",
+      "sha256": "9ea4ae59afa177d88797542fbcb6c33e56ae21fb9e930cd6ce9fb89bb60110bb",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "asset-failures-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [
+            "http://127.0.0.1:4175/assets/intentional-missing.png"
+          ],
+          "requestFailures": {
+            "responseFailures": [
+              "http://127.0.0.1:4175/assets/intentional-missing.png"
+            ],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1440,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1440,
+            "height": 900
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "asset-failures-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [
+            "http://127.0.0.1:4175/assets/intentional-missing.png"
+          ],
+          "requestFailures": {
+            "responseFailures": [
+              "http://127.0.0.1:4175/assets/intentional-missing.png"
+            ],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 768,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 1024,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 768,
+            "height": 1024
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "asset-failures-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [
+            "http://127.0.0.1:4175/assets/intentional-missing.png"
+          ],
+          "requestFailures": {
+            "responseFailures": [
+              "http://127.0.0.1:4175/assets/intentional-missing.png"
+            ],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 390,
+              "clientHeight": 844
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 844
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 844,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 390,
+            "height": 844
+          }
+        }
+      ]
+    }
+  ]
+}

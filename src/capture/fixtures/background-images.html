@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer background image and asset reuse fixture</title>
+<style>
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  * { box-sizing: border-box; }
+  html { min-height: 100%; background: #172554 url("./assets/checker-tile.svg") repeat; }
+  body { min-height: 100vh; margin: 0; padding: 32px; color: #0f172a; font: 16px/1.45 "DejaVu Sans", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px; border: 1px solid rgb(255 255 255 / 65%); border-radius: 20px; background: rgb(255 255 255 / 88%); box-shadow: 0 20px 48px rgb(15 23 42 / 24%); }
+  h1 { margin: 0 0 8px; font-size: 28px; }
+  p { margin: 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 20px; align-items: center; margin-top: 22px; }
+  #container-image { min-height: 164px; padding: 22px; border: 3px solid #1d4ed8; border-radius: 16px; background: #dbeafe url("./assets/checker-tile.svg") center / 48px 48px repeat; }
+  #reused-background { min-height: 88px; margin-top: 18px; padding: 18px; border-radius: 12px; background: #fef3c7 url("./assets/checker-tile.svg") right bottom / 24px 24px repeat; }
+  #image-reuse { width: 160px; height: 112px; border: 4px solid #fff; border-radius: 16px; background: #fff; box-shadow: 0 8px 20px rgb(15 23 42 / 28%); }
+  .note { display: inline-block; margin-top: 10px; padding: 3px 8px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: 13px; font-weight: 700; }
+  @media (max-width: 520px) { body { padding: 16px; } main { padding: 18px; } .grid { grid-template-columns: 1fr; } #image-reuse { order: -1; } }
+</style>
+<main>
+  <h1>Root, container, and reused background assets</h1>
+  <p>The page root, two painted containers, and the illustration exercise local asset reuse without network access.</p>
+  <section class="grid" aria-label="container background image and reused image asset">
+    <div id="container-image">
+      <strong>Container background</strong>
+      <p>Checker tile repeats at 48px behind editable text.</p>
+      <span class="note">same local tile</span>
+    </div>
+    <img id="image-reuse" src="./assets/fixture-illustration.svg" alt="Bundled fixture illustration">
+  </section>
+  <section id="reused-background">
+    <strong>Reused background</strong>
+    <p>The same checker file is referenced again at its native size.</p>
+  </section>
+</main>
