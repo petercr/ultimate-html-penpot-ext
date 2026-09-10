@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.10.7-nightly.202609100626.0138471ae",
+  "checkpoint_id": "01M26KM45E13XVP17DW54E1VNY",
+  "session_id": "01a08bfc-4aac-7c60-b02d-96b3a89b3e5a",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-10T21:30:02.355227132Z",
+  "branch": "test/importer-phase1-baselines",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-visual-baselines.md",
+    "package.json",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/serve-importer-fixtures.mjs",
+    "src/capture/fixtures/asset-failures.html",
+    "src/capture/fixtures/assets/DEJAVU-LICENSE.txt",
+    "src/capture/fixtures/assets/checker-tile.svg",
+    "src/capture/fixtures/assets/fixture-illustration.svg",
+    "src/capture/fixtures/background-images.html",
+    "src/capture/fixtures/color-opacity.html",
+    "src/capture/fixtures/overflow-clipping.html",
+    "src/capture/fixtures/stacking-contents-whitespace.html",
+    "src/importer/penpot.test.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-terra",
+  "turn_id": "01542aa09bb3",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 186204,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 6052352,
+    "output_tokens": 41231,
+    "api_call_count": 54
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-10T21:30:02.230038047Z",
+    "agent_lines": 1025,
+    "agent_removed": 25,
+    "human_added": 20859,
+    "human_modified": 6,
+    "human_removed": 0,
+    "total_committed": 21890,
+    "total_lines_changed": 21915,
+    "agent_percentage": 4.791238877481177,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    }
+  ]
+}
