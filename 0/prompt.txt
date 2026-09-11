@@ -1,0 +1,21 @@
+ok great commit push and pr to main
+
+---
+
+check entire and see if there are any trails for this pr
+
+---
+
+ok poll it and report back findings when its done
+
+---
+
+ok how about now
+
+---
+
+well it doesnt look like it ran, i have no findings yet about the pr. let try to debug it and get it working
+
+---
+
+i think the trails are supposed to run on entires cloud on our prs
