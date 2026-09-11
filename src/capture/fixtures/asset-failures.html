@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer controlled failed assets fixture</title>
+<style>
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px; background: #fff7ed; color: #431407; font: 16px/1.45 "DejaVu Sans", sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 24px; border: 2px solid #fb923c; border-radius: 18px; background: #fff; }
+  h1 { margin: 0 0 8px; font-size: 26px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+  .case { min-height: 142px; padding: 14px; border: 2px dashed #fdba74; border-radius: 12px; background: #ffedd5; }
+  .case img { display: block; width: 100%; height: 72px; margin-top: 8px; background: #fed7aa; object-fit: contain; }
+  #missing-background { background: #ffedd5 url("./assets/intentional-missing.png") center / 72px 72px no-repeat; }
+  code { padding: 2px 4px; border-radius: 4px; background: #ffedd5; }
+  @media (max-width: 520px) { body { padding: 16px; } main { padding: 18px; } .grid { grid-template-columns: 1fr; } }
+</style>
+<main>
+  <h1>Controlled local asset failures</h1>
+  <p>Every failed reference targets the intentionally absent local <code>assets/intentional-missing.png</code>; this fixture never needs an external URL.</p>
+  <section class="grid">
+    <div class="case"><strong>First failed image</strong><img id="missing-image-a" src="./assets/intentional-missing.png" alt="Intentionally missing fixture asset"></div>
+    <div class="case"><strong>Repeated failed image</strong><img id="missing-image-b" src="./assets/intentional-missing.png" alt="Same intentionally missing fixture asset"></div>
+    <div id="missing-background" class="case"><strong>Failed CSS background</strong><p>The same local URL is reused behind this text.</p></div>
+  </section>
+</main>
