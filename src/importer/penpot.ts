@@ -230,7 +230,10 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
   }
   const stroke = cssColorWithOpacity(paint.borderColor);
   if (stroke && paint.borderWidth && paint.borderStyle !== "none") {
-    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "center" }];
+    // CSS borders paint inside the border box, so the stroke stays inside the
+    // captured rect. A centered stroke would extend half its width outside on
+    // every side and shift each bordered card's visible edges outward.
+    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "inner" }];
   }
   applyShadow(shape, paint.boxShadow);
   const matrix = paint.transform?.match(/^matrix\(([^)]+)\)$/);
@@ -245,9 +248,24 @@ function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y
   // Penpot stores a nested shape's coordinates in page space. Set these only
   // after parentage is established; setting local DOM coordinates beforehand
   // puts children outside their clipping board.
+  // Captured geometry is a fixed snapshot. Explicit top/left constraints stop
+  // the host from stretching or repositioning it when a parent is resized.
+  pinShapeConstraints(shape);
   shape.x = pageOrigin.x + node.rect.x;
   shape.y = pageOrigin.y + node.rect.y;
   shape.resize(Math.max(0.1, node.rect.width), Math.max(0.1, node.rect.height));
+}
+
+function pinShapeConstraints(shape: Shape): void {
+  shape.constraintsHorizontal = "left";
+  shape.constraintsVertical = "top";
+}
+
+function fixBoardSizing(board: Board): void {
+  // Do not let Penpot's board sizing defaults derive a captured board's bounds
+  // from its children; CSS overflow deliberately allows those bounds to differ.
+  board.horizontalSizing = "fix";
+  board.verticalSizing = "fix";
 }
 
 function textAlign(value: string): Text["align"] {
@@ -527,6 +545,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         const board = penpot.createBoard();
         boards.push(board);
         board.name = `Page — ${scene.viewport.name} ${scene.viewport.width}`;
+        fixBoardSizing(board);
         board.x = x;
         board.y = origin.y;
         board.resize(scene.viewport.width, scene.documentSize.height);
@@ -594,6 +613,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // the element's own decoration, which keeps the clip and the
             // rounded corners on one surface.
             const clip = penpot.createBoard();
+            fixBoardSizing(clip);
             clip.clipContent = true;
             applyPaint(clip, node.paint);
             const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
@@ -648,6 +668,14 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             if (!shape) {
               reportProgress();
               return children[0];
+            }
+            if (!collapsed) {
+              // Penpot's group operation resets its direct members to
+              // scale/scale. Restore snapshot constraints after grouping so
+              // nested boards and positioned layers cannot reflow with the
+              // group's bounds.
+              members.forEach(pinShapeConstraints);
+              pinShapeConstraints(shape);
             }
             applyContainerOpacity(shape, node);
             if (!collapsed) metadata(shape, node, scene.viewport.id);

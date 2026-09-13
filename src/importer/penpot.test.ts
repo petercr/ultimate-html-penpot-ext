@@ -101,7 +101,13 @@ describe("Penpot importer", () => {
         });
         return shape;
       }),
-      group: vi.fn((shapes: FakeShape[]) => Object.assign(fakeShape("group"), { children: shapes })),
+      group: vi.fn((shapes: FakeShape[]) => {
+        // The live host resets direct group members to scale/scale while
+        // reparenting them; the importer must restore fixed snapshot
+        // constraints after the operation.
+        shapes.forEach((shape) => Object.assign(shape, { constraintsHorizontal: "scale", constraintsVertical: "scale" }));
+        return Object.assign(fakeShape("group"), { children: shapes });
+      }),
       createShapeFromSvg: vi.fn(() => null),
       createShapeFromSvgWithImages: vi.fn(),
       uploadMediaData: vi.fn().mockResolvedValue({}),
@@ -177,6 +183,9 @@ describe("Penpot importer", () => {
         "#stack-auto ::text", "#stack-auto",
         "#stack-negative ::text", "#stack-negative"
       ]);
+      expect(board).toMatchObject({ horizontalSizing: "fix", verticalSizing: "fix" });
+      expect(stage).toMatchObject({ constraintsHorizontal: "left", constraintsVertical: "top", horizontalSizing: "fix", verticalSizing: "fix" });
+      expect(stage?.children?.every((child) => child.constraintsHorizontal === "left" && child.constraintsVertical === "top")).toBe(true);
     }
   });
 
@@ -427,7 +436,7 @@ describe("Penpot importer", () => {
     const board = result[0] as unknown as FakeShape;
     const importedText = board.children?.[0];
     expect(board).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#ff0080", fillOpacity: 0.4 }] });
-    expect(board.strokes).toEqual([{ strokeColor: "#123456", strokeOpacity: 128 / 255, strokeWidth: 2, strokeStyle: "solid", strokeAlignment: "center" }]);
+    expect(board.strokes).toEqual([{ strokeColor: "#123456", strokeOpacity: 128 / 255, strokeWidth: 2, strokeStyle: "solid", strokeAlignment: "inner" }]);
     expect(importedText).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#112233", fillOpacity: 4 / 15 }] });
   });
 
