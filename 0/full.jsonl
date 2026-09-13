@@ -20,17 +20,17 @@
     },
     "cost": 0,
     "tokens": {
-      "input": 254031,
-      "output": 21048,
-      "reasoning": 34108,
+      "input": 255677,
+      "output": 21967,
+      "reasoning": 34141,
       "cache": {
-        "read": 9680924,
+        "read": 10274144,
         "write": 0
       }
     },
     "time": {
       "created": 1789266985566,
-      "updated": 1789268428633
+      "updated": 1789268448496
     }
   },
   "messages": [
@@ -11386,19 +11386,22 @@
         },
         "cost": 0,
         "tokens": {
-          "input": 0,
-          "output": 0,
-          "reasoning": 0,
+          "total": 148558,
+          "input": 535,
+          "output": 293,
+          "reasoning": 33,
           "cache": {
-            "read": 0,
-            "write": 0
+            "write": 0,
+            "read": 147697
           }
         },
         "modelID": "muse-spark-1.3-contributor-free",
         "providerID": "opencode",
         "time": {
-          "created": 1789268428628
+          "created": 1789268428628,
+          "completed": 1789268438650
         },
+        "finish": "tool-calls",
         "id": "msg_098b58754001I5faYhn0BJiElR",
         "sessionID": "ses_f67607da2ffeROSi10qH2exKMp"
       },
@@ -11432,15 +11435,20 @@
           "tool": "bash",
           "callID": "call_01a098b58dab727385111a254257216e",
           "state": {
-            "metadata": {
-              "output": ""
-            },
-            "status": "running",
+            "status": "completed",
             "input": {
               "command": "git add IMPORTER-UPGRADE-PLAN.md docs/importer-visual-baselines.md scripts/importer-visual-baselines.mjs src/capture/extractor.test.ts src/capture/extractor.ts src/capture/fixtures/baselines/metadata.json src/capture/fixtures/baselines/scene-evidence.json src/capture/fixtures/stacking-contents-whitespace.html src/importer/penpot.test.ts src/importer/penpot.ts src/shared/contracts.ts src/shared/validation.ts && git commit -m \"fix: import siblings in CSS paint order with z-index auto preserved\n\nPhase 3.2: capture z-index auto distinctly from numeric zero\n(zIndexAuto flag, auto stored as 0) plus a positioned layout flag,\nand sort each parent's children by paint order (negative, in-flow,\npositioned auto/zero, positive) with a stable source-order tie break.\nSorting never crosses parents, so nested stacking contexts stay\nisolated; synthetic text runs inherit their element's stacking\nposition instead of a fractional offset.\n\nThe stacking fixture now lists layers positive-first in DOM order\nwith pixel-identical screenshots, so the importer test proves paint\norder rather than DOM order across all three viewports.\""
             },
+            "output": "[fix/importer-visible-descendants c630a31] fix: import siblings in CSS paint order with z-index auto preserved\n 12 files changed, 1448 insertions(+), 696 deletions(-)\n",
+            "metadata": {
+              "output": "[fix/importer-visible-descendants c630a31] fix: import siblings in CSS paint order with z-index auto preserved\n 12 files changed, 1448 insertions(+), 696 deletions(-)\n",
+              "exit": 0,
+              "truncated": false
+            },
+            "title": "git add IMPORTER-UPGRADE-PLAN.md docs/importer-visual-baselines.md scripts/importer-visual-baselines.mjs src/capture/extractor.test.ts src/capture/extractor.ts src/capture/fixtures/baselines/metadata.json src/capture/fixtures/baselines/scene-evidence.json src/capture/fixtures/stacking-contents-whitespace.html src/importer/penpot.test.ts src/importer/penpot.ts src/shared/contracts.ts src/shared/validation.ts && git commit -m \"fix: import siblings in CSS paint order with z-index auto preserved\n\nPhase 3.2: capture z-index auto distinctly from numeric zero\n(zIndexAuto flag, auto stored as 0) plus a positioned layout flag,\nand sort each parent's children by paint order (negative, in-flow,\npositioned auto/zero, positive) with a stable source-order tie break.\nSorting never crosses parents, so nested stacking contexts stay\nisolated; synthetic text runs inherit their element's stacking\nposition instead of a fractional offset.\n\nThe stacking fixture now lists layers positive-first in DOM order\nwith pixel-identical screenshots, so the importer test proves paint\norder rather than DOM order across all three viewports.\"",
             "time": {
-              "start": 1789268431048
+              "start": 1789268431048,
+              "end": 1789268438584
             }
           },
           "metadata": {
@@ -11451,6 +11459,342 @@
           "id": "prt_098b58cee001OAf2Ed1NOH5qkw",
           "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
           "messageID": "msg_098b58754001I5faYhn0BJiElR"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-finish",
+          "tokens": {
+            "total": 148558,
+            "input": 535,
+            "output": 293,
+            "reasoning": 33,
+            "cache": {
+              "write": 0,
+              "read": 147697
+            }
+          },
+          "cost": 0,
+          "id": "prt_098b5ae540011iMFKhM8Rjl9Mc",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b58754001I5faYhn0BJiElR"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_098aed6110013cvcDmUdN0tJ7u",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/peterc/ultimate-html-penpot-ext",
+          "root": "/home/peterc/ultimate-html-penpot-ext"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 148680,
+          "input": 413,
+          "output": 58,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 148209
+          }
+        },
+        "modelID": "muse-spark-1.3-contributor-free",
+        "providerID": "opencode",
+        "time": {
+          "created": 1789268438672,
+          "completed": 1789268446412
+        },
+        "finish": "tool-calls",
+        "id": "msg_098b5ae90001dh0ptQb3tLwdRh",
+        "sessionID": "ses_f67607da2ffeROSi10qH2exKMp"
+      },
+      "parts": [
+        {
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-start",
+          "id": "prt_098b5c678001avT62SG5c0IwA1",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5ae90001dh0ptQb3tLwdRh"
+        },
+        {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_01a098b5c7f47680b93ac4e80decd10a",
+          "state": {
+            "status": "completed",
+            "input": {
+              "command": "git log --oneline -3; git status --short | head"
+            },
+            "output": "c630a31 fix: import siblings in CSS paint order with z-index auto preserved\n147873b fix: keep surviving child identity when a wrapper container collapses\n5cffe8c Merge pull request #39 from petercr/test/importer-phase1-baselines\n?? .claude/\n?? .codex/\n?? .entire/.gitignore\n?? .entire/settings.json\n?? .opencode/\n",
+            "metadata": {
+              "output": "c630a31 fix: import siblings in CSS paint order with z-index auto preserved\n147873b fix: keep surviving child identity when a wrapper container collapses\n5cffe8c Merge pull request #39 from petercr/test/importer-phase1-baselines\n?? .claude/\n?? .codex/\n?? .entire/.gitignore\n?? .entire/settings.json\n?? .opencode/\n",
+              "exit": 0,
+              "truncated": false
+            },
+            "title": "git log --oneline -3; git status --short | head",
+            "time": {
+              "start": 1789268445828,
+              "end": 1789268445854
+            }
+          },
+          "metadata": {
+            "openai": {
+              "itemId": "fc_01a098b5c7f47680b93ac4e80decd10a"
+            }
+          },
+          "id": "prt_098b5c67a001P7JER3LueDlhNd",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5ae90001dh0ptQb3tLwdRh"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-finish",
+          "tokens": {
+            "total": 148680,
+            "input": 413,
+            "output": 58,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 148209
+            }
+          },
+          "cost": 0,
+          "id": "prt_098b5cc88001qO9O7xZuRBMblk",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5ae90001dh0ptQb3tLwdRh"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_098aed6110013cvcDmUdN0tJ7u",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/peterc/ultimate-html-penpot-ext",
+          "root": "/home/peterc/ultimate-html-penpot-ext"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 148995,
+          "input": 195,
+          "output": 207,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 148593
+          }
+        },
+        "modelID": "muse-spark-1.3-contributor-free",
+        "providerID": "opencode",
+        "time": {
+          "created": 1789268446437,
+          "completed": 1789268448474
+        },
+        "finish": "tool-calls",
+        "id": "msg_098b5cce50015F71bjWOSAPDeK",
+        "sessionID": "ses_f67607da2ffeROSi10qH2exKMp"
+      },
+      "parts": [
+        {
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-start",
+          "id": "prt_098b5d2c6001MdWAW39juGBCIt",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5cce50015F71bjWOSAPDeK"
+        },
+        {
+          "type": "tool",
+          "tool": "todowrite",
+          "callID": "call_01a098b5d58579d3998f4c3175cb6ed6",
+          "state": {
+            "status": "completed",
+            "input": {
+              "todos": [
+                {
+                  "content": "Investigate z-index capture, contract, and importer ordering",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Preserve z-index auto vs numeric zero in scene contract",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Order siblings/contexts by paint order with stable tie-break",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Add stacking regression tests + fixture evidence",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Regenerate visual baselines with real Chrome",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Run suite + typecheck, update plan/docs",
+                  "status": "completed",
+                  "priority": "medium"
+                }
+              ]
+            },
+            "output": "[\n  {\n    \"content\": \"Investigate z-index capture, contract, and importer ordering\",\n    \"status\": \"completed\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Preserve z-index auto vs numeric zero in scene contract\",\n    \"status\": \"completed\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Order siblings/contexts by paint order with stable tie-break\",\n    \"status\": \"completed\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Add stacking regression tests + fixture evidence\",\n    \"status\": \"completed\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Regenerate visual baselines with real Chrome\",\n    \"status\": \"completed\",\n    \"priority\": \"high\"\n  },\n  {\n    \"content\": \"Run suite + typecheck, update plan/docs\",\n    \"status\": \"completed\",\n    \"priority\": \"medium\"\n  }\n]",
+            "metadata": {
+              "todos": [
+                {
+                  "content": "Investigate z-index capture, contract, and importer ordering",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Preserve z-index auto vs numeric zero in scene contract",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Order siblings/contexts by paint order with stable tie-break",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Add stacking regression tests + fixture evidence",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Regenerate visual baselines with real Chrome",
+                  "status": "completed",
+                  "priority": "high"
+                },
+                {
+                  "content": "Run suite + typecheck, update plan/docs",
+                  "status": "completed",
+                  "priority": "medium"
+                }
+              ],
+              "truncated": false
+            },
+            "title": "0 todos",
+            "time": {
+              "start": 1789268448381,
+              "end": 1789268448388
+            }
+          },
+          "metadata": {
+            "openai": {
+              "itemId": "fc_01a098b5d58579d3998f4c3175cb6ed6"
+            }
+          },
+          "id": "prt_098b5d2c90015quuSfK8H7ijHt",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5cce50015F71bjWOSAPDeK"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-finish",
+          "tokens": {
+            "total": 148995,
+            "input": 195,
+            "output": 207,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 148593
+            }
+          },
+          "cost": 0,
+          "id": "prt_098b5d4b9001xe2ZFS8KfESeU8",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5cce50015F71bjWOSAPDeK"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_098aed6110013cvcDmUdN0tJ7u",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/peterc/ultimate-html-penpot-ext",
+          "root": "/home/peterc/ultimate-html-penpot-ext"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 149585,
+          "input": 503,
+          "output": 361,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 148721
+          }
+        },
+        "modelID": "muse-spark-1.3-contributor-free",
+        "providerID": "opencode",
+        "time": {
+          "created": 1789268448494,
+          "completed": 1789268451573
+        },
+        "finish": "stop",
+        "id": "msg_098b5d4ee001n8ditcNsOdEn4h",
+        "sessionID": "ses_f67607da2ffeROSi10qH2exKMp"
+      },
+      "parts": [
+        {
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-start",
+          "id": "prt_098b5da65001l7IyZU9kLen4th",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5d4ee001n8ditcNsOdEn4h"
+        },
+        {
+          "type": "text",
+          "text": "Phase 3.2 is done and committed as `c630a31` on `fix/importer-visible-descendants`. All 3.2 boxes are checked.\n\n**What was wrong**\n- Capture collapsed `auto` and explicit `0` into traversal sequence numbers (fixture showed `auto`→11, `zero`→13), and the importer ignored `zIndex` entirely — children always imported in DOM order.\n\n**Changes**\n- `contracts.ts` / `validation.ts` — new `zIndexAuto` flag (auto stored as 0, explicit zero without the flag) and `layout.positioned` flag.\n- `extractor.ts` — captures both; synthetic text/pseudo runs now inherit their element's stacking position instead of a `+0.01` offset that could push them above positive-z siblings.\n- `penpot.ts` — sorts each parent's children by paint order (negative → in-flow → positioned auto/zero → positive) with source-order tie break; sorting never crosses parents, so nested contexts stay isolated. Backdrop stays first in groups.\n- Fixture now lists layers positive-first in DOM order with **byte-identical screenshots** (verified md5s), so the regression has teeth; baselines regenerated with real Chrome (new stacking assertions in the runner pass).\n- Docs updated — stacking is no longer \"deferred\"; whitespace (3.3) still is.\n\n**Verification:** full suite 170/170, `tsc` clean, `baseline:importer` green.\n\nRemaining in Phase 3: **3.3 text whitespace** — the biggest slice (white-space handling, NBSP, pre indentation, `<br>`, comment-split text, measured bounds). Say the word and I'll start.",
+          "time": {
+            "start": 1789268449902,
+            "end": 1789268451456
+          },
+          "metadata": {
+            "openai": {
+              "itemId": "msg_01a098b5df067451bb564e2d78fb6bab"
+            }
+          },
+          "id": "prt_098b5da6e001RohzclD1ku6uPm",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5d4ee001n8ditcNsOdEn4h"
+        },
+        {
+          "reason": "stop",
+          "snapshot": "03d60fbb4b8a4196bfc119b8202dc473b4482604",
+          "type": "step-finish",
+          "tokens": {
+            "total": 149585,
+            "input": 503,
+            "output": 361,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 148721
+            }
+          },
+          "cost": 0,
+          "id": "prt_098b5e0d4001MNw6fK3Fle0OYr",
+          "sessionID": "ses_f67607da2ffeROSi10qH2exKMp",
+          "messageID": "msg_098b5d4ee001n8ditcNsOdEn4h"
         }
       ]
     }

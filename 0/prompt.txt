@@ -1,1 +1,5 @@
-first make branch for phase 3 work then commit work so far there
+ok next part of phase 3
+
+---
+
+theres crhome and you can add chorme mcp devtools if you want
