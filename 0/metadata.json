@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.10.7-nightly.202609110625.5f09e04de",
+  "checkpoint_id": "01M2CBB49J3SB191GGB843B4RR",
+  "session_id": "ses_f67607da2ffeROSi10qH2exKMp",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-13T03:00:38.535051093Z",
+  "branch": "fix/importer-visible-descendants",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "docs/importer-visual-baselines.md",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/stacking-contents-whitespace.html",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "muse-spark-1.3-contributor-free",
+  "turn_id": "56af9792a228",
+  "checkpoint_transcript_start": 53,
+  "transcript_lines_at_start": 53,
+  "compact_transcript_start": 53,
+  "token_usage": {
+    "input_tokens": 45474,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 5995101,
+    "output_tokens": 11305,
+    "api_call_count": 46
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-13T03:00:38.397609402Z",
+    "agent_lines": 175,
+    "agent_removed": 19,
+    "human_added": 1273,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1448,
+    "total_lines_changed": 2144,
+    "agent_percentage": 9.048507462686567,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    }
+  ]
+}
