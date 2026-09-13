@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.7-nightly.202609110625.5f09e04de",
+  "checkpoint_id": "01M2CAS6ZZT243QNCKPD7YAKMZ",
+  "strategy": "manual-commit",
+  "branch": "fix/importer-visible-descendants",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "src/capture/extractor.test.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 206833,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3373292,
+    "output_tokens": 9383,
+    "api_call_count": 47
+  }
+}
