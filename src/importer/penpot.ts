@@ -543,10 +543,30 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           siblings.push(node);
           childrenByParent.set(node.parentId, siblings);
         }
+        // Reproduce supported CSS paint order, bottom layer first: negative
+        // z-index ascending, non-positioned in-flow content, positioned
+        // automatic/zero stacking in source order, then positive z-index
+        // ascending. Sorting stays within each parent's children with a
+        // stable source-order tie break, so nested stacking contexts keep
+        // their contents isolated instead of being globally re-sorted
+        // against unrelated layers.
+        const domOrder = new Map(scene.nodes.map((node, index) => [node.id, index]));
+        const positioned = (node: SceneNode): boolean => Boolean(node.layout.positioned || node.layout.absolute);
+        const paintRank = (node: SceneNode): [number, number] => {
+          if (node.zIndex < 0) return [0, node.zIndex];
+          if (node.zIndex > 0) return [3, node.zIndex];
+          return [positioned(node) ? 2 : 1, 0];
+        };
+        const byPaintOrder = (a: SceneNode, b: SceneNode): number => {
+          const [rankA, zA] = paintRank(a);
+          const [rankB, zB] = paintRank(b);
+          return rankA - rankB || zA - zB || (domOrder.get(a.id) ?? 0) - (domOrder.get(b.id) ?? 0);
+        };
+        for (const siblings of childrenByParent.values()) siblings.sort(byPaintOrder);
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
         const shapes = new Map<string, Shape>();
         const textLines: { text: Text; node: SceneNode; maximum: number }[] = [];
-        const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId));
+        const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId)).sort(byPaintOrder);
 
         const append = (parentShape: Board | Shape, shape: Shape) => {
           if (parentShape.type === "board") (parentShape as Board).appendChild(shape);

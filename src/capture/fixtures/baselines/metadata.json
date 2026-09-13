@@ -11,7 +11,7 @@
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "213a0cdd3e5f3ef2785135cf57a839c53d25a38b25f522b13966b29965ca16e9"
+      "sha256": "faee56d7c3114399ff47e788083281fd26df69be8c16d23d66a1264d60a49879"
     },
     "assets": [
       {
@@ -602,7 +602,7 @@
     },
     {
       "file": "stacking-contents-whitespace.html",
-      "sha256": "1cc62a7fbd2d3bd1b0667fad8d846630e7dabf9c1662674edce9cf9aa60f06f7",
+      "sha256": "615988903a69578f76c9258e1e0f28d8bd0cab97007655426fde7c737b5e570a",
       "viewports": [
         {
           "id": "desktop",

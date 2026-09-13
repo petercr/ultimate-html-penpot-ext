@@ -57,7 +57,8 @@ when Chrome changes.
 
 `scene-evidence.json` retains the actual scene documents. The runner also
 fails if it cannot see root/container asset reuse, nested two-axis clips and
-the single-axis warning, alpha/opacity samples, a surviving `display: contents`
+the single-axis warning, alpha/opacity samples, negative/auto/zero/positive
+stacking values with their positioned flags, a surviving `display: contents`
 child, whitespace sample, or the local shared failed-asset response. It does
 not run source preparation or the HTTP import proxy: the fixture pages are
 already local, static HTML. That boundary is intentional and is covered by the
@@ -71,7 +72,7 @@ is an end-to-end remote-page test.
 | `background-images.html` | Root background, container backgrounds, repeated tile URL, bundled SVG image | One scene asset is reused for the repeated container tile; root background and image asset are present. |
 | `overflow-clipping.html` | Existing nested/rounded/scroll clips and single-axis exception | Nested clips capture as clipping; `#single-axis` remains unclipped with `UNSUPPORTED_OVERFLOW`. |
 | `color-opacity.html` | Existing fill/border/shadow alpha, nested opacity, decorated text, transparent text | Parent compositing opacity is retained once; CSS Color 4 warnings remain explicit. |
-| `stacking-contents-whitespace.html` | Negative/auto/zero/positive stacking, omitted wrapper, pre-wrap/inline spaces, NBSP, `<br>`, and a comment | Child of `display: contents` survives; this is a browser reference for currently deferred stacking and whitespace fidelity. |
+| `stacking-contents-whitespace.html` | Negative/auto/zero/positive stacking, omitted wrapper, pre-wrap/inline spaces, NBSP, `<br>`, and a comment | Stacking layers import in browser paint order even though the fixture DOM order differs; child of `display: contents` survives; whitespace remains a browser reference for deferred 3.3 fidelity. |
 | `asset-failures.html` | Explicitly separated repeated 404 image/background URL | One local failed URL is captured as one scene asset; import tests require a named placeholder for every affected image, while upload work is deduplicated. |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
@@ -128,10 +129,12 @@ Use this record template for a live pass:
 - The screenshots are browser references, not imported-Penpot screenshots.
   The user confirmed the fixture imports look correct in Penpot; exact host
   metadata and undo evidence are still pending documentation.
-- CSS stacking order is not fully faithful yet: `z-index: auto` and numeric
-  zero are not preserved as distinct paint-order values. Do not approve the
-  stacking fixture as an importer fidelity pass until that later-phase work is
-  complete.
+- CSS stacking order is faithful for the supported subset: `z-index: auto` is
+  captured distinctly from numeric zero, siblings import in per-context paint
+  order with stable source-order tie breaking, and the fixture DOM order
+  differs from paint order so the regression has teeth. Whitespace capture
+  is still deferred (see below); do not approve the whitespace samples as an
+  importer fidelity pass until that later-phase work is complete.
 - Whitespace capture still compacts repeated spaces/newlines in places;
   `pre-wrap`, indentation, tabs, NBSP boundaries, `<br>` line breaks, and a
   comment boundary are intentionally visible in the fixture so later work has

@@ -155,6 +155,30 @@ describe("Penpot importer", () => {
     }
   });
 
+  it("imports generated stacking scenes in browser paint order", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "stacking-contents-whitespace.html");
+    const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(result).toHaveLength(3);
+
+    for (const [index, scene] of scenes.entries()) {
+      const board = result[index] as unknown as FakeShape;
+      const viewportId = scene.viewport.id;
+      const stage = boards.find((shape) => shape !== board && (shape.pluginData as Record<string, string>).source === "#stacking-stage" && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      // The fixture's DOM order is positive, auto, zero, negative, while the
+      // browser paints negative, auto, zero, positive. The checked-in
+      // screenshots are pixel-identical across that reorder, so matching this
+      // order proves the import follows paint order rather than DOM order.
+      // (This mock host leaves each layer's text run beside its backdrop
+      // instead of grouping them; the layer pairs still carry the order.)
+      expect(stage?.children?.map((child) => (child.pluginData as Record<string, string>).source)).toEqual([
+        "#stack-negative ::text", "#stack-negative",
+        "#stack-auto ::text", "#stack-auto",
+        "#stack-zero ::text", "#stack-zero",
+        "#stack-positive ::text", "#stack-positive"
+      ]);
+    }
+  });
+
   it("imports generated opacity scenes with each compositing opacity applied once", async () => {
     const scenes = scenesForFixture(baselineEvidence().scenes, "color-opacity.html");
     await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
@@ -762,6 +786,52 @@ describe("Penpot importer", () => {
     expect(clip).toMatchObject({ type: "board", clipContent: true, name: "card", opacity: 0.5 });
     expect(clip.pluginData).toMatchObject({ source: "body > div > section" });
     expect(clip.children?.map((child) => child.type)).toEqual(["text"]);
+  });
+
+  it("paints siblings in CSS stacking order rather than DOM order", async () => {
+    const stackingScene = scene();
+    const root = stackingScene.nodes[0];
+    const box = (id: string, name: string, zIndex: number, zIndexAuto: boolean, positioned: boolean) => ({
+      id, parentId: root.id, children: [], kind: "box" as const, name, source: `#${id}`,
+      rect: { x: 10, y: 10, width: 60, height: 40 }, zIndex, zIndexAuto,
+      paint: {}, layout: { kind: "none" as const, positioned }
+    });
+    // DOM order deliberately differs from paint order: the positive layer
+    // comes first and the negative layer nearly last.
+    const pos = box("pos", "pos", 2, false, true);
+    const inFlow = box("in-flow", "in-flow", 0, true, false);
+    const neg = box("neg", "neg", -1, false, true);
+    const auto = box("auto", "auto", 0, true, true);
+    root.children = [pos.id, inFlow.id, neg.id, auto.id];
+    stackingScene.nodes = [root, pos, inFlow, neg, auto];
+
+    const result = await importScenes([stackingScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const board = result[0] as unknown as FakeShape;
+    expect(board.children?.map((child) => child.name)).toEqual(["neg", "in-flow", "auto", "pos"]);
+  });
+
+  it("keeps nested stacking contexts isolated from outer layers", async () => {
+    const contextScene = scene();
+    const root = contextScene.nodes[0];
+    // The high-z sibling comes first in DOM order but must still paint above
+    // the automatic-stacking context; the context's own extreme child stays
+    // inside and never escapes to the outer level.
+    const sibling = { id: "sibling", parentId: root.id, children: [], kind: "box" as const, name: "sibling", source: "#sibling", rect: { x: 10, y: 10, width: 60, height: 40 }, zIndex: 1, zIndexAuto: false, paint: {}, layout: { kind: "none" as const, positioned: true } };
+    const inner = { id: "inner", parentId: "context", children: [], kind: "box" as const, name: "inner", source: "#context-inner", rect: { x: 12, y: 12, width: 20, height: 20 }, zIndex: 999, zIndexAuto: false, paint: {}, layout: { kind: "none" as const, positioned: true } };
+    const context = { ...root, id: "context", parentId: root.id, children: [inner.id], kind: "container" as const, name: "context", source: "#context", rect: { x: 10, y: 10, width: 100, height: 80 }, zIndex: 0, zIndexAuto: true, paint: { backgroundColor: "rgb(200, 210, 220)", opacity: 0.5, transform: "matrix(1, 0, 0, 1, 0, 0)" } };
+    root.children = [sibling.id, context.id];
+    contextScene.nodes = [root, sibling, context, inner];
+
+    const result = await importScenes([contextScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const board = result[0] as unknown as FakeShape;
+    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
+    expect(group).toHaveBeenCalledOnce();
+    // The group keeps background first: the context backdrop below its child.
+    expect((group.mock.calls[0]?.[0] as FakeShape[]).map((child) => child.name)).toEqual(["context", "inner"]);
+    expect(group.mock.results[0]?.value).toMatchObject({ type: "group", opacity: 0.5 });
+    // The whole context subtree renders before the outer sibling, so the
+    // sibling paints on top while the extreme inner child never escapes.
+    expect(board.children?.map((child) => child.name)).toEqual(["inner", "context", "sibling"]);
   });
 
   it("removes partial boards when cancellation happens", async () => {

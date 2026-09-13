@@ -80,6 +80,8 @@ describe("extractor script", () => {
     expect(script).toContain('if (tag === "br") return');
     expect(script).toContain("waitForDomSettle");
     expect(script).toContain("const suppressesSubtree");
+    expect(script).toContain("zIndexAuto");
+    expect(script).toContain("positioned");
     expect(script).toContain("display: contents");
     expect(script).toContain("const survivingParent");
     expect(script).toContain("SCRIPTS_DISABLED");
@@ -268,6 +270,31 @@ describe("extractor script", () => {
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalBounds;
       window.getComputedStyle = originalComputedStyle;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("preserves z-index auto separately from numeric zero with positioned flags", async () => {
+    document.body.innerHTML = `<div id="stage" style="position:relative;width:25px;height:15px;opacity:1;visibility:visible"><div id="neg" style="position:absolute;z-index:-1;opacity:1;visibility:visible"></div><div id="auto" style="position:absolute;z-index:auto;opacity:1;visibility:visible"></div><div id="zero" style="position:absolute;z-index:0;opacity:1;visibility:visible"></div><div id="pos" style="position:absolute;z-index:2;opacity:1;visibility:visible"></div><div id="plain" style="width:25px;height:15px;opacity:1;visibility:visible"></div></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("stacking-capture");
+      const paintOf = (source: string) => result.nodes.find((node) => node.source === source);
+      expect(paintOf("#neg")).toMatchObject({ zIndex: -1, zIndexAuto: false });
+      expect(paintOf("#auto")).toMatchObject({ zIndex: 0, zIndexAuto: true });
+      expect(paintOf("#zero")).toMatchObject({ zIndex: 0, zIndexAuto: false });
+      expect(paintOf("#pos")).toMatchObject({ zIndex: 2, zIndexAuto: false });
+      for (const source of ["#stage", "#neg", "#auto", "#zero", "#pos"]) {
+        expect(paintOf(source)?.layout.positioned).toBe(true);
+      }
+      expect(paintOf("#plain")?.layout.positioned).toBe(false);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
       Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
     }
   });

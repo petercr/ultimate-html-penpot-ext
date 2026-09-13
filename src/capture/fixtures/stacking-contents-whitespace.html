@@ -27,11 +27,15 @@
   <h1>Stacking, wrapper omission, and text-space reference</h1>
   <section class="card">
     <h2>Overlapping positioned siblings</h2>
+    <!-- DOM order deliberately differs from paint order (negative, auto,
+         zero, positive): the positive layer comes first and the negative
+         layer last. auto stays before zero so the browser reference pixels
+         are unchanged; only the required import order is under test. -->
     <div id="stacking-stage" aria-label="stacking reference">
-      <div id="stack-negative" class="layer">negative</div>
+      <div id="stack-positive" class="layer">positive</div>
       <div id="stack-auto" class="layer">auto</div>
       <div id="stack-zero" class="layer">zero</div>
-      <div id="stack-positive" class="layer">positive</div>
+      <div id="stack-negative" class="layer">negative</div>
     </div>
   </section>
   <section class="card">

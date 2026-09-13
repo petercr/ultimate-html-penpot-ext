@@ -279,6 +279,13 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
   if (file === "stacking-contents-whitespace.html") {
     for (const source of ["#stack-negative", "#stack-auto", "#stack-zero", "#stack-positive", "#contents-child", "#whitespace-sample ::text", "#nbsp-comment-sample ::text"]) sceneNode(scene, source);
     if (scene.nodes.some((node) => node.source === "#contents")) throw new Error("display: contents wrapper must not create a scene node.");
+    // Automatic stacking stays distinct from explicit numeric zero, and the
+    // positioned layers carry their stacking flags for paint-order import.
+    for (const [source, zIndex, zIndexAuto] of [["#stack-negative", -1, false], ["#stack-auto", 0, true], ["#stack-zero", 0, false], ["#stack-positive", 2, false]]) {
+      const layer = sceneNode(scene, source);
+      if (layer.zIndex !== zIndex || Boolean(layer.zIndexAuto) !== zIndexAuto) throw new Error(`${source} did not capture its stacking position (zIndex ${layer.zIndex}, auto ${layer.zIndexAuto}).`);
+      if (!layer.layout?.positioned) throw new Error(`${source} did not capture its positioned stacking context flag.`);
+    }
   }
   if (file === "asset-failures.html") {
     const first = sceneNode(scene, "#missing-image-a");

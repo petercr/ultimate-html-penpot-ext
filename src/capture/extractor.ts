@@ -361,7 +361,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     rowGap: number(style.rowGap),
     columnGap: number(style.columnGap),
     padding: [number(style.paddingTop), number(style.paddingRight), number(style.paddingBottom), number(style.paddingLeft)],
-    absolute: ["absolute", "fixed"].includes(style.position)
+    absolute: ["absolute", "fixed"].includes(style.position),
+    // Match known positioned keywords positively: engines that report an
+    // empty position for unstyled elements must read as non-positioned.
+    positioned: ["relative", "absolute", "fixed", "sticky"].includes(style.position)
   });
   const lineHeightOf = (style, measuredLineHeight) => {
     const fontSize = Math.max(1, number(style.fontSize));
@@ -486,13 +489,17 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const appendText = (parent, textNode, style, textSource = parent.source + " ::text") => {
     const layout = textLayout(textNode);
     if ((layout.lines || []).some((line) => line.text && line.rect)) reportUnsupportedTextColor(style.color, textSource);
-    for (const [index, line] of (layout.lines || []).entries()) {
+    for (const line of (layout.lines || [])) {
       if (!line.text || !line.rect) continue;
       const id = "node-" + (++sequence);
       // The parent scene node carries the element's CSS opacity as a
       // compositing group. Applying it again to its synthetic text child
       // would incorrectly square the opacity.
-      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: textSource, rect: line.rect, zIndex: parent.zIndex + 0.01 + index / 10_000, paint: { color: style.color, opacity: 1 }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textMaxWidth: textMaxWidthOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
+      // A synthetic text run paints with its originating element's stacking
+      // position: sibling order within the parent decides placement, so no
+      // fractional offset is added that could push the run across a stacking
+      // boundary (for example above an explicit positive z-index sibling).
+      nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: textSource, rect: line.rect, zIndex: parent.zIndex, zIndexAuto: parent.zIndexAuto, paint: { color: style.color, opacity: 1 }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textMaxWidth: textMaxWidthOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
       parent.children.push(id);
     }
   };
@@ -546,7 +553,13 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // a container with the text as a child layer.
     const decorated = !transparent(style.backgroundColor) || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
-    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: Number.parseInt(style.zIndex, 10) || sequence, paint, layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
+    // Preserve z-index: auto separately from numeric zero instead of
+    // substituting traversal sequence for either. Automatic stacking paints
+    // at the zero position for positioned elements, so store 0 with the auto
+    // flag; an explicit zero keeps its value without the flag.
+    const parsedZIndex = Number.parseInt(style.zIndex, 10);
+    const zIndexAuto = !Number.isFinite(parsedZIndex);
+    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: zIndexAuto ? 0 : parsedZIndex, zIndexAuto, paint, layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
     let directTextNode;
     let directTextLayout;
     let expandedDirectText = false;
@@ -603,7 +616,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       if (content && content !== "none" && content !== "normal" && pseudoStyle.display !== "none" && pseudoStyle.visibility !== "hidden" && number(pseudoStyle.opacity) !== 0) {
         reportUnsupportedTextColor(pseudoStyle.color, source + " " + pseudo);
         const pseudoId = "node-" + (++sequence);
-        nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex + 0.02, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
+        nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex, zIndexAuto: scene.zIndexAuto, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
         scene.children.push(pseudoId);
       }
     }

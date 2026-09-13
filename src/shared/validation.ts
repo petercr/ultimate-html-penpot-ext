@@ -87,6 +87,7 @@ function validateNode(value: unknown, index: number): asserts value is SceneNode
   const height = number(rect.height, `nodes[${index}].rect.height`, 0);
   if (height > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].rect.height must be no greater than ${SCENE_LIMITS.maxDimension}.`);
   number(node.zIndex, `nodes[${index}].zIndex`);
+  optionalBoolean(node.zIndexAuto, `nodes[${index}].zIndexAuto`);
   validatePaint(node.paint, index);
   validateLayout(node.layout, index);
   if (node.text !== undefined) string(node.text, `nodes[${index}].text`, 100_000);
@@ -137,6 +138,7 @@ function validateLayout(value: unknown, index: number): void {
   optionalNumber(layout.columnGap, `nodes[${index}].layout.columnGap`, 0, SCENE_LIMITS.maxDimension);
   if (layout.padding !== undefined) tuple(layout.padding, `nodes[${index}].layout.padding`, 0);
   optionalBoolean(layout.absolute, `nodes[${index}].layout.absolute`);
+  optionalBoolean(layout.positioned, `nodes[${index}].layout.positioned`);
 }
 
 function validateTextStyle(value: unknown, index: number): void {

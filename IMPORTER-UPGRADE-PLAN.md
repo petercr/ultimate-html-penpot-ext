@@ -80,13 +80,15 @@ Reference evidence: `src/capture/extractor.test.ts` ("parents omitted-wrapper ch
 
 ### 3.2 Stacking order
 
-- [ ] Preserve `z-index: auto` separately from numeric zero; avoid substituting traversal sequence for explicit zero.
-- [ ] Capture enough stacking-context information to reproduce supported CSS paint order.
-- [ ] Order siblings and context contents with stable source-order tie breaking.
-- [ ] Verify that Penpot grouping preserves the intended backdrop and child order.
-- [ ] Test negative, zero, and positive z-index; positioned overlaps; and nested contexts caused by opacity or transforms.
+- [x] Preserve `z-index: auto` separately from numeric zero; avoid substituting traversal sequence for explicit zero.
+- [x] Capture enough stacking-context information to reproduce supported CSS paint order.
+- [x] Order siblings and context contents with stable source-order tie breaking.
+- [x] Verify that Penpot grouping preserves the intended backdrop and child order.
+- [x] Test negative, zero, and positive z-index; positioned overlaps; and nested contexts caused by opacity or transforms.
 
 Acceptance: overlap fixtures match browser paint order without globally sorting unrelated stacking contexts.
+
+Reference evidence: the scene contract carries `zIndexAuto` (auto stored as 0, explicit zero without the flag) and `layout.positioned`; synthetic text runs inherit their element's stacking position instead of a fractional offset. The importer sorts each parent's children by paint order (negative, in-flow, positioned auto/zero, positive) with a source-order tie break and never across contexts. `stacking-contents-whitespace.html` now lists its layers positive-first in DOM order with pixel-identical screenshots, and the importer test asserts the painted negative-first order across all three viewports; unit tests cover positioned overlaps and an opacity-nested context.
 
 ### 3.3 Text whitespace and placement
 
