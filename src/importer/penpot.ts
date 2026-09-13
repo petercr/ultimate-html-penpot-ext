@@ -230,7 +230,10 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
   }
   const stroke = cssColorWithOpacity(paint.borderColor);
   if (stroke && paint.borderWidth && paint.borderStyle !== "none") {
-    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "center" }];
+    // CSS borders paint inside the border box, so the stroke stays inside the
+    // captured rect. A centered stroke would extend half its width outside on
+    // every side and shift each bordered card's visible edges outward.
+    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "inner" }];
   }
   applyShadow(shape, paint.boxShadow);
   const matrix = paint.transform?.match(/^matrix\(([^)]+)\)$/);
@@ -245,9 +248,24 @@ function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y
   // Penpot stores a nested shape's coordinates in page space. Set these only
   // after parentage is established; setting local DOM coordinates beforehand
   // puts children outside their clipping board.
+  // Captured geometry is a fixed snapshot. Explicit top/left constraints stop
+  // the host from stretching or repositioning it when a parent is resized.
+  pinShapeConstraints(shape);
   shape.x = pageOrigin.x + node.rect.x;
   shape.y = pageOrigin.y + node.rect.y;
   shape.resize(Math.max(0.1, node.rect.width), Math.max(0.1, node.rect.height));
+}
+
+function pinShapeConstraints(shape: Shape): void {
+  shape.constraintsHorizontal = "left";
+  shape.constraintsVertical = "top";
+}
+
+function fixBoardSizing(board: Board): void {
+  // Do not let Penpot's board sizing defaults derive a captured board's bounds
+  // from its children; CSS overflow deliberately allows those bounds to differ.
+  board.horizontalSizing = "fix";
+  board.verticalSizing = "fix";
 }
 
 function textAlign(value: string): Text["align"] {
@@ -527,6 +545,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         const board = penpot.createBoard();
         boards.push(board);
         board.name = `Page — ${scene.viewport.name} ${scene.viewport.width}`;
+        fixBoardSizing(board);
         board.x = x;
         board.y = origin.y;
         board.resize(scene.viewport.width, scene.documentSize.height);
@@ -543,10 +562,34 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           siblings.push(node);
           childrenByParent.set(node.parentId, siblings);
         }
+        // Reproduce supported CSS paint order: negative z-index ascending,
+        // non-positioned in-flow content, positioned automatic/zero stacking
+        // in source order, then positive z-index ascending. Sorting stays
+        // within each parent's children with a stable source-order tie break,
+        // so nested stacking contexts keep their contents isolated instead of
+        // being globally re-sorted against unrelated layers.
+        // Siblings are appended topmost-first: under Penpot's default plugin
+        // flags, appendChild inserts each child at index 0, behind the
+        // children already present (see app.plugins.shape in penpot/penpot),
+        // so appending in descending paint order leaves the parent's shapes
+        // in browser back-to-front order.
+        const domOrder = new Map(scene.nodes.map((node, index) => [node.id, index]));
+        const positioned = (node: SceneNode): boolean => Boolean(node.layout.positioned || node.layout.absolute);
+        const paintRank = (node: SceneNode): [number, number] => {
+          if (node.zIndex < 0) return [0, node.zIndex];
+          if (node.zIndex > 0) return [3, node.zIndex];
+          return [positioned(node) ? 2 : 1, 0];
+        };
+        const byPaintOrder = (a: SceneNode, b: SceneNode): number => {
+          const [rankA, zA] = paintRank(a);
+          const [rankB, zB] = paintRank(b);
+          return rankB - rankA || zB - zA || (domOrder.get(b.id) ?? 0) - (domOrder.get(a.id) ?? 0);
+        };
+        for (const siblings of childrenByParent.values()) siblings.sort(byPaintOrder);
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
         const shapes = new Map<string, Shape>();
         const textLines: { text: Text; node: SceneNode; maximum: number }[] = [];
-        const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId));
+        const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId)).sort(byPaintOrder);
 
         const append = (parentShape: Board | Shape, shape: Shape) => {
           if (parentShape.type === "board") (parentShape as Board).appendChild(shape);
@@ -570,6 +613,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // the element's own decoration, which keeps the clip and the
             // rounded corners on one surface.
             const clip = penpot.createBoard();
+            fixBoardSizing(clip);
             clip.clipContent = true;
             applyPaint(clip, node.paint);
             const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
@@ -606,13 +650,35 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               reportProgress();
               return undefined;
             }
-            const shape = children.length === 1 ? children[0] : penpot.group(children);
+            // An undecorated wrapper with a single child collapses onto that
+            // child: the child's shape is reused as the compositing group so
+            // no extra layer is created. The child's own name and source must
+            // survive that collapse; overwriting them with the wrapper's would
+            // rename the layer (which may be a clipping board) after whatever
+            // happened to wrap it. Only the wrapper's compositing opacity is
+            // still applied.
+            const collapsed = children.length === 1 && !backdrop;
+            // Rendered children arrive topmost-first (see the sibling sort
+            // above), but a group's shapes vector is back-to-front, so group
+            // members run in the opposite order with the backdrop behind.
+            const rendered = backdrop ? children.slice(1) : children;
+            const members = rendered.slice().reverse();
+            if (backdrop) members.unshift(backdrop);
+            const shape = collapsed ? children[0] : penpot.group(members);
             if (!shape) {
               reportProgress();
               return children[0];
             }
+            if (!collapsed) {
+              // Penpot's group operation resets its direct members to
+              // scale/scale. Restore snapshot constraints after grouping so
+              // nested boards and positioned layers cannot reflow with the
+              // group's bounds.
+              members.forEach(pinShapeConstraints);
+              pinShapeConstraints(shape);
+            }
             applyContainerOpacity(shape, node);
-            metadata(shape, node, scene.viewport.id);
+            if (!collapsed) metadata(shape, node, scene.viewport.id);
             shapes.set(node.id, shape);
             reportProgress();
             return shape;

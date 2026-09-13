@@ -83,6 +83,9 @@ export interface SceneLayout {
   columnGap?: number;
   padding?: [number, number, number, number];
   absolute?: boolean;
+  /** True when CSS position is not static. Positioned elements with an
+   * automatic or zero z-index paint above non-positioned in-flow content. */
+  positioned?: boolean;
 }
 
 export interface AssetRef {
@@ -102,7 +105,12 @@ export interface SceneNode {
   name: string;
   source: string;
   rect: Rect;
+  /** Effective integer z-index. `z-index: auto` is stored as 0 (its paint
+   * position for positioned elements) with `zIndexAuto` set, so explicit
+   * numeric zero stays distinct from automatic stacking. */
   zIndex: number;
+  /** True when the computed CSS z-index is `auto` rather than numeric. */
+  zIndexAuto?: boolean;
   paint: ScenePaint;
   layout: SceneLayout;
   text?: string;

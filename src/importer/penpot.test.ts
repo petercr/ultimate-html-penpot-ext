@@ -101,7 +101,13 @@ describe("Penpot importer", () => {
         });
         return shape;
       }),
-      group: vi.fn((shapes: FakeShape[]) => Object.assign(fakeShape("group"), { children: shapes })),
+      group: vi.fn((shapes: FakeShape[]) => {
+        // The live host resets direct group members to scale/scale while
+        // reparenting them; the importer must restore fixed snapshot
+        // constraints after the operation.
+        shapes.forEach((shape) => Object.assign(shape, { constraintsHorizontal: "scale", constraintsVertical: "scale" }));
+        return Object.assign(fakeShape("group"), { children: shapes });
+      }),
       createShapeFromSvg: vi.fn(() => null),
       createShapeFromSvgWithImages: vi.fn(),
       uploadMediaData: vi.fn().mockResolvedValue({}),
@@ -155,6 +161,49 @@ describe("Penpot importer", () => {
     }
   });
 
+  it("imports generated stacking scenes in browser paint order", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "stacking-contents-whitespace.html");
+    const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(result).toHaveLength(3);
+
+    for (const [index, scene] of scenes.entries()) {
+      const board = result[index] as unknown as FakeShape;
+      const viewportId = scene.viewport.id;
+      const stage = boards.find((shape) => shape !== board && (shape.pluginData as Record<string, string>).source === "#stacking-stage" && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      // The fixture's DOM order is positive, auto, zero, negative, while the
+      // browser paints negative, auto, zero, positive. The checked-in
+      // screenshots are pixel-identical across that reorder. Layers append
+      // topmost-first (each live appendChild lands behind), so this append
+      // order leaves the live shapes in browser paint order.
+      // (This mock host leaves each layer's text run beside its backdrop
+      // instead of grouping them; the layer pairs still carry the order.)
+      expect(stage?.children?.map((child) => (child.pluginData as Record<string, string>).source)).toEqual([
+        "#stack-positive ::text", "#stack-positive",
+        "#stack-zero ::text", "#stack-zero",
+        "#stack-auto ::text", "#stack-auto",
+        "#stack-negative ::text", "#stack-negative"
+      ]);
+      expect(board).toMatchObject({ horizontalSizing: "fix", verticalSizing: "fix" });
+      expect(stage).toMatchObject({ constraintsHorizontal: "left", constraintsVertical: "top", horizontalSizing: "fix", verticalSizing: "fix" });
+      expect(stage?.children?.every((child) => child.constraintsHorizontal === "left" && child.constraintsVertical === "top")).toBe(true);
+    }
+  });
+
+  it("imports generated whitespace scenes with spacing preserved as content", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "stacking-contents-whitespace.html");
+    const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    const texts: string[] = [];
+    const collect = (shape: FakeShape): void => {
+      if (shape.type === "text" && typeof shape.characters === "string") texts.push(shape.characters);
+      shape.children?.forEach(collect);
+    };
+    (result as unknown as FakeShape[]).forEach(collect);
+    expect(texts).toContain("  leading  spaces");
+    expect(texts).toContain("        return true;");
+    expect(texts.some((text) => [...text].some((character) => character.charCodeAt(0) === 160))).toBe(true);
+    for (const run of ["Mixed", "bold", "italic", "linked", "runs."]) expect(texts).toContain(run);
+  });
+
   it("imports generated opacity scenes with each compositing opacity applied once", async () => {
     const scenes = scenesForFixture(baselineEvidence().scenes, "color-opacity.html");
     await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
@@ -162,10 +211,14 @@ describe("Penpot importer", () => {
 
     for (const scene of scenes) {
       const viewportId = scene.viewport.id;
-      const nestedOpacity = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "#nested-opacity" && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      // The undecorated #nested-opacity wrapper collapses onto its only
+      // child, so the surviving group keeps the child's source while still
+      // compositing both opacities (.5 x .5) exactly once.
+      const nestedOpacity = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "main > section:nth-of-type(2) > div" && (shape.pluginData as Record<string, string>).viewport === viewportId);
       const decoratedText = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "#decorated-text" && (shape.pluginData as Record<string, string>).viewport === viewportId);
       expect(nestedOpacity?.opacity).toBe(0.25);
       expect(decoratedText?.opacity).toBe(0.5);
+      expect(groups.some((shape) => (shape.pluginData as Record<string, string>).source === "#nested-opacity")).toBe(false);
     }
   });
 
@@ -296,7 +349,8 @@ describe("Penpot importer", () => {
     const result = await importScenes([failing], { isCancelled: () => false, onProgress: vi.fn() });
     const names = (result[0] as unknown as FakeShape).children?.map((child) => child.name);
     expect(upload).toHaveBeenCalledOnce();
-    expect(names).toEqual(["Image unavailable: first broken image", "Image unavailable: second broken image"]);
+    // Order-insensitive: siblings append topmost-first for live paint order.
+    expect(names?.slice().sort()).toEqual(["Image unavailable: first broken image", "Image unavailable: second broken image"]);
   });
 
   it("uploads inlined raster assets and reuses them across responsive boards", async () => {
@@ -382,7 +436,7 @@ describe("Penpot importer", () => {
     const board = result[0] as unknown as FakeShape;
     const importedText = board.children?.[0];
     expect(board).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#ff0080", fillOpacity: 0.4 }] });
-    expect(board.strokes).toEqual([{ strokeColor: "#123456", strokeOpacity: 128 / 255, strokeWidth: 2, strokeStyle: "solid", strokeAlignment: "center" }]);
+    expect(board.strokes).toEqual([{ strokeColor: "#123456", strokeOpacity: 128 / 255, strokeWidth: 2, strokeStyle: "solid", strokeAlignment: "inner" }]);
     expect(importedText).toMatchObject({ opacity: 0.5, fills: [{ fillColor: "#112233", fillOpacity: 4 / 15 }] });
   });
 
@@ -735,6 +789,79 @@ describe("Penpot importer", () => {
     const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
     expect(group).toHaveBeenCalledOnce();
     expect(group.mock.results[0]?.value).toMatchObject({ opacity: 0.8 });
+  });
+
+  it("keeps the surviving child's identity when an undecorated wrapper collapses", async () => {
+    const collapseScene = scene();
+    const root = collapseScene.nodes[0];
+    const text = collapseScene.nodes[1];
+    const wrapper = { ...root, id: "wrapper", parentId: root.id, children: ["clipped"], kind: "container" as const, name: "wrapper", source: "body > div", paint: { opacity: 0.5 } };
+    const clipped = { ...root, id: "clipped", parentId: wrapper.id, children: [text.id], kind: "container" as const, name: "card", source: "body > div > section", rect: { x: 10, y: 10, width: 120, height: 60 }, paint: { backgroundColor: "rgb(255, 255, 255)", overflow: "hidden" as const } };
+    text.parentId = clipped.id;
+    root.children = [wrapper.id];
+    collapseScene.nodes = [root, wrapper, clipped, text];
+
+    await importScenes([collapseScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    // The wrapper collapses onto its only child, so no group is created, but
+    // the clipping board keeps its own name and source while still receiving
+    // the wrapper's compositing opacity.
+    const penpotApi = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot;
+    expect(penpotApi.group).not.toHaveBeenCalled();
+    const clip = boards[1];
+    expect(clip).toMatchObject({ type: "board", clipContent: true, name: "card", opacity: 0.5 });
+    expect(clip.pluginData).toMatchObject({ source: "body > div > section" });
+    expect(clip.children?.map((child) => child.type)).toEqual(["text"]);
+  });
+
+  it("paints siblings in CSS stacking order rather than DOM order", async () => {
+    const stackingScene = scene();
+    const root = stackingScene.nodes[0];
+    const box = (id: string, name: string, zIndex: number, zIndexAuto: boolean, positioned: boolean) => ({
+      id, parentId: root.id, children: [], kind: "box" as const, name, source: `#${id}`,
+      rect: { x: 10, y: 10, width: 60, height: 40 }, zIndex, zIndexAuto,
+      paint: {}, layout: { kind: "none" as const, positioned }
+    });
+    // DOM order deliberately differs from paint order: the positive layer
+    // comes first and the negative layer nearly last.
+    const pos = box("pos", "pos", 2, false, true);
+    const inFlow = box("in-flow", "in-flow", 0, true, false);
+    const neg = box("neg", "neg", -1, false, true);
+    const auto = box("auto", "auto", 0, true, true);
+    root.children = [pos.id, inFlow.id, neg.id, auto.id];
+    stackingScene.nodes = [root, pos, inFlow, neg, auto];
+
+    const result = await importScenes([stackingScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const board = result[0] as unknown as FakeShape;
+    // Siblings append topmost-first: Penpot's default flags insert each
+    // appendChild at index 0 behind the shapes already present, so this
+    // append order leaves the live shapes in browser back-to-front order.
+    expect(board.children?.map((child) => child.name)).toEqual(["pos", "auto", "in-flow", "neg"]);
+  });
+
+  it("keeps nested stacking contexts isolated from outer layers", async () => {
+    const contextScene = scene();
+    const root = contextScene.nodes[0];
+    // The high-z sibling comes first in DOM order but must still paint above
+    // the automatic-stacking context; the context's own extreme child stays
+    // inside and never escapes to the outer level.
+    const sibling = { id: "sibling", parentId: root.id, children: [], kind: "box" as const, name: "sibling", source: "#sibling", rect: { x: 10, y: 10, width: 60, height: 40 }, zIndex: 1, zIndexAuto: false, paint: {}, layout: { kind: "none" as const, positioned: true } };
+    const inner = { id: "inner", parentId: "context", children: [], kind: "box" as const, name: "inner", source: "#context-inner", rect: { x: 12, y: 12, width: 20, height: 20 }, zIndex: 999, zIndexAuto: false, paint: {}, layout: { kind: "none" as const, positioned: true } };
+    const context = { ...root, id: "context", parentId: root.id, children: [inner.id], kind: "container" as const, name: "context", source: "#context", rect: { x: 10, y: 10, width: 100, height: 80 }, zIndex: 0, zIndexAuto: true, paint: { backgroundColor: "rgb(200, 210, 220)", opacity: 0.5, transform: "matrix(1, 0, 0, 1, 0, 0)" } };
+    root.children = [sibling.id, context.id];
+    contextScene.nodes = [root, sibling, context, inner];
+
+    const result = await importScenes([contextScene], { isCancelled: () => false, onProgress: vi.fn() });
+    const board = result[0] as unknown as FakeShape;
+    const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
+    expect(group).toHaveBeenCalledOnce();
+    // The group keeps background first: the context backdrop below its child.
+    expect((group.mock.calls[0]?.[0] as FakeShape[]).map((child) => child.name)).toEqual(["context", "inner"]);
+    expect(group.mock.results[0]?.value).toMatchObject({ type: "group", opacity: 0.5 });
+    // The outer sibling appends first so it lands behind nothing: each later
+    // append goes behind, leaving the sibling on top while the extreme inner
+    // child never escapes its context group.
+    expect(board.children?.map((child) => child.name)).toEqual(["sibling", "inner", "context"]);
   });
 
   it("removes partial boards when cancellation happens", async () => {

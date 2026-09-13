@@ -80,6 +80,8 @@ describe("extractor script", () => {
     expect(script).toContain('if (tag === "br") return');
     expect(script).toContain("waitForDomSettle");
     expect(script).toContain("const suppressesSubtree");
+    expect(script).toContain("zIndexAuto");
+    expect(script).toContain("positioned");
     expect(script).toContain("display: contents");
     expect(script).toContain("const survivingParent");
     expect(script).toContain("SCRIPTS_DISABLED");
@@ -268,6 +270,126 @@ describe("extractor script", () => {
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalBounds;
       window.getComputedStyle = originalComputedStyle;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("preserves z-index auto separately from numeric zero with positioned flags", async () => {
+    document.body.innerHTML = `<div id="stage" style="position:relative;width:25px;height:15px;opacity:1;visibility:visible"><div id="neg" style="position:absolute;z-index:-1;opacity:1;visibility:visible"></div><div id="auto" style="position:absolute;z-index:auto;opacity:1;visibility:visible"></div><div id="zero" style="position:absolute;z-index:0;opacity:1;visibility:visible"></div><div id="pos" style="position:absolute;z-index:2;opacity:1;visibility:visible"></div><div id="plain" style="width:25px;height:15px;opacity:1;visibility:visible"></div></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("stacking-capture");
+      const paintOf = (source: string) => result.nodes.find((node) => node.source === source);
+      expect(paintOf("#neg")).toMatchObject({ zIndex: -1, zIndexAuto: false });
+      expect(paintOf("#auto")).toMatchObject({ zIndex: 0, zIndexAuto: true });
+      expect(paintOf("#zero")).toMatchObject({ zIndex: 0, zIndexAuto: false });
+      expect(paintOf("#pos")).toMatchObject({ zIndex: 2, zIndexAuto: false });
+      for (const source of ["#stage", "#neg", "#auto", "#zero", "#pos"]) {
+        expect(paintOf(source)?.layout.positioned).toBe(true);
+      }
+      expect(paintOf("#plain")?.layout.positioned).toBe(false);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("preserves preformatted indentation, tabs, and line breaks per white-space", async () => {
+    document.body.innerHTML = `<pre id="code" style="white-space:pre;opacity:1;visibility:visible">  indented\n\ttabbed</pre>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const raw = "  indented\n\ttabbed";
+    const newlineAt = raw.indexOf("\n");
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const lineRect = (top: number) => ({ x: 1, y: top, left: 1, top, right: 20, bottom: top + 10, width: 19, height: 10, toJSON: () => ({}) });
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCreateRange = document.createRange;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    let offset = 0;
+    document.createRange = (() => ({
+      selectNodeContents: () => undefined,
+      setStart: (_node: unknown, start: number) => { offset = start; },
+      setEnd: () => undefined,
+      getClientRects: () => [lineRect(0), lineRect(12)],
+      getBoundingClientRect: () => lineRect(offset < newlineAt ? 0 : 12)
+    })) as unknown as typeof document.createRange;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("pre-whitespace");
+      const code = result.nodes.find((node) => node.source === "#code");
+      const texts = (code?.children || []).map((id) => result.nodes.find((node) => node.id === id)?.text);
+      expect(texts).toEqual(["  indented", "        tabbed"]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      document.createRange = originalCreateRange;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("combines text separated by comments and preserves nonbreaking spaces", async () => {
+    document.body.innerHTML = `<div id="split" style="width:25px;height:15px;opacity:1;visibility:visible;background-color:transparent;background-image:none;border-top-style:none;box-shadow:none">hello<!--split--> world</div><div id="nbsp" style="width:25px;height:15px;opacity:1;visibility:visible;background-color:transparent;background-image:none;border-top-style:none;box-shadow:none">a\u00A0b</div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const line = { x: 1, y: 1, left: 1, top: 1, right: 20, bottom: 11, width: 19, height: 10, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCreateRange = document.createRange;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    document.createRange = (() => ({ selectNodeContents: () => undefined, setStart: () => undefined, setEnd: () => undefined, getClientRects: () => [line], getBoundingClientRect: () => line })) as unknown as typeof document.createRange;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("split-nbsp");
+      expect(result.nodes.find((node) => node.source === "#split")?.text).toBe("hello world");
+      expect(result.nodes.find((node) => node.source === "#nbsp")?.text).toBe("a\u00A0b");
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      document.createRange = originalCreateRange;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("parents omitted-wrapper children to the surviving scene ancestor in DOM order", async () => {
+    document.body.innerHTML = `<div id="outer" style="width:25px;height:15px;opacity:1;visibility:visible">Before<span id="wrap1" style="display:contents;opacity:1;visibility:visible">Mid<span id="wrap2" style="display:contents;opacity:1;visibility:visible"><em id="deep" style="opacity:1;visibility:visible">Deep text</em></span></span>After</div><div id="hiddenwrap" style="width:25px;height:15px;opacity:1;visibility:hidden">Hidden text<span id="revived" style="opacity:1;visibility:visible">Revived text</span></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = (element: Element) => {
+      const id = (element as HTMLElement).id;
+      const size = id === "wrap1" || id === "wrap2" ? { w: 0, h: 0 } : { w: 25, h: 15 };
+      return { x: 0, y: 0, left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, toJSON: () => ({}) };
+    };
+    const line = { x: 1, y: 1, left: 1, top: 1, right: 12, bottom: 11, width: 11, height: 10, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCreateRange = document.createRange;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds(this); };
+    document.createRange = (() => ({ selectNodeContents: () => undefined, setStart: () => undefined, setEnd: () => undefined, getClientRects: () => [line], getBoundingClientRect: () => line })) as unknown as typeof document.createRange;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("surviving-ancestor");
+      const outer = result.nodes.find((node) => node.source === "#outer");
+      const hidden = result.nodes.find((node) => node.source === "#hiddenwrap");
+      // display: contents wrappers produce no node; surrounding text, nested
+      // text, and the deeply nested element all survive under the outer node.
+      expect(result.nodes.some((node) => node.source === "#wrap1" || node.source === "#wrap2")).toBe(false);
+      const byText = (text: string) => result.nodes.find((node) => node.text === text);
+      expect(byText("Before")).toMatchObject({ parentId: outer?.id, source: "#outer ::text" });
+      expect(byText("Mid")).toMatchObject({ parentId: outer?.id, source: "#wrap1 ::text" });
+      expect(byText("After")).toMatchObject({ parentId: outer?.id, source: "#outer ::text" });
+      expect(result.nodes.find((node) => node.source === "#deep")).toMatchObject({ parentId: outer?.id });
+      expect(outer?.children).toEqual([byText("Before")?.id, byText("Mid")?.id, result.nodes.find((node) => node.source === "#deep")?.id, byText("After")?.id]);
+      // The hidden wrapper produces no node; its own text stays absent while
+      // the visibility-restoring descendant survives under the same ancestor.
+      expect(hidden).toBeUndefined();
+      expect(result.nodes.some((node) => node.text === "Hidden text")).toBe(false);
+      expect(result.nodes.find((node) => node.source === "#revived")).toMatchObject({ parentId: outer?.parentId });
+      expect(byText("Revived text")).toMatchObject({ source: "#revived ::text" });
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      document.createRange = originalCreateRange;
       Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
     }
   });

@@ -1,5 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Importer stacking, display contents, and whitespace fixture</title>
 <style>
   @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
@@ -21,17 +22,28 @@
   #inline-space { margin-top: 12px; text-align: center; white-space: normal; }
   #inline-space strong { color: #7c3aed; }
   #nbsp-comment-sample { margin: 12px 0 0; padding: 10px 12px; border-left: 3px solid #7c3aed; background: #f5f3ff; }
+  #mixed-formatting { margin: 12px 0 0; }
+  #mixed-formatting em { color: #0f766e; }
+  #mixed-formatting a { color: #1d4ed8; }
+  #centered-sample { margin: 12px 0 0; text-align: center; }
+  #padded-sample { margin: 12px 0 0; padding: 18px 24px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; }
+  #code-sample { margin: 12px 0 0; padding: 12px; border-radius: 8px; background: #0f172a; color: #e2e8f0; font: 14px/1.5 "DejaVu Sans", monospace; white-space: pre; tab-size: 8; }
+  #font-stack-sample { margin: 12px 0 0; font-family: "NoSuchFont", "DejaVu Sans", sans-serif; }
   @media (max-width: 520px) { body { padding: 16px; } .card { padding: 16px; } #stacking-stage { height: 224px; } #stack-positive { left: 122px; top: 120px; } }
 </style>
 <main>
   <h1>Stacking, wrapper omission, and text-space reference</h1>
   <section class="card">
     <h2>Overlapping positioned siblings</h2>
+    <!-- DOM order deliberately differs from paint order (negative, auto,
+         zero, positive): the positive layer comes first and the negative
+         layer last. auto stays before zero so the browser reference pixels
+         are unchanged; only the required import order is under test. -->
     <div id="stacking-stage" aria-label="stacking reference">
-      <div id="stack-negative" class="layer">negative</div>
+      <div id="stack-positive" class="layer">positive</div>
       <div id="stack-auto" class="layer">auto</div>
       <div id="stack-zero" class="layer">zero</div>
-      <div id="stack-positive" class="layer">positive</div>
+      <div id="stack-negative" class="layer">negative</div>
     </div>
   </section>
   <section class="card">
@@ -45,5 +57,12 @@ tabs	and   repeated spaces
 line three</pre>
     <p id="inline-space">Inline <strong>formatting</strong> keeps a meaningful boundary.</p>
     <p id="nbsp-comment-sample">NBSP&nbsp;boundary stays together.<br><!-- extractor must ignore this comment -->Second line follows a forced break.</p>
+    <p id="mixed-formatting">Mixed <strong>bold</strong>, <em>italic</em>, and <a href="#">linked</a> runs.</p>
+    <p id="centered-sample">Centered line with <em>emphasis</em> inside.</p>
+    <p id="padded-sample">Padded paragraph keeps its inner runs.</p>
+    <pre id="code-sample">function indented() {
+	return true;
+}</pre>
+    <p id="font-stack-sample">Font stack falls back to DejaVu Sans.</p>
   </section>
 </main>

@@ -71,31 +71,37 @@ Acceptance: color alpha and element opacity combine correctly; a solid element w
 - [x] Traverse `display: contents` and zero-sized wrappers with visible descendants.
 - [x] Preserve subtree suppression for `display: none` and fully transparent compositing groups.
 - [x] Handle descendants that override an ancestor's `visibility: hidden`.
-- [ ] Assign children to the correct surviving scene ancestor when a wrapper has no node.
-- [ ] Stop an undecorated single-child container from taking over its child's identity. The importer collapses such a wrapper onto its only child and then applies the wrapper's name and source to it, so the child's own name is lost. Since Phase 2.2 that child can be a clipping board, which makes the layer tree name a clip after the wrapper around it. This is long-standing behavior, not a Phase 2.2 regression; the collapse itself is worth keeping, only the metadata overwrite is wrong.
+- [x] Assign children to the correct surviving scene ancestor when a wrapper has no node.
+- [x] Stop an undecorated single-child container from taking over its child's identity. The importer collapses such a wrapper onto its only child and then applies the wrapper's name and source to it, so the child's own name is lost. Since Phase 2.2 that child can be a clipping board, which makes the layer tree name a clip after the wrapper around it. This is long-standing behavior, not a Phase 2.2 regression; the collapse itself is worth keeping, only the metadata overwrite is wrong.
 
 Acceptance: visible descendants survive wrapper omission, hidden subtrees remain absent, and a collapsed wrapper does not rename the layer it collapses into.
 
+Reference evidence: `src/capture/extractor.test.ts` ("parents omitted-wrapper children to the surviving scene ancestor") covers nested `display: contents` omission with DOM order and `visibility: hidden` override parenting; `src/importer/penpot.test.ts` ("keeps the surviving child's identity when an undecorated wrapper collapses") covers a wrapper collapsing onto a clipping board without renaming it, and the generated opacity scene test now asserts the collapsed wrapper leaves no rename trace while compositing opacity still applies once.
+
 ### 3.2 Stacking order
 
-- [ ] Preserve `z-index: auto` separately from numeric zero; avoid substituting traversal sequence for explicit zero.
-- [ ] Capture enough stacking-context information to reproduce supported CSS paint order.
-- [ ] Order siblings and context contents with stable source-order tie breaking.
-- [ ] Verify that Penpot grouping preserves the intended backdrop and child order.
-- [ ] Test negative, zero, and positive z-index; positioned overlaps; and nested contexts caused by opacity or transforms.
+- [x] Preserve `z-index: auto` separately from numeric zero; avoid substituting traversal sequence for explicit zero.
+- [x] Capture enough stacking-context information to reproduce supported CSS paint order.
+- [x] Order siblings and context contents with stable source-order tie breaking.
+- [x] Verify that Penpot grouping preserves the intended backdrop and child order.
+- [x] Test negative, zero, and positive z-index; positioned overlaps; and nested contexts caused by opacity or transforms.
 
 Acceptance: overlap fixtures match browser paint order without globally sorting unrelated stacking contexts.
 
+Reference evidence: the scene contract carries `zIndexAuto` (auto stored as 0, explicit zero without the flag) and `layout.positioned`; synthetic text runs inherit their element's stacking position instead of a fractional offset. The importer sorts each parent's children by paint order (negative, in-flow, positioned auto/zero, positive) with a source-order tie break and never across contexts. Siblings append topmost-first because Penpot's default plugin flags insert each `appendChild` at index 0 behind existing children (see `app.plugins.shape` in penpot/penpot), leaving live shapes in browser back-to-front order; group members run back-to-front with the backdrop behind. An earlier bottom-first append order rendered the stacking fixture exactly inverted in live Penpot (negative on top, positive behind); corrected after a live screenshot showed the inversion. `stacking-contents-whitespace.html` lists its layers positive-first in DOM order with pixel-identical screenshots, and the importer test asserts the topmost-first append order across all three viewports; unit tests cover positioned overlaps and an opacity-nested context.
+
 ### 3.3 Text whitespace and placement
 
-- [ ] Respect computed `white-space` rather than compacting all text unconditionally.
-- [ ] Preserve meaningful spaces across inline element boundaries, nonbreaking spaces, preformatted indentation, and explicit line breaks.
-- [ ] Capture all direct text nodes, including text separated by comments or other non-rendered nodes.
-- [ ] Use measured text bounds consistently for single-line and multiline content.
-- [ ] Add fixtures for mixed formatting, centered text, padded text, code blocks, and font fallback.
-- [ ] Define whether line-preserving text remains the default and document its editing tradeoff.
+- [x] Respect computed `white-space` rather than compacting all text unconditionally.
+- [x] Preserve meaningful spaces across inline element boundaries, nonbreaking spaces, preformatted indentation, and explicit line breaks.
+- [x] Capture all direct text nodes, including text separated by comments or other non-rendered nodes.
+- [x] Use measured text bounds consistently for single-line and multiline content.
+- [x] Add fixtures for mixed formatting, centered text, padded text, code blocks, and font fallback.
+- [x] Define whether line-preserving text remains the default and document its editing tradeoff.
 
 Acceptance: fixture text retains its content, spacing, and line placement without missing runs or accidental reflow.
+
+Reference evidence: the extractor processes text per computed `white-space` (`pre` keeps spaces/newlines with tabs expanded to 8-space stops, `pre-line` keeps newlines while collapsing spaces, normal collapsing matches the old output except NBSP is never collapsed), combines comment-separated runs before processing, and measures every run individually for line splitting and bounds. `stacking-contents-whitespace.html` adds mixed-formatting, centered, padded, tab-indented code, and font-stack samples with runner assertions on indentation, tab stops, NBSP, and run content; the importer test asserts the same preserved content across all three viewports. Line-preserving text stays the default; see "Text capture policy" in `docs/importer-visual-baselines.md` for the editing tradeoff. Pseudo-element content keeps the old compacted form.
 
 ## Phase 4 — Reliable assets and import lifecycle
 
