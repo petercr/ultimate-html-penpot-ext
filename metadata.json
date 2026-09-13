@@ -3,8 +3,11 @@
   "checkpoint_id": "01M2EB6TQ0ZZJABA7F7NN15P2E",
   "strategy": "manual-commit",
   "branch": "fix/importer-visible-descendants",
-  "checkpoints_count": 1,
+  "checkpoints_count": 23,
   "files_touched": [
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/stacking-contents-whitespace.html",
     "src/importer/penpot.test.ts",
     "src/importer/penpot.ts"
   ],
@@ -15,13 +18,20 @@
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
       "prompt": "/0/prompt.txt"
+    },
+    {
+      "metadata": "/1/metadata.json",
+      "transcript": "/1/full.jsonl",
+      "compact_transcript": "/1/transcript.jsonl",
+      "content_hash": "/1/content_hash.txt",
+      "prompt": "/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 184821,
+    "input_tokens": 2466748,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1551232,
-    "output_tokens": 4230,
-    "api_call_count": 18
+    "cache_read_tokens": 27527518,
+    "output_tokens": 44886,
+    "api_call_count": 237
   }
 }
