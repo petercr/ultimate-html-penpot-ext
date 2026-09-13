@@ -71,10 +71,12 @@ Acceptance: color alpha and element opacity combine correctly; a solid element w
 - [x] Traverse `display: contents` and zero-sized wrappers with visible descendants.
 - [x] Preserve subtree suppression for `display: none` and fully transparent compositing groups.
 - [x] Handle descendants that override an ancestor's `visibility: hidden`.
-- [ ] Assign children to the correct surviving scene ancestor when a wrapper has no node.
-- [ ] Stop an undecorated single-child container from taking over its child's identity. The importer collapses such a wrapper onto its only child and then applies the wrapper's name and source to it, so the child's own name is lost. Since Phase 2.2 that child can be a clipping board, which makes the layer tree name a clip after the wrapper around it. This is long-standing behavior, not a Phase 2.2 regression; the collapse itself is worth keeping, only the metadata overwrite is wrong.
+- [x] Assign children to the correct surviving scene ancestor when a wrapper has no node.
+- [x] Stop an undecorated single-child container from taking over its child's identity. The importer collapses such a wrapper onto its only child and then applies the wrapper's name and source to it, so the child's own name is lost. Since Phase 2.2 that child can be a clipping board, which makes the layer tree name a clip after the wrapper around it. This is long-standing behavior, not a Phase 2.2 regression; the collapse itself is worth keeping, only the metadata overwrite is wrong.
 
 Acceptance: visible descendants survive wrapper omission, hidden subtrees remain absent, and a collapsed wrapper does not rename the layer it collapses into.
+
+Reference evidence: `src/capture/extractor.test.ts` ("parents omitted-wrapper children to the surviving scene ancestor") covers nested `display: contents` omission with DOM order and `visibility: hidden` override parenting; `src/importer/penpot.test.ts` ("keeps the surviving child's identity when an undecorated wrapper collapses") covers a wrapper collapsing onto a clipping board without renaming it, and the generated opacity scene test now asserts the collapsed wrapper leaves no rename trace while compositing opacity still applies once.
 
 ### 3.2 Stacking order
 

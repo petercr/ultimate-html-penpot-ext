@@ -606,13 +606,21 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               reportProgress();
               return undefined;
             }
-            const shape = children.length === 1 ? children[0] : penpot.group(children);
+            // An undecorated wrapper with a single child collapses onto that
+            // child: the child's shape is reused as the compositing group so
+            // no extra layer is created. The child's own name and source must
+            // survive that collapse; overwriting them with the wrapper's would
+            // rename the layer (which may be a clipping board) after whatever
+            // happened to wrap it. Only the wrapper's compositing opacity is
+            // still applied.
+            const collapsed = children.length === 1 && !backdrop;
+            const shape = collapsed ? children[0] : penpot.group(children);
             if (!shape) {
               reportProgress();
               return children[0];
             }
             applyContainerOpacity(shape, node);
-            metadata(shape, node, scene.viewport.id);
+            if (!collapsed) metadata(shape, node, scene.viewport.id);
             shapes.set(node.id, shape);
             reportProgress();
             return shape;

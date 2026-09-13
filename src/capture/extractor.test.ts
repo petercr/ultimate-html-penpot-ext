@@ -272,6 +272,47 @@ describe("extractor script", () => {
     }
   });
 
+  it("parents omitted-wrapper children to the surviving scene ancestor in DOM order", async () => {
+    document.body.innerHTML = `<div id="outer" style="width:25px;height:15px;opacity:1;visibility:visible">Before<span id="wrap1" style="display:contents;opacity:1;visibility:visible">Mid<span id="wrap2" style="display:contents;opacity:1;visibility:visible"><em id="deep" style="opacity:1;visibility:visible">Deep text</em></span></span>After</div><div id="hiddenwrap" style="width:25px;height:15px;opacity:1;visibility:hidden">Hidden text<span id="revived" style="opacity:1;visibility:visible">Revived text</span></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = (element: Element) => {
+      const id = (element as HTMLElement).id;
+      const size = id === "wrap1" || id === "wrap2" ? { w: 0, h: 0 } : { w: 25, h: 15 };
+      return { x: 0, y: 0, left: 0, top: 0, right: size.w, bottom: size.h, width: size.w, height: size.h, toJSON: () => ({}) };
+    };
+    const line = { x: 1, y: 1, left: 1, top: 1, right: 12, bottom: 11, width: 11, height: 10, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCreateRange = document.createRange;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds(this); };
+    document.createRange = (() => ({ selectNodeContents: () => undefined, setStart: () => undefined, setEnd: () => undefined, getClientRects: () => [line], getBoundingClientRect: () => line })) as unknown as typeof document.createRange;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("surviving-ancestor");
+      const outer = result.nodes.find((node) => node.source === "#outer");
+      const hidden = result.nodes.find((node) => node.source === "#hiddenwrap");
+      // display: contents wrappers produce no node; surrounding text, nested
+      // text, and the deeply nested element all survive under the outer node.
+      expect(result.nodes.some((node) => node.source === "#wrap1" || node.source === "#wrap2")).toBe(false);
+      const byText = (text: string) => result.nodes.find((node) => node.text === text);
+      expect(byText("Before")).toMatchObject({ parentId: outer?.id, source: "#outer ::text" });
+      expect(byText("Mid")).toMatchObject({ parentId: outer?.id, source: "#wrap1 ::text" });
+      expect(byText("After")).toMatchObject({ parentId: outer?.id, source: "#outer ::text" });
+      expect(result.nodes.find((node) => node.source === "#deep")).toMatchObject({ parentId: outer?.id });
+      expect(outer?.children).toEqual([byText("Before")?.id, byText("Mid")?.id, result.nodes.find((node) => node.source === "#deep")?.id, byText("After")?.id]);
+      // The hidden wrapper produces no node; its own text stays absent while
+      // the visibility-restoring descendant survives under the same ancestor.
+      expect(hidden).toBeUndefined();
+      expect(result.nodes.some((node) => node.text === "Hidden text")).toBe(false);
+      expect(result.nodes.find((node) => node.source === "#revived")).toMatchObject({ parentId: outer?.parentId });
+      expect(byText("Revived text")).toMatchObject({ source: "#revived ::text" });
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      document.createRange = originalCreateRange;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
   it("captures decorated direct text at opacity one and imports it under the parent compositing opacity", async () => {
     document.body.innerHTML = `<div id="decorated" style="width:25px;height:15px;opacity:.5;visibility:visible;background-color:rgb(20, 40, 60)">Captured direct text</div>`;
     document.body.style.cssText = "opacity:1;visibility:visible";

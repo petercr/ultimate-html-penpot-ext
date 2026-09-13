@@ -162,10 +162,14 @@ describe("Penpot importer", () => {
 
     for (const scene of scenes) {
       const viewportId = scene.viewport.id;
-      const nestedOpacity = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "#nested-opacity" && (shape.pluginData as Record<string, string>).viewport === viewportId);
+      // The undecorated #nested-opacity wrapper collapses onto its only
+      // child, so the surviving group keeps the child's source while still
+      // compositing both opacities (.5 x .5) exactly once.
+      const nestedOpacity = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "main > section:nth-of-type(2) > div" && (shape.pluginData as Record<string, string>).viewport === viewportId);
       const decoratedText = groups.find((shape) => (shape.pluginData as Record<string, string>).source === "#decorated-text" && (shape.pluginData as Record<string, string>).viewport === viewportId);
       expect(nestedOpacity?.opacity).toBe(0.25);
       expect(decoratedText?.opacity).toBe(0.5);
+      expect(groups.some((shape) => (shape.pluginData as Record<string, string>).source === "#nested-opacity")).toBe(false);
     }
   });
 
@@ -735,6 +739,29 @@ describe("Penpot importer", () => {
     const group = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot.group;
     expect(group).toHaveBeenCalledOnce();
     expect(group.mock.results[0]?.value).toMatchObject({ opacity: 0.8 });
+  });
+
+  it("keeps the surviving child's identity when an undecorated wrapper collapses", async () => {
+    const collapseScene = scene();
+    const root = collapseScene.nodes[0];
+    const text = collapseScene.nodes[1];
+    const wrapper = { ...root, id: "wrapper", parentId: root.id, children: ["clipped"], kind: "container" as const, name: "wrapper", source: "body > div", paint: { opacity: 0.5 } };
+    const clipped = { ...root, id: "clipped", parentId: wrapper.id, children: [text.id], kind: "container" as const, name: "card", source: "body > div > section", rect: { x: 10, y: 10, width: 120, height: 60 }, paint: { backgroundColor: "rgb(255, 255, 255)", overflow: "hidden" as const } };
+    text.parentId = clipped.id;
+    root.children = [wrapper.id];
+    collapseScene.nodes = [root, wrapper, clipped, text];
+
+    await importScenes([collapseScene], { isCancelled: () => false, onProgress: vi.fn() });
+
+    // The wrapper collapses onto its only child, so no group is created, but
+    // the clipping board keeps its own name and source while still receiving
+    // the wrapper's compositing opacity.
+    const penpotApi = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot;
+    expect(penpotApi.group).not.toHaveBeenCalled();
+    const clip = boards[1];
+    expect(clip).toMatchObject({ type: "board", clipContent: true, name: "card", opacity: 0.5 });
+    expect(clip.pluginData).toMatchObject({ source: "body > div > section" });
+    expect(clip.children?.map((child) => child.type)).toEqual(["text"]);
   });
 
   it("removes partial boards when cancellation happens", async () => {
