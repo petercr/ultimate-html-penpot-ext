@@ -72,7 +72,7 @@ is an end-to-end remote-page test.
 | `background-images.html` | Root background, container backgrounds, repeated tile URL, bundled SVG image | One scene asset is reused for the repeated container tile; root background and image asset are present. |
 | `overflow-clipping.html` | Existing nested/rounded/scroll clips and single-axis exception | Nested clips capture as clipping; `#single-axis` remains unclipped with `UNSUPPORTED_OVERFLOW`. |
 | `color-opacity.html` | Existing fill/border/shadow alpha, nested opacity, decorated text, transparent text | Parent compositing opacity is retained once; CSS Color 4 warnings remain explicit. |
-| `stacking-contents-whitespace.html` | Negative/auto/zero/positive stacking, omitted wrapper, pre-wrap/inline spaces, NBSP, `<br>`, and a comment | Stacking layers import in browser paint order even though the fixture DOM order differs; child of `display: contents` survives; whitespace remains a browser reference for deferred 3.3 fidelity. |
+| `stacking-contents-whitespace.html` | Negative/auto/zero/positive stacking, omitted wrapper, pre-wrap/inline spaces, NBSP, `<br>`, a comment, mixed formatting, centered/padded text, tab-indented code, and a font-stack sample | Stacking layers import in browser paint order even though the fixture DOM order differs; child of `display: contents` survives; whitespace imports with per-`white-space` spacing, NBSP, and tab stops preserved as content. |
 | `asset-failures.html` | Explicitly separated repeated 404 image/background URL | One local failed URL is captured as one scene asset; import tests require a named placeholder for every affected image, while upload work is deduplicated. |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
@@ -132,14 +132,15 @@ Use this record template for a live pass:
 - CSS stacking order is faithful for the supported subset: `z-index: auto` is
   captured distinctly from numeric zero, siblings import in per-context paint
   order with stable source-order tie breaking, and the fixture DOM order
-  differs from paint order so the regression has teeth. Whitespace capture
-  is still deferred (see below); do not approve the whitespace samples as an
-  importer fidelity pass until that later-phase work is complete.
-- Whitespace capture still compacts repeated spaces/newlines in places;
-  `pre-wrap`, indentation, tabs, NBSP boundaries, `<br>` line breaks, and a
-  comment boundary are intentionally visible in the fixture so later work has
-  a stable browser reference. Do not update the screenshot to hide an import
-  mismatch.
+  differs from paint order so the regression has teeth.
+- Whitespace is captured per computed `white-space`: `pre`/`pre-wrap` keep
+  indentation and newlines (tabs expand to 8-space stops), `pre-line` keeps
+  newlines while collapsing spaces, and normal text collapses runs without
+  touching nonbreaking spaces. Comment-separated runs are combined as CSS
+  renders them. The fixture covers mixed formatting, centered and padded
+  text, a tab-indented code block, and a font-stack fallback sample.
+- Pseudo-element content keeps its old compacted form; only element text runs
+  follow the per-`white-space` policy above.
 - Local image/font URLs are correct only while the fixture server is running
   and supplied as the Base URL. A missing Base URL is a test setup failure,
   not a fixture regression.
@@ -150,3 +151,18 @@ and `baseline:importer`, and review the changed browser screenshots plus scene
 evidence. Refresh a checked-in reference only when the browser appearance is
 intentionally changed and the metadata version/font checks are still present;
 do not use reference updates to bless an untested live-host divergence.
+
+## Text capture policy
+
+Line-preserving text remains the default: every source line becomes its own
+non-wrapping text layer at its measured position, so the import matches the
+browser even when the Penpot host substitutes wider fallback fonts. The
+tradeoff is editability: editing one line never reflows its neighbors, and
+the layer tree has one layer per line instead of one per paragraph. This is
+the snapshot-importer contract, not a layout conversion; native reflowing
+text belongs to the Phase 6 layout milestone.
+
+Per-line layers carry measured bounds (`textMaxWidth`, `textFitScale`) so an
+overflowing fallback font shrinks toward its source width instead of painting
+over neighboring content. Runs longer than 20,000 characters skip
+per-character measurement and import as a single collapsed layer.

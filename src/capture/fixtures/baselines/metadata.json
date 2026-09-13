@@ -11,7 +11,7 @@
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "faee56d7c3114399ff47e788083281fd26df69be8c16d23d66a1264d60a49879"
+      "sha256": "537e154810b9b9381513e31057c536d64c7ed0cf443462d2764087ba3fa60c2d"
     },
     "assets": [
       {
@@ -602,7 +602,7 @@
     },
     {
       "file": "stacking-contents-whitespace.html",
-      "sha256": "615988903a69578f76c9258e1e0f28d8bd0cab97007655426fde7c737b5e570a",
+      "sha256": "c803db061619748acae94f4042132469d4dbd56bb870503b972a30d163126890",
       "viewports": [
         {
           "id": "desktop",
@@ -647,7 +647,7 @@
               "x": 0,
               "y": 0,
               "width": 1425,
-              "height": 983
+              "height": 1261
             }
           },
           "capture": {
@@ -656,13 +656,13 @@
               "x": 0,
               "y": 0,
               "width": 1425,
-              "height": 983,
+              "height": 1261,
               "scale": 1
             }
           },
           "png": {
             "width": 1425,
-            "height": 983
+            "height": 1261
           }
         },
         {
@@ -701,14 +701,14 @@
             "cssLayoutViewport": {
               "pageX": 0,
               "pageY": 0,
-              "clientWidth": 768,
+              "clientWidth": 753,
               "clientHeight": 1024
             },
             "cssContentSize": {
               "x": 0,
               "y": 0,
-              "width": 768,
-              "height": 1024
+              "width": 753,
+              "height": 1261
             }
           },
           "capture": {
@@ -716,14 +716,14 @@
             "clip": {
               "x": 0,
               "y": 0,
-              "width": 768,
-              "height": 1024,
+              "width": 753,
+              "height": 1261,
               "scale": 1
             }
           },
           "png": {
-            "width": 768,
-            "height": 1024
+            "width": 753,
+            "height": 1261
           }
         },
         {
@@ -769,7 +769,7 @@
               "x": 0,
               "y": 0,
               "width": 375,
-              "height": 1090
+              "height": 1391
             }
           },
           "capture": {
@@ -778,13 +778,13 @@
               "x": 0,
               "y": 0,
               "width": 375,
-              "height": 1090,
+              "height": 1391,
               "scale": 1
             }
           },
           "png": {
             "width": 375,
-            "height": 1090
+            "height": 1391
           }
         }
       ]

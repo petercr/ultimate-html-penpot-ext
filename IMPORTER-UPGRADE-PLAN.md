@@ -92,14 +92,16 @@ Reference evidence: the scene contract carries `zIndexAuto` (auto stored as 0, e
 
 ### 3.3 Text whitespace and placement
 
-- [ ] Respect computed `white-space` rather than compacting all text unconditionally.
-- [ ] Preserve meaningful spaces across inline element boundaries, nonbreaking spaces, preformatted indentation, and explicit line breaks.
-- [ ] Capture all direct text nodes, including text separated by comments or other non-rendered nodes.
-- [ ] Use measured text bounds consistently for single-line and multiline content.
-- [ ] Add fixtures for mixed formatting, centered text, padded text, code blocks, and font fallback.
-- [ ] Define whether line-preserving text remains the default and document its editing tradeoff.
+- [x] Respect computed `white-space` rather than compacting all text unconditionally.
+- [x] Preserve meaningful spaces across inline element boundaries, nonbreaking spaces, preformatted indentation, and explicit line breaks.
+- [x] Capture all direct text nodes, including text separated by comments or other non-rendered nodes.
+- [x] Use measured text bounds consistently for single-line and multiline content.
+- [x] Add fixtures for mixed formatting, centered text, padded text, code blocks, and font fallback.
+- [x] Define whether line-preserving text remains the default and document its editing tradeoff.
 
 Acceptance: fixture text retains its content, spacing, and line placement without missing runs or accidental reflow.
+
+Reference evidence: the extractor processes text per computed `white-space` (`pre` keeps spaces/newlines with tabs expanded to 8-space stops, `pre-line` keeps newlines while collapsing spaces, normal collapsing matches the old output except NBSP is never collapsed), combines comment-separated runs before processing, and measures every run individually for line splitting and bounds. `stacking-contents-whitespace.html` adds mixed-formatting, centered, padded, tab-indented code, and font-stack samples with runner assertions on indentation, tab stops, NBSP, and run content; the importer test asserts the same preserved content across all three viewports. Line-preserving text stays the default; see "Text capture policy" in `docs/importer-visual-baselines.md` for the editing tradeoff. Pseudo-element content keeps the old compacted form.
 
 ## Phase 4 — Reliable assets and import lifecycle
 

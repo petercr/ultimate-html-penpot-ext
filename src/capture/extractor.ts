@@ -397,12 +397,65 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (available <= 0 || lineRect.width <= available) return undefined;
     return Math.max(0.01, Math.min(1, available / lineRect.width));
   };
-  const textLayout = (textNode) => {
-    const raw = String(textNode.textContent || "");
-    const fallback = compact(raw);
-    const range = document.createRange();
-    range.selectNodeContents(textNode);
-    const rects = [...range.getClientRects()];
+  const normalizeNewlines = (value) => String(value || "").replace(/\\r\\n?/g, "\\n");
+  const whiteSpaceOf = (style) => String(style.whiteSpace || "normal").trim().toLowerCase() || "normal";
+  const preservesNewlines = (whiteSpace) => ["pre", "pre-wrap", "pre-line", "break-spaces"].includes(whiteSpace);
+  const preservesSpaces = (whiteSpace) => ["pre", "pre-wrap", "break-spaces"].includes(whiteSpace);
+  const tabSizeOf = (style) => {
+    const parsed = Number.parseInt(style.tabSize, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 64) : 8;
+  };
+  const expandTabs = (line, tabSize) => {
+    // Advance tabs to the next tab stop the way CSS does by default. Every
+    // glyph counts as one column, which is exact for the fixture fonts.
+    let column = 0;
+    let expanded = "";
+    for (let index = 0; index < line.length; index += 1) {
+      if (line[index] === "\\t") {
+        const spaces = tabSize - (column % tabSize);
+        expanded += " ".repeat(spaces);
+        column += spaces;
+      } else {
+        expanded += line[index];
+        column += 1;
+      }
+    }
+    return expanded;
+  };
+  // Collapse whitespace runs without touching nonbreaking spaces, which CSS
+  // never collapses and Penpot must keep non-breaking.
+  const collapseRun = (value) => String(value).replace(/[^\\S\\u00A0]+/g, " ");
+  const trimCollapsibleEdges = (value) => String(value).replace(/^[^\\S\\u00A0]+|[^\\S\\u00A0]+$/g, "");
+  // Process a run of text the way its computed white-space demands. Normal
+  // collapsing matches the old compact() output exactly except that NBSP is
+  // preserved; pre values keep spaces (with tabs expanded) and drop only the
+  // edge newlines, which paint no glyphs and would misalign a single-line
+  // layer in Penpot.
+  const processSingleLine = (raw, whiteSpace, tabSize) => {
+    const source = normalizeNewlines(raw);
+    if (preservesSpaces(whiteSpace)) return expandTabs(source, tabSize).replace(/^\\n+|\\n+$/g, "").replace(/\\n/g, " ");
+    return trimCollapsibleEdges(collapseRun(source));
+  };
+  const textLayout = (textNodes, whiteSpace = "normal", tabSize = 8) => {
+    const nodes = Array.isArray(textNodes) ? textNodes : [textNodes];
+    const raw = nodes.map((node) => String(node.textContent || "")).join("");
+    const keepLines = preservesNewlines(whiteSpace);
+    const keepSpaces = preservesSpaces(whiteSpace);
+    const fallback = processSingleLine(raw, whiteSpace, tabSize);
+    const rects = [];
+    const characters = [];
+    for (const node of nodes) {
+      const text = String(node.textContent || "");
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      rects.push(...range.getClientRects());
+      if (raw.length > 20_000) continue;
+      for (let index = 0; index < text.length; index += 1) {
+        range.setStart(node, index);
+        range.setEnd(node, index + 1);
+        characters.push({ character: text[index], rect: range.getBoundingClientRect() });
+      }
+    }
     // A single-line text node needs no extra work. For wrapped text, preserve
     // the browser's line breaks so Penpot does not reflow it differently when
     // its available font metrics differ from the source browser.
@@ -431,14 +484,20 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     let current = { top: undefined, text: "", rects: [] };
     let pendingSpace = false;
     const flush = () => {
-      if (current.text) lines.push({ text: current.text, rect: rectFor(current.rects) });
+      const text = keepSpaces ? expandTabs(current.text, tabSize) : current.text;
+      if (text && current.rects.length) lines.push({ text, rect: rectFor(current.rects) });
     };
-    for (let index = 0; index < raw.length; index += 1) {
-      range.setStart(textNode, index);
-      range.setEnd(textNode, index + 1);
-      const characterRect = range.getBoundingClientRect();
-      const character = raw[index];
-      const line = Math.round(characterRect.top * 100) / 100;
+    for (const { character, rect } of characters) {
+      // An author newline starts a new line only where white-space preserves
+      // it; elsewhere it collapses like any other whitespace run. Blank lines
+      // need no layer of their own: neighbors stay at their measured places.
+      if (character === "\\n" && keepLines) {
+        flush();
+        current = { top: undefined, text: "", rects: [] };
+        pendingSpace = false;
+        continue;
+      }
+      const line = Math.round(rect.top * 100) / 100;
       if (current.top !== undefined && Math.abs(line - current.top) > 0.5) {
         flush();
         current = { top: line, text: "", rects: [] };
@@ -446,13 +505,25 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       } else if (current.top === undefined) {
         current.top = line;
       }
+      // A nonbreaking space is content, never a collapse or break opportunity.
+      if (character === "\\u00A0") {
+        current.text += character;
+        if (rect.width > 0 && rect.height > 0) current.rects.push(rect);
+        pendingSpace = false;
+        continue;
+      }
+      if (keepSpaces) {
+        current.text += character;
+        if (rect.width > 0 && rect.height > 0) current.rects.push(rect);
+        continue;
+      }
       if (/\\s/.test(character)) {
         if (current.text) pendingSpace = true;
         continue;
       }
       if (pendingSpace) current.text += " ";
       current.text += character;
-      current.rects.push(characterRect);
+      current.rects.push(rect);
       pendingSpace = false;
     }
     flush();
@@ -487,7 +558,9 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     return clone.outerHTML;
   };
   const appendText = (parent, textNode, style, textSource = parent.source + " ::text") => {
-    const layout = textLayout(textNode);
+    // A text node inherits white-space (and tab size) from its parent chain,
+    // so the passed-in element style is the correct processing context.
+    const layout = textLayout([textNode], whiteSpaceOf(style), tabSizeOf(style));
     if ((layout.lines || []).some((line) => line.text && line.rect)) reportUnsupportedTextColor(style.color, textSource);
     for (const line of (layout.lines || [])) {
       if (!line.text || !line.rect) continue;
@@ -527,7 +600,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const source = sourceOf(element);
     const reason = unsupported(element, style);
     const id = "node-" + (++sequence);
-    const directText = [...element.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
+    const elementWhiteSpace = whiteSpaceOf(style);
+    const elementTabSize = tabSizeOf(style);
+    const hasDirectText = (child) => child.nodeType === Node.TEXT_NODE && processSingleLine(child.textContent, elementWhiteSpace, elementTabSize);
+    const directText = [...element.childNodes].some(hasDirectText);
     // Penpot's fixed text layers wrap when the fallback font is a little
     // wider than the browser's font. Links and buttons are inline controls in
     // this capture model, so preserve their source browser line as one line.
@@ -560,19 +636,23 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const parsedZIndex = Number.parseInt(style.zIndex, 10);
     const zIndexAuto = !Number.isFinite(parsedZIndex);
     const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: zIndexAuto ? 0 : parsedZIndex, zIndexAuto, paint, layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
-    let directTextNode;
+    let directTextNodes = [];
     let directTextLayout;
     let expandedDirectText = false;
     if (kind === "text") {
-      directTextNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && compact(child.textContent));
-      directTextLayout = directTextNode ? textLayout(directTextNode) : undefined;
+      // Combine every direct text run: text separated by comments or other
+      // non-rendered nodes belongs to the same content. The runs are measured
+      // individually and their raw contents processed together, so spacing
+      // across run boundaries collapses exactly as CSS renders it.
+      directTextNodes = [...element.childNodes].filter(hasDirectText);
+      directTextLayout = directTextNodes.length ? textLayout(directTextNodes, elementWhiteSpace, elementTabSize) : undefined;
       if (directTextLayout?.lines?.length > 1) {
         scene.kind = "container";
         scene.text = undefined;
         scene.textStyle = undefined;
         expandedDirectText = true;
       } else {
-        scene.text = directTextLayout?.text || compact(element.textContent);
+        scene.text = directTextLayout?.text || processSingleLine(element.textContent, elementWhiteSpace, elementTabSize);
         scene.textStyle = textStyleOf(style, directTextLayout?.measuredLineHeight);
         // Keep every captured single-line text layer from being rewrapped by
         // Penpot's fixed text box when its font metrics differ from the page.
@@ -605,7 +685,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // can visibly distort the imported vector when the host conversion also
     // succeeds.
     if (tag === "svg") return id;
-    if (expandedDirectText && directTextNode) appendText(scene, directTextNode, style, source + " ::text");
+    if (expandedDirectText) for (const textNode of directTextNodes) appendText(scene, textNode, style, source + " ::text");
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style, source + " ::text");
       if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl);

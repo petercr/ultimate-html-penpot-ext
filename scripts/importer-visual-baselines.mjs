@@ -286,6 +286,16 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
       if (layer.zIndex !== zIndex || Boolean(layer.zIndexAuto) !== zIndexAuto) throw new Error(`${source} did not capture its stacking position (zIndex ${layer.zIndex}, auto ${layer.zIndexAuto}).`);
       if (!layer.layout?.positioned) throw new Error(`${source} did not capture its positioned stacking context flag.`);
     }
+    // Whitespace fidelity: indentation, tab stops, nonbreaking spaces, and
+    // mixed-formatting runs survive capture as content, not just positions.
+    const capturedTexts = scene.nodes.map((node) => node.text || "");
+    if (!capturedTexts.includes("  leading  spaces")) throw new Error("pre-wrap leading spaces were not preserved.");
+    if (!capturedTexts.includes("        return true;")) throw new Error("pre tab stops were not expanded to spaces.");
+    if (!scene.nodes.some((node) => [...(node.text || "")].some((character) => character.charCodeAt(0) === 160))) throw new Error("Nonbreaking spaces were not preserved.");
+    for (const run of ["Mixed", "bold", "italic", "linked", "runs."]) {
+      if (!capturedTexts.includes(run)) throw new Error(`Mixed-formatting run "${run}" was not captured.`);
+    }
+    for (const source of ["#mixed-formatting", "#centered-sample", "#padded-sample", "#code-sample", "#font-stack-sample"]) sceneNode(scene, source);
   }
   if (file === "asset-failures.html") {
     const first = sceneNode(scene, "#missing-image-a");

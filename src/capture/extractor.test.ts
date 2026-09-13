@@ -299,6 +299,60 @@ describe("extractor script", () => {
     }
   });
 
+  it("preserves preformatted indentation, tabs, and line breaks per white-space", async () => {
+    document.body.innerHTML = `<pre id="code" style="white-space:pre;opacity:1;visibility:visible">  indented\n\ttabbed</pre>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const raw = "  indented\n\ttabbed";
+    const newlineAt = raw.indexOf("\n");
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const lineRect = (top: number) => ({ x: 1, y: top, left: 1, top, right: 20, bottom: top + 10, width: 19, height: 10, toJSON: () => ({}) });
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCreateRange = document.createRange;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    let offset = 0;
+    document.createRange = (() => ({
+      selectNodeContents: () => undefined,
+      setStart: (_node: unknown, start: number) => { offset = start; },
+      setEnd: () => undefined,
+      getClientRects: () => [lineRect(0), lineRect(12)],
+      getBoundingClientRect: () => lineRect(offset < newlineAt ? 0 : 12)
+    })) as unknown as typeof document.createRange;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("pre-whitespace");
+      const code = result.nodes.find((node) => node.source === "#code");
+      const texts = (code?.children || []).map((id) => result.nodes.find((node) => node.id === id)?.text);
+      expect(texts).toEqual(["  indented", "        tabbed"]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      document.createRange = originalCreateRange;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("combines text separated by comments and preserves nonbreaking spaces", async () => {
+    document.body.innerHTML = `<div id="split" style="width:25px;height:15px;opacity:1;visibility:visible;background-color:transparent;background-image:none;border-top-style:none;box-shadow:none">hello<!--split--> world</div><div id="nbsp" style="width:25px;height:15px;opacity:1;visibility:visible;background-color:transparent;background-image:none;border-top-style:none;box-shadow:none">a\u00A0b</div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const line = { x: 1, y: 1, left: 1, top: 1, right: 20, bottom: 11, width: 19, height: 10, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCreateRange = document.createRange;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    document.createRange = (() => ({ selectNodeContents: () => undefined, setStart: () => undefined, setEnd: () => undefined, getClientRects: () => [line], getBoundingClientRect: () => line })) as unknown as typeof document.createRange;
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      const result = await captureScript("split-nbsp");
+      expect(result.nodes.find((node) => node.source === "#split")?.text).toBe("hello world");
+      expect(result.nodes.find((node) => node.source === "#nbsp")?.text).toBe("a\u00A0b");
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      document.createRange = originalCreateRange;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
   it("parents omitted-wrapper children to the surviving scene ancestor in DOM order", async () => {
     document.body.innerHTML = `<div id="outer" style="width:25px;height:15px;opacity:1;visibility:visible">Before<span id="wrap1" style="display:contents;opacity:1;visibility:visible">Mid<span id="wrap2" style="display:contents;opacity:1;visibility:visible"><em id="deep" style="opacity:1;visibility:visible">Deep text</em></span></span>After</div><div id="hiddenwrap" style="width:25px;height:15px;opacity:1;visibility:hidden">Hidden text<span id="revived" style="opacity:1;visibility:visible">Revived text</span></div>`;
     document.body.style.cssText = "opacity:1;visibility:visible";

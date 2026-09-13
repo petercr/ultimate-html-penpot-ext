@@ -179,6 +179,21 @@ describe("Penpot importer", () => {
     }
   });
 
+  it("imports generated whitespace scenes with spacing preserved as content", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "stacking-contents-whitespace.html");
+    const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    const texts: string[] = [];
+    const collect = (shape: FakeShape): void => {
+      if (shape.type === "text" && typeof shape.characters === "string") texts.push(shape.characters);
+      shape.children?.forEach(collect);
+    };
+    (result as unknown as FakeShape[]).forEach(collect);
+    expect(texts).toContain("  leading  spaces");
+    expect(texts).toContain("        return true;");
+    expect(texts.some((text) => [...text].some((character) => character.charCodeAt(0) === 160))).toBe(true);
+    for (const run of ["Mixed", "bold", "italic", "linked", "runs."]) expect(texts).toContain(run);
+  });
+
   it("imports generated opacity scenes with each compositing opacity applied once", async () => {
     const scenes = scenesForFixture(baselineEvidence().scenes, "color-opacity.html");
     await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });

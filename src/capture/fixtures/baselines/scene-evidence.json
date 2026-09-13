@@ -10681,7 +10681,7 @@
     },
     {
       "file": "stacking-contents-whitespace.html",
-      "sha256": "615988903a69578f76c9258e1e0f28d8bd0cab97007655426fde7c737b5e570a",
+      "sha256": "c803db061619748acae94f4042132469d4dbd56bb870503b972a30d163126890",
       "viewports": [
         {
           "id": "desktop",
@@ -10698,7 +10698,7 @@
             },
             "documentSize": {
               "width": 1440,
-              "height": 983
+              "height": 1261
             },
             "nodes": [
               {
@@ -10713,7 +10713,7 @@
                   "x": 0,
                   "y": 0,
                   "width": 1425,
-                  "height": 982.95
+                  "height": 1260.7
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -10777,7 +10777,7 @@
                   "x": 332.5,
                   "y": 32,
                   "width": 760,
-                  "height": 918.95
+                  "height": 1196.7
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -11938,7 +11938,12 @@
                   "node-25",
                   "node-26",
                   "node-30",
-                  "node-34"
+                  "node-34",
+                  "node-37",
+                  "node-45",
+                  "node-49",
+                  "node-51",
+                  "node-55"
                 ],
                 "kind": "container",
                 "name": "card",
@@ -11947,7 +11952,7 @@
                   "x": 332.5,
                   "y": 629.78,
                   "width": 760,
-                  "height": 321.17
+                  "height": 598.92
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -12136,12 +12141,12 @@
                 "parentId": "node-26",
                 "children": [],
                 "kind": "text",
-                "name": "leading spaces",
+                "name": "  leading  spaces",
                 "source": "#whitespace-sample ::text",
                 "rect": {
-                  "x": 374.41,
+                  "x": 365.5,
                   "y": 739.39,
-                  "width": 108.89,
+                  "width": 117.8,
                   "height": 16
                 },
                 "zIndex": 0,
@@ -12153,10 +12158,10 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "leading spaces",
+                "text": "  leading  spaces",
                 "textNoWrap": true,
-                "textFitScale": 0.9908164202406098,
-                "textMaxWidth": 107.89,
+                "textFitScale": 0.9915110356536503,
+                "textMaxWidth": 116.8,
                 "textStyle": {
                   "fontFamily": "\"DejaVu Sans\", monospace",
                   "fontSize": 14,
@@ -12174,7 +12179,7 @@
                 "parentId": "node-26",
                 "children": [],
                 "kind": "text",
-                "name": "tabs and repeated spaces",
+                "name": "tabs    and   repeated spaces",
                 "source": "#whitespace-sample ::text",
                 "rect": {
                   "x": 365.5,
@@ -12191,7 +12196,7 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "tabs and repeated spaces",
+                "text": "tabs    and   repeated spaces",
                 "textNoWrap": true,
                 "textFitScale": 0.9947712418300654,
                 "textMaxWidth": 190.25,
@@ -12524,7 +12529,7 @@
                 "parentId": "node-34",
                 "children": [],
                 "kind": "text",
-                "name": "NBSP boundary stays together.",
+                "name": "NBSP boundary stays together.",
                 "source": "#nbsp-comment-sample ::text",
                 "rect": {
                   "x": 368.5,
@@ -12541,7 +12546,7 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "NBSP boundary stays together.",
+                "text": "NBSP boundary stays together.",
                 "textNoWrap": true,
                 "textFitScale": 0.995979091274628,
                 "textMaxWidth": 247.7,
@@ -12594,6 +12599,1005 @@
                   "textDecoration": "none",
                   "textTransform": "none"
                 }
+              },
+              {
+                "id": "node-37",
+                "parentId": "node-24",
+                "children": [
+                  "node-38",
+                  "node-39",
+                  "node-40",
+                  "node-41",
+                  "node-42",
+                  "node-43",
+                  "node-44"
+                ],
+                "kind": "container",
+                "name": "mixed-formatting",
+                "source": "#mixed-formatting",
+                "rect": {
+                  "x": 353.5,
+                  "y": 941.95,
+                  "width": 718,
+                  "height": 23.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-38",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "Mixed",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 353.5,
+                  "y": 943.95,
+                  "width": 52.31,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Mixed",
+                "textNoWrap": true,
+                "textFitScale": 0.9808831963295737,
+                "textMaxWidth": 51.31,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-39",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "strong",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > strong",
+                "rect": {
+                  "x": 405.81,
+                  "y": 943.95,
+                  "width": 39.39,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "bold",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 700,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9746128458999742,
+                "textMaxWidth": 38.389999999999986
+              },
+              {
+                "id": "node-40",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": ",",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 445.2,
+                  "y": 943.95,
+                  "width": 10.17,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": ",",
+                "textNoWrap": true,
+                "textFitScale": 0.9016715830875123,
+                "textMaxWidth": 9.17,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-41",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "em",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > em",
+                "rect": {
+                  "x": 455.38,
+                  "y": 943.95,
+                  "width": 38.22,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(15, 118, 110)",
+                  "borderColor": "rgb(15, 118, 110)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "italic",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "italic",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9738356881214024,
+                "textMaxWidth": 37.22
+              },
+              {
+                "id": "node-42",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": ", and",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 493.59,
+                  "y": 943.95,
+                  "width": 45.36,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": ", and",
+                "textNoWrap": true,
+                "textFitScale": 0.9779541446208113,
+                "textMaxWidth": 44.36,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-43",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "a",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > a",
+                "rect": {
+                  "x": 538.95,
+                  "y": 943.95,
+                  "width": 47.73,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(29, 78, 216)",
+                  "borderColor": "rgb(29, 78, 216)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "linked",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "underline",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9790488162581186,
+                "textMaxWidth": 46.73
+              },
+              {
+                "id": "node-44",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "runs.",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 586.69,
+                  "y": 943.95,
+                  "width": 45.38,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "runs.",
+                "textNoWrap": true,
+                "textFitScale": 0.9779638607315998,
+                "textMaxWidth": 44.38,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-45",
+                "parentId": "node-24",
+                "children": [
+                  "node-46",
+                  "node-47",
+                  "node-48"
+                ],
+                "kind": "container",
+                "name": "centered-sample",
+                "source": "#centered-sample",
+                "rect": {
+                  "x": 353.5,
+                  "y": 977.14,
+                  "width": 718,
+                  "height": 23.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-46",
+                "parentId": "node-45",
+                "children": [],
+                "kind": "text",
+                "name": "Centered line with",
+                "source": "#centered-sample ::text",
+                "rect": {
+                  "x": 569.61,
+                  "y": 979.14,
+                  "width": 151.58,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Centered line with",
+                "textNoWrap": true,
+                "textFitScale": 0.9934028235915029,
+                "textMaxWidth": 150.58,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "center",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-47",
+                "parentId": "node-45",
+                "children": [],
+                "kind": "text",
+                "name": "em",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(4) > em",
+                "rect": {
+                  "x": 721.19,
+                  "y": 979.14,
+                  "width": 76.66,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "emphasis",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "italic",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9869553874249931,
+                "textMaxWidth": 75.65999999999997
+              },
+              {
+                "id": "node-48",
+                "parentId": "node-45",
+                "children": [],
+                "kind": "text",
+                "name": "inside.",
+                "source": "#centered-sample ::text",
+                "rect": {
+                  "x": 797.84,
+                  "y": 979.14,
+                  "width": 57.55,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "inside.",
+                "textNoWrap": true,
+                "textFitScale": 0.9826238053866203,
+                "textMaxWidth": 56.55,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "center",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-49",
+                "parentId": "node-24",
+                "children": [
+                  "node-50"
+                ],
+                "kind": "container",
+                "name": "padded-sample",
+                "source": "#padded-sample",
+                "rect": {
+                  "x": 353.5,
+                  "y": 1012.33,
+                  "width": 718,
+                  "height": 61.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgb(248, 250, 252)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(203, 213, 225)",
+                  "borderWidth": 1,
+                  "borderStyle": "solid",
+                  "radius": [
+                    8,
+                    8,
+                    8,
+                    8
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    18,
+                    24,
+                    18,
+                    24
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-50",
+                "parentId": "node-49",
+                "children": [],
+                "kind": "text",
+                "name": "Padded paragraph keeps its inner runs.",
+                "source": "#padded-sample ::text",
+                "rect": {
+                  "x": 378.5,
+                  "y": 1033.33,
+                  "width": 315.02,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Padded paragraph keeps its inner runs.",
+                "textNoWrap": true,
+                "textFitScale": 0.9968255983747064,
+                "textMaxWidth": 314.02,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-51",
+                "parentId": "node-24",
+                "children": [
+                  "node-52",
+                  "node-53",
+                  "node-54"
+                ],
+                "kind": "container",
+                "name": "code-sample",
+                "source": "#code-sample",
+                "rect": {
+                  "x": 353.5,
+                  "y": 1085.52,
+                  "width": 718,
+                  "height": 87
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgb(15, 23, 42)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(226, 232, 240)",
+                  "borderColor": "rgb(226, 232, 240)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    8,
+                    8,
+                    8,
+                    8
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    12,
+                    12,
+                    12,
+                    12
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-52",
+                "parentId": "node-51",
+                "children": [],
+                "kind": "text",
+                "name": "function indented() {",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 365.5,
+                  "y": 1099.52,
+                  "width": 148.05,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "function indented() {",
+                "textNoWrap": true,
+                "textFitScale": 0.9932455251604188,
+                "textMaxWidth": 147.05,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-53",
+                "parentId": "node-51",
+                "children": [],
+                "kind": "text",
+                "name": "        return true;",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 365.5,
+                  "y": 1120.52,
+                  "width": 116.33,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "        return true;",
+                "textNoWrap": true,
+                "textFitScale": 0.9914037651508639,
+                "textMaxWidth": 115.33,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-54",
+                "parentId": "node-51",
+                "children": [],
+                "kind": "text",
+                "name": "}",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 365.5,
+                  "y": 1141.52,
+                  "width": 8.92,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "}",
+                "textNoWrap": true,
+                "textFitScale": 0.8878923766816144,
+                "textMaxWidth": 7.92,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-55",
+                "parentId": "node-24",
+                "children": [],
+                "kind": "text",
+                "name": "font-stack-sample",
+                "source": "#font-stack-sample",
+                "rect": {
+                  "x": 353.5,
+                  "y": 1186.52,
+                  "width": 294.52,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "Font stack falls back to DejaVu Sans.",
+                "textStyle": {
+                  "fontFamily": "NoSuchFont, \"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9966046448458509,
+                "textMaxWidth": 293.52
               }
             ],
             "assets": [],
@@ -12615,7 +13619,7 @@
             },
             "documentSize": {
               "width": 768,
-              "height": 1024
+              "height": 1261
             },
             "nodes": [
               {
@@ -12629,8 +13633,8 @@
                 "rect": {
                   "x": 0,
                   "y": 0,
-                  "width": 768,
-                  "height": 982.95
+                  "width": 753,
+                  "height": 1260.7
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -12693,8 +13697,8 @@
                 "rect": {
                   "x": 32,
                   "y": 32,
-                  "width": 704,
-                  "height": 918.95
+                  "width": 689,
+                  "height": 1196.7
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -12755,7 +13759,7 @@
                 "rect": {
                   "x": 32,
                   "y": 32,
-                  "width": 704,
+                  "width": 689,
                   "height": 75.38
                 },
                 "zIndex": 0,
@@ -12893,7 +13897,7 @@
                 "rect": {
                   "x": 32,
                   "y": 125.38,
-                  "width": 704,
+                  "width": 689,
                   "height": 296.61
                 },
                 "zIndex": 0,
@@ -13030,7 +14034,7 @@
                 "rect": {
                   "x": 53,
                   "y": 220.98,
-                  "width": 662,
+                  "width": 647,
                   "height": 180
                 },
                 "zIndex": 0,
@@ -13488,7 +14492,7 @@
                 "rect": {
                   "x": 32,
                   "y": 439.98,
-                  "width": 704,
+                  "width": 689,
                   "height": 171.8
                 },
                 "zIndex": 0,
@@ -13624,7 +14628,7 @@
                 "rect": {
                   "x": 53,
                   "y": 535.59,
-                  "width": 662,
+                  "width": 647,
                   "height": 39.19
                 },
                 "zIndex": 0,
@@ -13855,7 +14859,12 @@
                   "node-25",
                   "node-26",
                   "node-30",
-                  "node-34"
+                  "node-34",
+                  "node-37",
+                  "node-45",
+                  "node-49",
+                  "node-51",
+                  "node-55"
                 ],
                 "kind": "container",
                 "name": "card",
@@ -13863,8 +14872,8 @@
                 "rect": {
                   "x": 32,
                   "y": 629.78,
-                  "width": 704,
-                  "height": 321.17
+                  "width": 689,
+                  "height": 598.92
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -13999,7 +15008,7 @@
                 "rect": {
                   "x": 53,
                   "y": 725.39,
-                  "width": 662,
+                  "width": 647,
                   "height": 87
                 },
                 "zIndex": 0,
@@ -14053,12 +15062,12 @@
                 "parentId": "node-26",
                 "children": [],
                 "kind": "text",
-                "name": "leading spaces",
+                "name": "  leading  spaces",
                 "source": "#whitespace-sample ::text",
                 "rect": {
-                  "x": 73.91,
+                  "x": 65,
                   "y": 739.39,
-                  "width": 108.89,
+                  "width": 117.8,
                   "height": 16
                 },
                 "zIndex": 0,
@@ -14070,10 +15079,10 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "leading spaces",
+                "text": "  leading  spaces",
                 "textNoWrap": true,
-                "textFitScale": 0.9908164202406098,
-                "textMaxWidth": 107.89,
+                "textFitScale": 0.9915110356536503,
+                "textMaxWidth": 116.8,
                 "textStyle": {
                   "fontFamily": "\"DejaVu Sans\", monospace",
                   "fontSize": 14,
@@ -14091,7 +15100,7 @@
                 "parentId": "node-26",
                 "children": [],
                 "kind": "text",
-                "name": "tabs and repeated spaces",
+                "name": "tabs    and   repeated spaces",
                 "source": "#whitespace-sample ::text",
                 "rect": {
                   "x": 65,
@@ -14108,7 +15117,7 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "tabs and repeated spaces",
+                "text": "tabs    and   repeated spaces",
                 "textNoWrap": true,
                 "textFitScale": 0.9947712418300654,
                 "textMaxWidth": 190.25,
@@ -14176,7 +15185,7 @@
                 "rect": {
                   "x": 53,
                   "y": 824.39,
-                  "width": 662,
+                  "width": 647,
                   "height": 23.19
                 },
                 "zIndex": 0,
@@ -14233,7 +15242,7 @@
                 "name": "Inline",
                 "source": "#inline-space ::text",
                 "rect": {
-                  "x": 187.91,
+                  "x": 180.41,
                   "y": 826.39,
                   "width": 48.83,
                   "height": 19
@@ -14271,7 +15280,7 @@
                 "name": "strong",
                 "source": "main > section:nth-of-type(3) > p:nth-of-type(1) > strong",
                 "rect": {
-                  "x": 236.73,
+                  "x": 229.23,
                   "y": 826.39,
                   "width": 96.94,
                   "height": 19
@@ -14344,7 +15353,7 @@
                 "name": "keeps a meaningful boundary.",
                 "source": "#inline-space ::text",
                 "rect": {
-                  "x": 333.67,
+                  "x": 326.17,
                   "y": 826.39,
                   "width": 246.41,
                   "height": 19
@@ -14387,7 +15396,7 @@
                 "rect": {
                   "x": 53,
                   "y": 863.58,
-                  "width": 662,
+                  "width": 647,
                   "height": 66.38
                 },
                 "zIndex": 0,
@@ -14441,7 +15450,7 @@
                 "parentId": "node-34",
                 "children": [],
                 "kind": "text",
-                "name": "NBSP boundary stays together.",
+                "name": "NBSP boundary stays together.",
                 "source": "#nbsp-comment-sample ::text",
                 "rect": {
                   "x": 68,
@@ -14458,7 +15467,7 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "NBSP boundary stays together.",
+                "text": "NBSP boundary stays together.",
                 "textNoWrap": true,
                 "textFitScale": 0.995979091274628,
                 "textMaxWidth": 247.7,
@@ -14511,6 +15520,1005 @@
                   "textDecoration": "none",
                   "textTransform": "none"
                 }
+              },
+              {
+                "id": "node-37",
+                "parentId": "node-24",
+                "children": [
+                  "node-38",
+                  "node-39",
+                  "node-40",
+                  "node-41",
+                  "node-42",
+                  "node-43",
+                  "node-44"
+                ],
+                "kind": "container",
+                "name": "mixed-formatting",
+                "source": "#mixed-formatting",
+                "rect": {
+                  "x": 53,
+                  "y": 941.95,
+                  "width": 647,
+                  "height": 23.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-38",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "Mixed",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 53,
+                  "y": 943.95,
+                  "width": 52.31,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Mixed",
+                "textNoWrap": true,
+                "textFitScale": 0.9808831963295737,
+                "textMaxWidth": 51.31,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-39",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "strong",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > strong",
+                "rect": {
+                  "x": 105.31,
+                  "y": 943.95,
+                  "width": 39.39,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "bold",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 700,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9746128458999742,
+                "textMaxWidth": 38.389999999999986
+              },
+              {
+                "id": "node-40",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": ",",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 144.7,
+                  "y": 943.95,
+                  "width": 10.17,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": ",",
+                "textNoWrap": true,
+                "textFitScale": 0.9016715830875123,
+                "textMaxWidth": 9.17,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-41",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "em",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > em",
+                "rect": {
+                  "x": 154.88,
+                  "y": 943.95,
+                  "width": 38.22,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(15, 118, 110)",
+                  "borderColor": "rgb(15, 118, 110)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "italic",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "italic",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9738356881214024,
+                "textMaxWidth": 37.22
+              },
+              {
+                "id": "node-42",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": ", and",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 193.09,
+                  "y": 943.95,
+                  "width": 45.36,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": ", and",
+                "textNoWrap": true,
+                "textFitScale": 0.9779541446208113,
+                "textMaxWidth": 44.36,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-43",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "a",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > a",
+                "rect": {
+                  "x": 238.45,
+                  "y": 943.95,
+                  "width": 47.73,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(29, 78, 216)",
+                  "borderColor": "rgb(29, 78, 216)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "linked",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "underline",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9790488162581186,
+                "textMaxWidth": 46.73
+              },
+              {
+                "id": "node-44",
+                "parentId": "node-37",
+                "children": [],
+                "kind": "text",
+                "name": "runs.",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 286.19,
+                  "y": 943.95,
+                  "width": 45.38,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "runs.",
+                "textNoWrap": true,
+                "textFitScale": 0.9779638607315998,
+                "textMaxWidth": 44.38,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-45",
+                "parentId": "node-24",
+                "children": [
+                  "node-46",
+                  "node-47",
+                  "node-48"
+                ],
+                "kind": "container",
+                "name": "centered-sample",
+                "source": "#centered-sample",
+                "rect": {
+                  "x": 53,
+                  "y": 977.14,
+                  "width": 647,
+                  "height": 23.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-46",
+                "parentId": "node-45",
+                "children": [],
+                "kind": "text",
+                "name": "Centered line with",
+                "source": "#centered-sample ::text",
+                "rect": {
+                  "x": 233.61,
+                  "y": 979.14,
+                  "width": 151.58,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Centered line with",
+                "textNoWrap": true,
+                "textFitScale": 0.9934028235915029,
+                "textMaxWidth": 150.58,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "center",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-47",
+                "parentId": "node-45",
+                "children": [],
+                "kind": "text",
+                "name": "em",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(4) > em",
+                "rect": {
+                  "x": 385.19,
+                  "y": 979.14,
+                  "width": 76.66,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "emphasis",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "italic",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9869553874249934,
+                "textMaxWidth": 75.66
+              },
+              {
+                "id": "node-48",
+                "parentId": "node-45",
+                "children": [],
+                "kind": "text",
+                "name": "inside.",
+                "source": "#centered-sample ::text",
+                "rect": {
+                  "x": 461.84,
+                  "y": 979.14,
+                  "width": 57.55,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "inside.",
+                "textNoWrap": true,
+                "textFitScale": 0.9826238053866203,
+                "textMaxWidth": 56.55,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "center",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-49",
+                "parentId": "node-24",
+                "children": [
+                  "node-50"
+                ],
+                "kind": "container",
+                "name": "padded-sample",
+                "source": "#padded-sample",
+                "rect": {
+                  "x": 53,
+                  "y": 1012.33,
+                  "width": 647,
+                  "height": 61.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgb(248, 250, 252)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(203, 213, 225)",
+                  "borderWidth": 1,
+                  "borderStyle": "solid",
+                  "radius": [
+                    8,
+                    8,
+                    8,
+                    8
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    18,
+                    24,
+                    18,
+                    24
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-50",
+                "parentId": "node-49",
+                "children": [],
+                "kind": "text",
+                "name": "Padded paragraph keeps its inner runs.",
+                "source": "#padded-sample ::text",
+                "rect": {
+                  "x": 78,
+                  "y": 1033.33,
+                  "width": 315.02,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Padded paragraph keeps its inner runs.",
+                "textNoWrap": true,
+                "textFitScale": 0.9968255983747064,
+                "textMaxWidth": 314.02,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-51",
+                "parentId": "node-24",
+                "children": [
+                  "node-52",
+                  "node-53",
+                  "node-54"
+                ],
+                "kind": "container",
+                "name": "code-sample",
+                "source": "#code-sample",
+                "rect": {
+                  "x": 53,
+                  "y": 1085.52,
+                  "width": 647,
+                  "height": 87
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgb(15, 23, 42)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(226, 232, 240)",
+                  "borderColor": "rgb(226, 232, 240)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    8,
+                    8,
+                    8,
+                    8
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    12,
+                    12,
+                    12,
+                    12
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-52",
+                "parentId": "node-51",
+                "children": [],
+                "kind": "text",
+                "name": "function indented() {",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 65,
+                  "y": 1099.52,
+                  "width": 148.05,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "function indented() {",
+                "textNoWrap": true,
+                "textFitScale": 0.9932455251604188,
+                "textMaxWidth": 147.05,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-53",
+                "parentId": "node-51",
+                "children": [],
+                "kind": "text",
+                "name": "        return true;",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 65,
+                  "y": 1120.52,
+                  "width": 116.33,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "        return true;",
+                "textNoWrap": true,
+                "textFitScale": 0.9914037651508639,
+                "textMaxWidth": 115.33,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-54",
+                "parentId": "node-51",
+                "children": [],
+                "kind": "text",
+                "name": "}",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 65,
+                  "y": 1141.52,
+                  "width": 8.92,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "}",
+                "textNoWrap": true,
+                "textFitScale": 0.8878923766816144,
+                "textMaxWidth": 7.92,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-55",
+                "parentId": "node-24",
+                "children": [],
+                "kind": "text",
+                "name": "font-stack-sample",
+                "source": "#font-stack-sample",
+                "rect": {
+                  "x": 53,
+                  "y": 1186.52,
+                  "width": 294.52,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "Font stack falls back to DejaVu Sans.",
+                "textStyle": {
+                  "fontFamily": "NoSuchFont, \"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9966046448458509,
+                "textMaxWidth": 293.52
               }
             ],
             "assets": [],
@@ -14532,7 +16540,7 @@
             },
             "documentSize": {
               "width": 390,
-              "height": 1090
+              "height": 1391
             },
             "nodes": [
               {
@@ -14547,7 +16555,7 @@
                   "x": 0,
                   "y": 0,
                   "width": 375,
-                  "height": 1089.81
+                  "height": 1390.75
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -14611,7 +16619,7 @@
                   "x": 16,
                   "y": 16,
                   "width": 343,
-                  "height": 1057.81
+                  "height": 1358.75
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -15915,7 +17923,12 @@
                   "node-29",
                   "node-30",
                   "node-34",
-                  "node-39"
+                  "node-39",
+                  "node-42",
+                  "node-50",
+                  "node-54",
+                  "node-57",
+                  "node-61"
                 ],
                 "kind": "container",
                 "name": "card",
@@ -15924,7 +17937,7 @@
                   "x": 16,
                   "y": 737.45,
                   "width": 343,
-                  "height": 336.36
+                  "height": 637.3
                 },
                 "zIndex": 0,
                 "zIndexAuto": true,
@@ -16113,12 +18126,12 @@
                 "parentId": "node-30",
                 "children": [],
                 "kind": "text",
-                "name": "leading spaces",
+                "name": "  leading  spaces",
                 "source": "#whitespace-sample ::text",
                 "rect": {
-                  "x": 53.91,
+                  "x": 45,
                   "y": 843.06,
-                  "width": 108.89,
+                  "width": 117.8,
                   "height": 16
                 },
                 "zIndex": 0,
@@ -16130,10 +18143,10 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "leading spaces",
+                "text": "  leading  spaces",
                 "textNoWrap": true,
-                "textFitScale": 0.9908164202406098,
-                "textMaxWidth": 107.89,
+                "textFitScale": 0.9915110356536503,
+                "textMaxWidth": 116.8,
                 "textStyle": {
                   "fontFamily": "\"DejaVu Sans\", monospace",
                   "fontSize": 14,
@@ -16151,7 +18164,7 @@
                 "parentId": "node-30",
                 "children": [],
                 "kind": "text",
-                "name": "tabs and repeated spaces",
+                "name": "tabs    and   repeated spaces",
                 "source": "#whitespace-sample ::text",
                 "rect": {
                   "x": 45,
@@ -16168,7 +18181,7 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "tabs and repeated spaces",
+                "text": "tabs    and   repeated spaces",
                 "textNoWrap": true,
                 "textFitScale": 0.9947712418300654,
                 "textMaxWidth": 190.25,
@@ -16540,7 +18553,7 @@
                 "parentId": "node-39",
                 "children": [],
                 "kind": "text",
-                "name": "NBSP boundary stays together.",
+                "name": "NBSP boundary stays together.",
                 "source": "#nbsp-comment-sample ::text",
                 "rect": {
                   "x": 48,
@@ -16557,7 +18570,7 @@
                 "layout": {
                   "kind": "none"
                 },
-                "text": "NBSP boundary stays together.",
+                "text": "NBSP boundary stays together.",
                 "textNoWrap": true,
                 "textFitScale": 0.995979091274628,
                 "textMaxWidth": 247.7,
@@ -16610,6 +18623,1044 @@
                   "textDecoration": "none",
                   "textTransform": "none"
                 }
+              },
+              {
+                "id": "node-42",
+                "parentId": "node-28",
+                "children": [
+                  "node-43",
+                  "node-44",
+                  "node-45",
+                  "node-46",
+                  "node-47",
+                  "node-48",
+                  "node-49"
+                ],
+                "kind": "container",
+                "name": "mixed-formatting",
+                "source": "#mixed-formatting",
+                "rect": {
+                  "x": 33,
+                  "y": 1068.81,
+                  "width": 309,
+                  "height": 23.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-43",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": "Mixed",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 33,
+                  "y": 1070.81,
+                  "width": 52.31,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Mixed",
+                "textNoWrap": true,
+                "textFitScale": 0.9808831963295737,
+                "textMaxWidth": 51.31,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-44",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": "strong",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > strong",
+                "rect": {
+                  "x": 85.31,
+                  "y": 1070.81,
+                  "width": 39.39,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "bold",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 700,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9746128458999747,
+                "textMaxWidth": 38.39
+              },
+              {
+                "id": "node-45",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": ",",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 124.7,
+                  "y": 1070.81,
+                  "width": 10.17,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": ",",
+                "textNoWrap": true,
+                "textFitScale": 0.9016715830875123,
+                "textMaxWidth": 9.17,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-46",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": "em",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > em",
+                "rect": {
+                  "x": 134.88,
+                  "y": 1070.81,
+                  "width": 38.22,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(15, 118, 110)",
+                  "borderColor": "rgb(15, 118, 110)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "italic",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "italic",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9738356881214024,
+                "textMaxWidth": 37.22
+              },
+              {
+                "id": "node-47",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": ", and",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 173.09,
+                  "y": 1070.81,
+                  "width": 45.36,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": ", and",
+                "textNoWrap": true,
+                "textFitScale": 0.9779541446208113,
+                "textMaxWidth": 44.36,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-48",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": "a",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(3) > a",
+                "rect": {
+                  "x": 218.45,
+                  "y": 1070.81,
+                  "width": 47.73,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(29, 78, 216)",
+                  "borderColor": "rgb(29, 78, 216)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "linked",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "underline",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9790488162581186,
+                "textMaxWidth": 46.73
+              },
+              {
+                "id": "node-49",
+                "parentId": "node-42",
+                "children": [],
+                "kind": "text",
+                "name": "runs.",
+                "source": "#mixed-formatting ::text",
+                "rect": {
+                  "x": 266.19,
+                  "y": 1070.81,
+                  "width": 45.38,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "runs.",
+                "textNoWrap": true,
+                "textFitScale": 0.9779638607315998,
+                "textMaxWidth": 44.38,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-50",
+                "parentId": "node-28",
+                "children": [
+                  "node-51",
+                  "node-52",
+                  "node-53"
+                ],
+                "kind": "container",
+                "name": "centered-sample",
+                "source": "#centered-sample",
+                "rect": {
+                  "x": 33,
+                  "y": 1104,
+                  "width": 309,
+                  "height": 23.19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-51",
+                "parentId": "node-50",
+                "children": [],
+                "kind": "text",
+                "name": "Centered line with",
+                "source": "#centered-sample ::text",
+                "rect": {
+                  "x": 44.61,
+                  "y": 1106,
+                  "width": 151.58,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Centered line with",
+                "textNoWrap": true,
+                "textFitScale": 0.9934028235915029,
+                "textMaxWidth": 150.58,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "center",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-52",
+                "parentId": "node-50",
+                "children": [],
+                "kind": "text",
+                "name": "em",
+                "source": "main > section:nth-of-type(3) > p:nth-of-type(4) > em",
+                "rect": {
+                  "x": 196.19,
+                  "y": 1106,
+                  "width": 76.66,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "emphasis",
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "italic",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9869553874249934,
+                "textMaxWidth": 75.66
+              },
+              {
+                "id": "node-53",
+                "parentId": "node-50",
+                "children": [],
+                "kind": "text",
+                "name": "inside.",
+                "source": "#centered-sample ::text",
+                "rect": {
+                  "x": 272.84,
+                  "y": 1106,
+                  "width": 57.55,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "inside.",
+                "textNoWrap": true,
+                "textFitScale": 0.9826238053866203,
+                "textMaxWidth": 56.55,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "center",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-54",
+                "parentId": "node-28",
+                "children": [
+                  "node-55",
+                  "node-56"
+                ],
+                "kind": "container",
+                "name": "padded-sample",
+                "source": "#padded-sample",
+                "rect": {
+                  "x": 33,
+                  "y": 1139.19,
+                  "width": 309,
+                  "height": 84.38
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgb(248, 250, 252)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(203, 213, 225)",
+                  "borderWidth": 1,
+                  "borderStyle": "solid",
+                  "radius": [
+                    8,
+                    8,
+                    8,
+                    8
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    18,
+                    24,
+                    18,
+                    24
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-55",
+                "parentId": "node-54",
+                "children": [],
+                "kind": "text",
+                "name": "Padded paragraph keeps its",
+                "source": "#padded-sample ::text",
+                "rect": {
+                  "x": 58,
+                  "y": 1160.19,
+                  "width": 223.42,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "Padded paragraph keeps its",
+                "textNoWrap": true,
+                "textFitScale": 0.995524124966431,
+                "textMaxWidth": 222.42,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.4493750000000034,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-56",
+                "parentId": "node-54",
+                "children": [],
+                "kind": "text",
+                "name": "inner runs.",
+                "source": "#padded-sample ::text",
+                "rect": {
+                  "x": 58,
+                  "y": 1183.38,
+                  "width": 86.52,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(23, 32, 51)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "inner runs.",
+                "textNoWrap": true,
+                "textFitScale": 0.9884419787332409,
+                "textMaxWidth": 85.52,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.4493750000000034,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-57",
+                "parentId": "node-28",
+                "children": [
+                  "node-58",
+                  "node-59",
+                  "node-60"
+                ],
+                "kind": "container",
+                "name": "code-sample",
+                "source": "#code-sample",
+                "rect": {
+                  "x": 33,
+                  "y": 1235.56,
+                  "width": 309,
+                  "height": 87
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgb(15, 23, 42)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(226, 232, 240)",
+                  "borderColor": "rgb(226, 232, 240)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    8,
+                    8,
+                    8,
+                    8
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    12,
+                    12,
+                    12,
+                    12
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": false
+              },
+              {
+                "id": "node-58",
+                "parentId": "node-57",
+                "children": [],
+                "kind": "text",
+                "name": "function indented() {",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 45,
+                  "y": 1249.56,
+                  "width": 148.05,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "function indented() {",
+                "textNoWrap": true,
+                "textFitScale": 0.9932455251604188,
+                "textMaxWidth": 147.05,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-59",
+                "parentId": "node-57",
+                "children": [],
+                "kind": "text",
+                "name": "        return true;",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 45,
+                  "y": 1270.56,
+                  "width": 116.33,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "        return true;",
+                "textNoWrap": true,
+                "textFitScale": 0.9914037651508639,
+                "textMaxWidth": 115.33,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-60",
+                "parentId": "node-57",
+                "children": [],
+                "kind": "text",
+                "name": "}",
+                "source": "#code-sample ::text",
+                "rect": {
+                  "x": 45,
+                  "y": 1291.56,
+                  "width": 8.92,
+                  "height": 16
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "color": "rgb(226, 232, 240)",
+                  "opacity": 1
+                },
+                "layout": {
+                  "kind": "none"
+                },
+                "text": "}",
+                "textNoWrap": true,
+                "textFitScale": 0.8878923766816144,
+                "textMaxWidth": 7.92,
+                "textStyle": {
+                  "fontFamily": "\"DejaVu Sans\", monospace",
+                  "fontSize": 14,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.5,
+                  "letterSpacing": 0,
+                  "textAlign": "start",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                }
+              },
+              {
+                "id": "node-61",
+                "parentId": "node-28",
+                "children": [],
+                "kind": "text",
+                "name": "font-stack-sample",
+                "source": "#font-stack-sample",
+                "rect": {
+                  "x": 33,
+                  "y": 1336.56,
+                  "width": 294.52,
+                  "height": 19
+                },
+                "zIndex": 0,
+                "zIndexAuto": true,
+                "paint": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "backgroundImage": "none",
+                  "backgroundRepeat": "repeat",
+                  "backgroundSize": "auto",
+                  "backgroundPosition": "0% 0%",
+                  "backgroundPositionX": "0%",
+                  "backgroundPositionY": "0%",
+                  "color": "rgb(23, 32, 51)",
+                  "borderColor": "rgb(23, 32, 51)",
+                  "borderWidth": 0,
+                  "borderStyle": "none",
+                  "radius": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "opacity": 1,
+                  "boxShadow": "none",
+                  "overflowX": "visible",
+                  "overflowY": "visible",
+                  "overflow": "visible",
+                  "transform": "none"
+                },
+                "layout": {
+                  "kind": "none",
+                  "direction": "row",
+                  "wrap": "nowrap",
+                  "justifyContent": "normal",
+                  "alignItems": "normal",
+                  "rowGap": 0,
+                  "columnGap": 0,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "absolute": false,
+                  "positioned": false
+                },
+                "textNoWrap": true,
+                "text": "Font stack falls back to DejaVu Sans.",
+                "textStyle": {
+                  "fontFamily": "NoSuchFont, \"DejaVu Sans\", sans-serif",
+                  "fontSize": 16,
+                  "fontWeight": 400,
+                  "fontStyle": "normal",
+                  "lineHeight": 1.1875,
+                  "letterSpacing": 0,
+                  "textAlign": "left",
+                  "textDecoration": "none",
+                  "textTransform": "none"
+                },
+                "textFitScale": 0.9966046448458509,
+                "textMaxWidth": 293.52
               }
             ],
             "assets": [],
