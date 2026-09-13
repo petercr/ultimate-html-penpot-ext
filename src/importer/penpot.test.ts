@@ -166,15 +166,16 @@ describe("Penpot importer", () => {
       const stage = boards.find((shape) => shape !== board && (shape.pluginData as Record<string, string>).source === "#stacking-stage" && (shape.pluginData as Record<string, string>).viewport === viewportId);
       // The fixture's DOM order is positive, auto, zero, negative, while the
       // browser paints negative, auto, zero, positive. The checked-in
-      // screenshots are pixel-identical across that reorder, so matching this
-      // order proves the import follows paint order rather than DOM order.
+      // screenshots are pixel-identical across that reorder. Layers append
+      // topmost-first (each live appendChild lands behind), so this append
+      // order leaves the live shapes in browser paint order.
       // (This mock host leaves each layer's text run beside its backdrop
       // instead of grouping them; the layer pairs still carry the order.)
       expect(stage?.children?.map((child) => (child.pluginData as Record<string, string>).source)).toEqual([
-        "#stack-negative ::text", "#stack-negative",
-        "#stack-auto ::text", "#stack-auto",
+        "#stack-positive ::text", "#stack-positive",
         "#stack-zero ::text", "#stack-zero",
-        "#stack-positive ::text", "#stack-positive"
+        "#stack-auto ::text", "#stack-auto",
+        "#stack-negative ::text", "#stack-negative"
       ]);
     }
   });
@@ -339,7 +340,8 @@ describe("Penpot importer", () => {
     const result = await importScenes([failing], { isCancelled: () => false, onProgress: vi.fn() });
     const names = (result[0] as unknown as FakeShape).children?.map((child) => child.name);
     expect(upload).toHaveBeenCalledOnce();
-    expect(names).toEqual(["Image unavailable: first broken image", "Image unavailable: second broken image"]);
+    // Order-insensitive: siblings append topmost-first for live paint order.
+    expect(names?.slice().sort()).toEqual(["Image unavailable: first broken image", "Image unavailable: second broken image"]);
   });
 
   it("uploads inlined raster assets and reuses them across responsive boards", async () => {
@@ -822,7 +824,10 @@ describe("Penpot importer", () => {
 
     const result = await importScenes([stackingScene], { isCancelled: () => false, onProgress: vi.fn() });
     const board = result[0] as unknown as FakeShape;
-    expect(board.children?.map((child) => child.name)).toEqual(["neg", "in-flow", "auto", "pos"]);
+    // Siblings append topmost-first: Penpot's default flags insert each
+    // appendChild at index 0 behind the shapes already present, so this
+    // append order leaves the live shapes in browser back-to-front order.
+    expect(board.children?.map((child) => child.name)).toEqual(["pos", "auto", "in-flow", "neg"]);
   });
 
   it("keeps nested stacking contexts isolated from outer layers", async () => {
@@ -844,9 +849,10 @@ describe("Penpot importer", () => {
     // The group keeps background first: the context backdrop below its child.
     expect((group.mock.calls[0]?.[0] as FakeShape[]).map((child) => child.name)).toEqual(["context", "inner"]);
     expect(group.mock.results[0]?.value).toMatchObject({ type: "group", opacity: 0.5 });
-    // The whole context subtree renders before the outer sibling, so the
-    // sibling paints on top while the extreme inner child never escapes.
-    expect(board.children?.map((child) => child.name)).toEqual(["inner", "context", "sibling"]);
+    // The outer sibling appends first so it lands behind nothing: each later
+    // append goes behind, leaving the sibling on top while the extreme inner
+    // child never escapes its context group.
+    expect(board.children?.map((child) => child.name)).toEqual(["sibling", "inner", "context"]);
   });
 
   it("removes partial boards when cancellation happens", async () => {

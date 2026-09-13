@@ -543,13 +543,17 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           siblings.push(node);
           childrenByParent.set(node.parentId, siblings);
         }
-        // Reproduce supported CSS paint order, bottom layer first: negative
-        // z-index ascending, non-positioned in-flow content, positioned
-        // automatic/zero stacking in source order, then positive z-index
-        // ascending. Sorting stays within each parent's children with a
-        // stable source-order tie break, so nested stacking contexts keep
-        // their contents isolated instead of being globally re-sorted
-        // against unrelated layers.
+        // Reproduce supported CSS paint order: negative z-index ascending,
+        // non-positioned in-flow content, positioned automatic/zero stacking
+        // in source order, then positive z-index ascending. Sorting stays
+        // within each parent's children with a stable source-order tie break,
+        // so nested stacking contexts keep their contents isolated instead of
+        // being globally re-sorted against unrelated layers.
+        // Siblings are appended topmost-first: under Penpot's default plugin
+        // flags, appendChild inserts each child at index 0, behind the
+        // children already present (see app.plugins.shape in penpot/penpot),
+        // so appending in descending paint order leaves the parent's shapes
+        // in browser back-to-front order.
         const domOrder = new Map(scene.nodes.map((node, index) => [node.id, index]));
         const positioned = (node: SceneNode): boolean => Boolean(node.layout.positioned || node.layout.absolute);
         const paintRank = (node: SceneNode): [number, number] => {
@@ -560,7 +564,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         const byPaintOrder = (a: SceneNode, b: SceneNode): number => {
           const [rankA, zA] = paintRank(a);
           const [rankB, zB] = paintRank(b);
-          return rankA - rankB || zA - zB || (domOrder.get(a.id) ?? 0) - (domOrder.get(b.id) ?? 0);
+          return rankB - rankA || zB - zA || (domOrder.get(b.id) ?? 0) - (domOrder.get(a.id) ?? 0);
         };
         for (const siblings of childrenByParent.values()) siblings.sort(byPaintOrder);
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
@@ -634,7 +638,13 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // happened to wrap it. Only the wrapper's compositing opacity is
             // still applied.
             const collapsed = children.length === 1 && !backdrop;
-            const shape = collapsed ? children[0] : penpot.group(children);
+            // Rendered children arrive topmost-first (see the sibling sort
+            // above), but a group's shapes vector is back-to-front, so group
+            // members run in the opposite order with the backdrop behind.
+            const rendered = backdrop ? children.slice(1) : children;
+            const members = rendered.slice().reverse();
+            if (backdrop) members.unshift(backdrop);
+            const shape = collapsed ? children[0] : penpot.group(members);
             if (!shape) {
               reportProgress();
               return children[0];
