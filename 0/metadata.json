@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.10.7-nightly.202609110625.5f09e04de",
+  "checkpoint_id": "01M2KBCHEYTVMTDTW9X1Y50AF4",
+  "session_id": "01a0a6a1-6020-7f00-8524-525bb1d1e154",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-15T20:15:59.698455363Z",
+  "branch": "phase4-lifecycle-diagnostics",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.test.ts",
+    "src/capture/extractor.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-terra",
+  "turn_id": "920366dd7fc6",
+  "checkpoint_transcript_start": 275,
+  "transcript_lines_at_start": 275,
+  "compact_transcript_start": 37,
+  "token_usage": {
+    "input_tokens": 109463,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4634880,
+    "output_tokens": 13136,
+    "api_call_count": 27
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-15T20:15:59.49558027Z",
+    "agent_lines": 139,
+    "agent_removed": 30,
+    "human_added": 1,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 140,
+    "total_lines_changed": 171,
+    "agent_percentage": 98.83040935672514,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    }
+  ]
+}
