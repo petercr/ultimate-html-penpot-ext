@@ -111,30 +111,36 @@ Reference evidence: the extractor processes text per computed `white-space` (`pr
 - [x] Normalize serialized SVG namespaces/presentation styles (including CSS classes from external SVG `<img>` assets) and keep each SVG as one scene asset to avoid duplicate layers.
 - [x] Cache both successful and failed asset resolutions across responsive boards.
 - [x] Render a visible, named placeholder when an image cannot be imported.
-- [ ] Return import-time diagnostics to the UI, including asset source and failure reason.
+- [x] Return import-time diagnostics to the UI, including asset source and failure reason.
 - [x] Distinguish editable SVG success, raster fallback, and complete failure.
-- [ ] Test a repeated failing URL and cancellation during an asset operation.
+- [x] Test a repeated failing URL and cancellation during an asset operation.
 
 Acceptance: one failing shared asset does not trigger repeated uploads, silently disappear, or prevent unrelated layers from importing.
+
+Reference evidence: failed media uploads remain cached and render named placeholders. The importer now emits `ASSET_IMPORT_FAILED` diagnostics for every affected layer, including its captured source, source asset, viewport, and Penpot upload reason; the plugin forwards those diagnostics to the active UI run. `src/importer/penpot.test.ts` covers a shared failed URL across boards, asserts both source URL and upload reason are returned, and holds a media upload open to verify cancellation removes the partial board after that operation completes.
 
 ### 4.2 Scene validation and workload limits
 
 - [x] Validate paint, text styles, layouts, asset fields, and diagnostics before host mutation.
 - [x] Reject duplicate node IDs and cycles; reject missing parents, conflicting child references, duplicate assets, and missing asset references.
 - [x] Bound total scene count, aggregate layers, dimensions, and payload size for the whole import.
-- [ ] Enforce capture limits during traversal so oversized documents stop before constructing and posting an excessive scene.
-- [ ] Show actionable errors and verify invalid scenes create no Penpot objects.
+- [x] Enforce capture limits during traversal so oversized documents stop before constructing and posting an excessive scene.
+- [x] Show actionable errors and verify invalid scenes create no Penpot objects.
 
 Acceptance: malformed or oversized scenes fail predictably before import rather than producing incomplete trees or host API errors.
 
+Reference evidence: the extractor checks document width/height before traversing, then reserves capacity before every element, text-run, pseudo-element, and distinct asset. It emits an actionable `CAPTURE_ERROR` rather than posting a partial scene when one of the 20,000-node/asset or 100,000px limits is exceeded. `extractor.test.ts` covers width and node-limit failures; the plugin validates before calling the importer, and `penpot.test.ts` confirms a malformed parent reference is rejected while no Penpot objects are created. Browser baseline regeneration completed without pixel changes.
+
 ### 4.3 Capture, cancellation, and stale results
 
-- [ ] Use one capture deadline that accounts for font/image waits, user settle delay, and DOM settling.
-- [ ] Ensure iframe listeners and timers are cleaned up on preparation errors as well as success and timeout.
-- [ ] Add cancellation to source preparation and viewport capture where supported.
-- [ ] Prevent an older capture from replacing results after the user changes input or starts another run.
-- [ ] Guard against concurrent imports and correlate progress/completion with the active run.
-- [ ] Verify cancellation and failure cleanup, including undo behavior in live Penpot.
+- [x] Use one capture deadline that accounts for font/image waits, user settle delay, and DOM settling.
+- [x] Ensure iframe listeners and timers are cleaned up on preparation errors as well as success and timeout.
+- [x] Add cancellation to source preparation and viewport capture where supported.
+- [x] Prevent an older capture from replacing results after the user changes input or starts another run.
+- [x] Guard against concurrent imports and correlate progress/completion with the active run.
+- [x] Verify cancellation and failure cleanup, including undo behavior in live Penpot.
+
+Reference evidence: analysis has a single 30-second deadline beginning before source preparation, so remote HTML, stylesheet/font/image inlining, the requested settle delay, DOM settling, and all viewport captures share one budget. `AbortController` reaches direct/proxied source fetches and capture iframes; `src/capture/sandbox.test.ts` verifies an in-flight capture removes its iframe on cancellation, while `source.test.ts` verifies a cancelled fetch is not retried through the proxy. Each UI capture and import has a fresh run ID. Input changes abort the old capture; UI ignores plugin messages whose run ID is no longer active; and the plugin declines concurrent imports and tags progress/completion/error messages with the active run ID. The user manually confirmed cancellation cleanup and undo/redo behavior in their local Penpot test.
 
 Acceptance: cancelled or superseded work cannot mark a newer run complete, leave capture resources behind, or retain partial imported boards.
 

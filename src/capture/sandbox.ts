@@ -3,7 +3,25 @@ import type { CaptureRequest, SceneDocument, ViewportSpec } from "../shared/cont
 
 const CAPTURE_TIMEOUT_MS = 15_000;
 
-export async function captureViewport(request: Omit<CaptureRequest, "viewports">, viewport: ViewportSpec): Promise<SceneDocument> {
+export class CaptureCancelledError extends Error {
+  constructor() { super("Analysis cancelled."); }
+}
+
+export interface CaptureOptions {
+  signal?: AbortSignal;
+  /** A page-wide deadline; each viewport receives only its remaining budget. */
+  deadline?: number;
+}
+
+function remainingTime(options: CaptureOptions): number {
+  if (!options.deadline) return CAPTURE_TIMEOUT_MS;
+  return Math.max(0, Math.min(CAPTURE_TIMEOUT_MS, options.deadline - Date.now()));
+}
+
+export async function captureViewport(request: Omit<CaptureRequest, "viewports">, viewport: ViewportSpec, options: CaptureOptions = {}): Promise<SceneDocument> {
+  if (options.signal?.aborted) throw new CaptureCancelledError();
+  const timeoutMs = remainingTime(options);
+  if (!timeoutMs) throw new Error("Analysis timed out before rendering every viewport.");
   const token = crypto.randomUUID();
   const iframe = document.createElement("iframe");
   iframe.setAttribute("sandbox", "allow-scripts");
@@ -15,8 +33,12 @@ export async function captureViewport(request: Omit<CaptureRequest, "viewports">
   document.body.append(iframe);
 
   return new Promise<SceneDocument>((resolve, reject) => {
+    let finished = false;
     const finish = (callback: () => void) => {
+      if (finished) return;
+      finished = true;
       window.removeEventListener("message", receive);
+      options.signal?.removeEventListener("abort", abort);
       window.clearTimeout(timeout);
       iframe.remove();
       callback();
@@ -26,17 +48,24 @@ export async function captureViewport(request: Omit<CaptureRequest, "viewports">
       if (event.data.type === "CAPTURE_RESULT") finish(() => resolve(event.data.scene as SceneDocument));
       if (event.data.type === "CAPTURE_ERROR") finish(() => reject(new Error(event.data.message || "Capture failed.")));
     };
-    const timeout = window.setTimeout(() => finish(() => reject(new Error(`${viewport.name} did not settle within 15 seconds.`))), CAPTURE_TIMEOUT_MS);
+    const abort = () => finish(() => reject(new CaptureCancelledError()));
+    const timeout = window.setTimeout(() => finish(() => reject(new Error(`${viewport.name} did not settle before the analysis deadline.`))), timeoutMs);
     window.addEventListener("message", receive);
-    iframe.srcdoc = prepareSandboxDocument({ ...request, viewport, token });
+    options.signal?.addEventListener("abort", abort, { once: true });
+    try {
+      iframe.srcdoc = prepareSandboxDocument({ ...request, viewport, token });
+    } catch (error) {
+      finish(() => reject(error));
+    }
   });
 }
 
-export async function capturePage(request: CaptureRequest, onProgress?: (completed: number, total: number) => void): Promise<SceneDocument[]> {
+export async function capturePage(request: CaptureRequest, onProgress?: (completed: number, total: number) => void, options: CaptureOptions = {}): Promise<SceneDocument[]> {
   const { viewports, ...shared } = request;
   const scenes: SceneDocument[] = [];
   for (const [index, viewport] of viewports.entries()) {
-    scenes.push(await captureViewport(shared, viewport));
+    if (options.signal?.aborted) throw new CaptureCancelledError();
+    scenes.push(await captureViewport(shared, viewport, options));
     onProgress?.(index + 1, viewports.length);
   }
   return scenes;

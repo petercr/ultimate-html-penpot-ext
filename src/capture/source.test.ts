@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveSource, sourceUrl } from "./source";
+import { SourceCancelledError, resolveSource, sourceUrl } from "./source";
 
 describe("page source resolution", () => {
   it("recognizes only complete HTTP(S) URLs", () => {
@@ -14,6 +14,21 @@ describe("page source resolution", () => {
       html: "<main>Hello</main>",
       baseUrl: "https://example.com/assets/"
     });
+  });
+
+  it("aborts source preparation instead of retrying a cancelled asset request", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = resolveSource("https://example.com/page", undefined, controller.signal);
+    controller.abort();
+
+    await expect(pending).rejects.toBeInstanceOf(SourceCancelledError);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
   });
 
   it("fetches a URL and uses it as the default asset base", async () => {

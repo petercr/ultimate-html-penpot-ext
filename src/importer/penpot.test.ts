@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, type SceneDocument } from "../shared/contracts";
+import { validateScenes } from "../shared/validation";
 import { ImportCancelledError, importScenes } from "./penpot";
 
 type FakeShape = Record<string, unknown> & { type: string; children?: FakeShape[]; removed?: boolean };
@@ -252,6 +253,17 @@ describe("Penpot importer", () => {
     expect(progress).toHaveBeenLastCalledWith(2, 2, "Creating Desktop");
   });
 
+  it("rejects an invalid scene before creating any Penpot objects", async () => {
+    const invalid = scene();
+    invalid.nodes[0].children = [];
+    invalid.nodes[1].parentId = "missing-parent";
+
+    await expect(Promise.resolve().then(() => validateScenes([invalid]))).rejects.toThrow(/parentId references missing node/);
+    const penpotApi = globalThis as typeof globalThis & { penpot: { createBoard: ReturnType<typeof vi.fn>; createText: ReturnType<typeof vi.fn> } };
+    expect(penpotApi.penpot.createBoard).not.toHaveBeenCalled();
+    expect(penpotApi.penpot.createText).not.toHaveBeenCalled();
+  });
+
   it("maps browser generic font families to a Penpot-safe fallback", async () => {
     const genericFontScene = scene();
     const textNode = genericFontScene.nodes.find((node) => node.kind === "text");
@@ -325,12 +337,19 @@ describe("Penpot importer", () => {
     };
     const upload = (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl;
     upload.mockRejectedValueOnce(new Error("media unavailable"));
+    const diagnostics = vi.fn();
 
-    const result = await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
+    const result = await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn(), onDiagnostic: diagnostics });
     expect(upload).toHaveBeenCalledOnce();
     expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
     expect((result[1] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
     expect((result[0] as unknown as FakeShape).children?.[0]?.name).toBe("Image unavailable: logo");
+    expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({
+      code: "ASSET_IMPORT_FAILED",
+      source: "img",
+      message: expect.stringContaining("https://example.com/logo.png")
+    }));
+    expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("media unavailable") }));
   });
 
   it("keeps a named placeholder for every element that shares one failed asset", async () => {
@@ -351,6 +370,27 @@ describe("Penpot importer", () => {
     expect(upload).toHaveBeenCalledOnce();
     // Order-insensitive: siblings append topmost-first for live paint order.
     expect(names?.slice().sort()).toEqual(["Image unavailable: first broken image", "Image unavailable: second broken image"]);
+  });
+
+  it("removes the board when cancellation arrives while media is uploading", async () => {
+    const imageScene = scene();
+    const root = imageScene.nodes[0];
+    root.children = ["image"];
+    imageScene.nodes = [root, { id: "image", parentId: root.id, children: [], kind: "image", name: "slow image", source: "#slow-image", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: {}, layout: { kind: "none" }, assetId: "slow-asset" }];
+    imageScene.assets = [{ id: "slow-asset", url: "https://example.com/slow.png", mimeType: "image/png" }];
+    let finishUpload: ((value: unknown) => void) | undefined;
+    const upload = (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl;
+    upload.mockImplementationOnce(() => new Promise((resolve) => { finishUpload = resolve; }));
+    let cancelled = false;
+
+    const pending = importScenes([imageScene], { isCancelled: () => cancelled, onProgress: vi.fn() });
+    await vi.waitFor(() => expect(upload).toHaveBeenCalledOnce());
+    cancelled = true;
+    finishUpload?.({});
+
+    await expect(pending).rejects.toBeInstanceOf(ImportCancelledError);
+    expect(boards[0].removed).toBe(true);
+    expect(undoFinish).toHaveBeenCalledOnce();
   });
 
   it("uploads inlined raster assets and reuses them across responsive boards", async () => {
