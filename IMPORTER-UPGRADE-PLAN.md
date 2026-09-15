@@ -138,9 +138,9 @@ Reference evidence: the extractor checks document width/height before traversing
 - [x] Add cancellation to source preparation and viewport capture where supported.
 - [x] Prevent an older capture from replacing results after the user changes input or starts another run.
 - [x] Guard against concurrent imports and correlate progress/completion with the active run.
-- [ ] Verify cancellation and failure cleanup, including undo behavior in live Penpot.
+- [x] Verify cancellation and failure cleanup, including undo behavior in live Penpot.
 
-Reference evidence: analysis has a single 30-second deadline beginning before source preparation, so remote HTML, stylesheet/font/image inlining, the requested settle delay, DOM settling, and all viewport captures share one budget. `AbortController` reaches direct/proxied source fetches and capture iframes; `src/capture/sandbox.test.ts` verifies an in-flight capture removes its iframe on cancellation, while `source.test.ts` verifies a cancelled fetch is not retried through the proxy. Each UI capture and import has a fresh run ID. Input changes abort the old capture; UI ignores plugin messages whose run ID is no longer active; and the plugin declines concurrent imports and tags progress/completion/error messages with the active run ID. Live Penpot cancellation/undo verification is still outstanding.
+Reference evidence: analysis has a single 30-second deadline beginning before source preparation, so remote HTML, stylesheet/font/image inlining, the requested settle delay, DOM settling, and all viewport captures share one budget. `AbortController` reaches direct/proxied source fetches and capture iframes; `src/capture/sandbox.test.ts` verifies an in-flight capture removes its iframe on cancellation, while `source.test.ts` verifies a cancelled fetch is not retried through the proxy. Each UI capture and import has a fresh run ID. Input changes abort the old capture; UI ignores plugin messages whose run ID is no longer active; and the plugin declines concurrent imports and tags progress/completion/error messages with the active run ID. The user manually confirmed cancellation cleanup and undo/redo behavior in their local Penpot test.
 
 Acceptance: cancelled or superseded work cannot mark a newer run complete, leave capture resources behind, or retain partial imported boards.
 
