@@ -220,10 +220,13 @@ async function extractorScript() {
   const source = await readFile(extractorPath, "utf8");
   const contractSource = await readFile(join(repositoryRoot, "src", "shared", "contracts.ts"), "utf8");
   const protocolVersion = contractSource.match(/PROTOCOL_VERSION\s*=\s*(\d+)/)?.[1];
-  if (!protocolVersion) throw new Error("Could not resolve the capture protocol version.");
+  const maxLayers = contractSource.match(/maxLayers:\s*([\d_]+)/)?.[1]?.replace(/_/g, "");
+  const maxDimension = contractSource.match(/maxDimension:\s*([\d_]+)/)?.[1]?.replace(/_/g, "");
+  const maxHeight = contractSource.match(/maxHeight:\s*([\d_]+)/)?.[1]?.replace(/_/g, "");
+  if (!protocolVersion || !maxLayers || !maxDimension || !maxHeight) throw new Error("Could not resolve extractor scene limits from the contracts.");
   const compiled = typescript.transpileModule(source, {
     compilerOptions: { target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.ESNext }
-  }).outputText.replace(/^import \{ PROTOCOL_VERSION \} from ["']\.\.\/shared\/contracts["'];?\s*$/m, `const PROTOCOL_VERSION = ${protocolVersion};`);
+  }).outputText.replace(/^import \{ PROTOCOL_VERSION, SCENE_LIMITS \} from ["']\.\.\/shared\/contracts["'];?\s*$/m, `const PROTOCOL_VERSION = ${protocolVersion};\nconst SCENE_LIMITS = { maxLayers: ${maxLayers}, maxDimension: ${maxDimension}, maxHeight: ${maxHeight} };`);
   if (compiled.includes("../shared/contracts")) throw new Error("Extractor compilation retained an unresolved local import.");
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`;
   return { buildExtractor: (await import(moduleUrl)).buildExtractorScript, sha256: sha256(source) };

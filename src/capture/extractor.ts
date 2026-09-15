@@ -1,13 +1,35 @@
-import { PROTOCOL_VERSION, type ViewportSpec } from "../shared/contracts";
+import { PROTOCOL_VERSION, SCENE_LIMITS, type ViewportSpec } from "../shared/contracts";
+
+export interface CaptureLimits {
+  maxNodes: number;
+  maxAssets: number;
+  maxWidth: number;
+  maxHeight: number;
+}
+
+const DEFAULT_CAPTURE_LIMITS: CaptureLimits = {
+  maxNodes: SCENE_LIMITS.maxLayers,
+  // Scene validation uses the same per-scene array bound for assets.
+  maxAssets: SCENE_LIMITS.maxLayers,
+  maxWidth: SCENE_LIMITS.maxDimension,
+  maxHeight: SCENE_LIMITS.maxHeight
+};
 
 /** A self-contained script run inside the opaque, sandboxed document. */
-export function buildExtractorScript(token: string, viewport: ViewportSpec, settleDelayMs: number): string {
+export function buildExtractorScript(token: string, viewport: ViewportSpec, settleDelayMs: number, limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS): string {
   const encodedViewport = JSON.stringify(viewport);
+  const captureLimits: CaptureLimits = {
+    maxNodes: Math.max(1, Math.floor(limits.maxNodes)),
+    maxAssets: Math.max(1, Math.floor(limits.maxAssets)),
+    maxWidth: Math.max(1, Math.floor(limits.maxWidth)),
+    maxHeight: Math.max(1, Math.floor(limits.maxHeight))
+  };
   return `
 (() => {
   const token = ${JSON.stringify(token)};
   const viewport = ${encodedViewport};
   const delay = ${Math.max(0, Math.min(settleDelayMs, 10_000))};
+  const limits = ${JSON.stringify(captureLimits)};
   const scriptsDisabled = document.documentElement.getAttribute("data-html-to-penpot-scripts-disabled");
   const diagnostics = [];
   const assets = new Map();
@@ -15,6 +37,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const nodeById = new Map();
   const reportedDiagnostics = new Set();
   let sequence = 0;
+
+  const reserveNode = () => {
+    if (nodes.length >= limits.maxNodes) throw new Error("Capture stopped before import: this viewport has more than " + limits.maxNodes.toLocaleString() + " renderable layers. Reduce page complexity or split the page into smaller imports.");
+  };
 
   const number = (value) => { const parsed = parseFloat(value || "0"); return Number.isFinite(parsed) ? parsed : 0; };
   const compact = (value) => String(value || "").replace(/\\s+/g, " ").trim();
@@ -38,6 +64,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (!url || url === "none" || url.startsWith("linear-gradient") || url.startsWith("radial-gradient")) return undefined;
     const existing = assets.get(url);
     if (existing) return existing.id;
+    if (assets.size >= limits.maxAssets) throw new Error("Capture stopped before import: this viewport has more than " + limits.maxAssets.toLocaleString() + " distinct assets. Reduce page complexity or split the page into smaller imports.");
     const id = "asset-" + (assets.size + 1);
     const dataUrl = /^data:/i.test(url) ? url : undefined;
     const dataMime = dataUrl?.match(/^data:([^;,]+)/i)?.[1];
@@ -352,20 +379,24 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     return paint;
   };
-  const layoutOf = (style) => ({
-    kind: style.display === "flex" || style.display === "inline-flex" ? "flex" : style.display === "grid" || style.display === "inline-grid" ? "grid" : "none",
-    direction: style.flexDirection,
-    wrap: style.flexWrap,
-    justifyContent: style.justifyContent,
-    alignItems: style.alignItems,
-    rowGap: number(style.rowGap),
-    columnGap: number(style.columnGap),
-    padding: [number(style.paddingTop), number(style.paddingRight), number(style.paddingBottom), number(style.paddingLeft)],
-    absolute: ["absolute", "fixed"].includes(style.position),
-    // Match known positioned keywords positively: engines that report an
-    // empty position for unstyled elements must read as non-positioned.
-    positioned: ["relative", "absolute", "fixed", "sticky"].includes(style.position)
-  });
+  const layoutOf = (style) => {
+    const direction = ["row", "row-reverse", "column", "column-reverse"].includes(style.flexDirection) ? style.flexDirection : undefined;
+    const wrap = ["wrap", "nowrap"].includes(style.flexWrap) ? style.flexWrap : undefined;
+    return {
+      kind: style.display === "flex" || style.display === "inline-flex" ? "flex" : style.display === "grid" || style.display === "inline-grid" ? "grid" : "none",
+      direction,
+      wrap,
+      justifyContent: style.justifyContent,
+      alignItems: style.alignItems,
+      rowGap: number(style.rowGap),
+      columnGap: number(style.columnGap),
+      padding: [number(style.paddingTop), number(style.paddingRight), number(style.paddingBottom), number(style.paddingLeft)],
+      absolute: ["absolute", "fixed"].includes(style.position),
+      // Match known positioned keywords positively: engines that report an
+      // empty position for unstyled elements must read as non-positioned.
+      positioned: ["relative", "absolute", "fixed", "sticky"].includes(style.position)
+    };
+  };
   const lineHeightOf = (style, measuredLineHeight) => {
     const fontSize = Math.max(1, number(style.fontSize));
     // Penpot stores line height as a multiplier. The browser exposes a
@@ -564,6 +595,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if ((layout.lines || []).some((line) => line.text && line.rect)) reportUnsupportedTextColor(style.color, textSource);
     for (const line of (layout.lines || [])) {
       if (!line.text || !line.rect) continue;
+      reserveNode();
       const id = "node-" + (++sequence);
       // The parent scene node carries the element's CSS opacity as a
       // compositing group. Applying it again to its synthetic text child
@@ -670,6 +702,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       }
     }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(svgMarkupOf(element)), "image/svg+xml"); }
+    reserveNode();
     nodes.push(scene);
     nodeById.set(id, scene);
     if (parentId) nodeById.get(parentId)?.children.push(id);
@@ -695,6 +728,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       const content = compact(pseudoStyle.content).replace(/^("|')|("|')$/g, "");
       if (content && content !== "none" && content !== "normal" && pseudoStyle.display !== "none" && pseudoStyle.visibility !== "hidden" && number(pseudoStyle.opacity) !== 0) {
         reportUnsupportedTextColor(pseudoStyle.color, source + " " + pseudo);
+        reserveNode();
         const pseudoId = "node-" + (++sequence);
         nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex, zIndexAuto: scene.zIndexAuto, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
         scene.children.push(pseudoId);
@@ -746,6 +780,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   settle().then(() => {
     try {
       const root = document.body || document.documentElement;
+      const documentWidth = Math.max(document.documentElement.scrollWidth, viewport.width);
+      const documentHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0, viewport.height);
+      if (documentWidth > limits.maxWidth) throw new Error("Capture stopped before import: " + viewport.name + " is " + Math.round(documentWidth).toLocaleString() + "px wide, above the " + limits.maxWidth.toLocaleString() + "px limit. Reduce the page width or choose a smaller viewport.");
+      if (documentHeight > limits.maxHeight) throw new Error("Capture stopped before import: " + viewport.name + " is " + Math.round(documentHeight).toLocaleString() + "px tall, above the " + limits.maxHeight.toLocaleString() + "px limit. Reduce the page height or split it into smaller imports.");
       visit(root, undefined);
       if (scriptsDisabled) {
         diagnostics.push({
@@ -767,8 +805,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
           source: "body"
         });
       }
-      const documentHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0, viewport.height);
-      parent.postMessage({ type: "CAPTURE_RESULT", token, scene: { protocolVersion: ${PROTOCOL_VERSION}, viewport, documentSize: { width: Math.max(document.documentElement.scrollWidth, viewport.width), height: documentHeight }, nodes, assets: [...assets.values()], diagnostics } }, "*");
+      parent.postMessage({ type: "CAPTURE_RESULT", token, scene: { protocolVersion: ${PROTOCOL_VERSION}, viewport, documentSize: { width: documentWidth, height: documentHeight }, nodes, assets: [...assets.values()], diagnostics } }, "*");
     } catch (error) {
       parent.postMessage({ type: "CAPTURE_ERROR", token, message: error instanceof Error ? error.message : String(error) }, "*");
     }

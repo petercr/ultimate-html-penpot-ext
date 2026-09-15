@@ -564,10 +564,13 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
   // Re-uploading the same page asset for each viewport creates noisy failed
   // requests in Penpot and needlessly increases the file update payload.
   const media: MediaCache = new Map();
+  const throwIfCancelled = () => {
+    if (options.isCancelled()) throw new ImportCancelledError();
+  };
 
   try {
     for (const scene of scenes) {
-      if (options.isCancelled()) throw new ImportCancelledError();
+      throwIfCancelled();
       const undo = penpot.history.undoBlockBegin();
       try {
         const board = penpot.createBoard();
@@ -632,7 +635,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         };
 
         const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
-          if (options.isCancelled()) throw new ImportCancelledError();
+          throwIfCancelled();
           if (node.kind === "container" && clipsContent(node.paint)) {
             // A Penpot board is the clipping-capable container. Unlike a
             // group, its bounds stay at the captured element's box instead of
@@ -646,6 +649,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             applyPaint(clip, node.paint);
             const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
             const clipApplied = clipAsset ? await applyAssetFill(clip, clipAsset, media) : undefined;
+            throwIfCancelled();
             if (clipAsset && !clipApplied?.applied) {
               markAssetFallback(clip, `Background image could not be loaded; ${clipApplied?.failure || "the upload failed"}.`);
             }
@@ -669,6 +673,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             }
 
             const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media) : undefined;
+            throwIfCancelled();
             if (backdrop) {
               metadata(backdrop, node, scene.viewport.id);
               reportAssetFallback(backdrop, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
@@ -721,6 +726,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           } catch (error) {
             throw new Error(`Unable to create ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
           }
+          throwIfCancelled();
           try {
             metadata(shape, node, scene.viewport.id);
             reportAssetFallback(shape, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
@@ -763,6 +769,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             applyPaint(board, root.paint);
             const rootAsset = root.assetId ? assets.get(root.assetId) : undefined;
             const rootApplied = rootAsset ? await applyAssetFill(board, rootAsset, media) : undefined;
+            throwIfCancelled();
             if (rootAsset && !rootApplied?.applied) {
               board.setPluginData("asset-fallback", `Page background image could not be loaded; ${rootApplied?.failure || "the upload failed"}.`);
             }
@@ -777,7 +784,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         // Fit all lines together, then remeasure the result of each adjustment.
         for (let pass = 0; textLines.length && pass < 4; pass += 1) {
           await new Promise<void>((resolve) => setTimeout(resolve, pass === 0 ? 250 : 100));
-          if (options.isCancelled()) throw new ImportCancelledError();
+          throwIfCancelled();
           for (const { text, node, maximum } of textLines) constrainTextToCapturedWidth(text, node, maximum);
         }
       } finally {

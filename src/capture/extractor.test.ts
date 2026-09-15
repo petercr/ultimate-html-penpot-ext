@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SceneDocument, ViewportSpec } from "../shared/contracts";
 import { importScenes } from "../importer/penpot";
-import { buildExtractorScript } from "./extractor";
+import { buildExtractorScript, type CaptureLimits } from "./extractor";
 
 const TEST_VIEWPORT: ViewportSpec = { id: "test", name: "Test", width: 25, height: 15 };
 
 /** Run the async capture script as the sandbox host does: only its matching
  * token may complete this invocation, and listeners/timers always clean up. */
-function captureScript(token: string, viewport = TEST_VIEWPORT): Promise<SceneDocument> {
+function captureScript(token: string, viewport = TEST_VIEWPORT, limits?: CaptureLimits): Promise<SceneDocument> {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       window.removeEventListener("message", receive);
@@ -29,7 +29,7 @@ function captureScript(token: string, viewport = TEST_VIEWPORT): Promise<SceneDo
     }, 5_000);
     window.addEventListener("message", receive);
     try {
-      window.eval(buildExtractorScript(token, viewport, 0));
+      window.eval(buildExtractorScript(token, viewport, 0, limits));
     } catch (error) {
       cleanup();
       reject(error);
@@ -43,10 +43,37 @@ describe("extractor script", () => {
     expect(script).toContain("nonce-token");
     expect(script).toContain('"width":390');
     expect(script).toContain("CAPTURE_RESULT");
+    expect(script).toContain("Capture stopped before import");
     expect(script).toContain("UNSUPPORTED_SUBTREE");
     expect(script).toContain("nodeById.get(parentId)?.children.push(id)");
     expect(script).toContain("settleWithin");
     expect(script).not.toContain("requestAnimationFrame");
+  });
+
+  it("rejects an oversized document before visiting its DOM", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(document.documentElement, "scrollWidth");
+    Object.defineProperty(document.documentElement, "scrollWidth", { value: 101, configurable: true });
+    try {
+      await expect(captureScript("width-limit", TEST_VIEWPORT, { maxNodes: 10, maxAssets: 10, maxWidth: 100, maxHeight: 100 })).rejects.toThrow(/101px wide.*100px limit/);
+    } finally {
+      if (descriptor) Object.defineProperty(document.documentElement, "scrollWidth", descriptor);
+      else delete (document.documentElement as { scrollWidth?: number }).scrollWidth;
+    }
+  });
+
+  it("stops traversal at the node limit instead of posting a partial scene", async () => {
+    document.body.innerHTML = '<div id="child" style="opacity:1;visibility:visible;width:10px;height:10px">child</div>';
+    document.body.style.cssText = "opacity:1;visibility:visible;width:10px;height:10px";
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCss = window.CSS;
+    HTMLElement.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10, toJSON: () => ({}) });
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    try {
+      await expect(captureScript("node-limit", TEST_VIEWPORT, { maxNodes: 1, maxAssets: 10, maxWidth: 100, maxHeight: 100 })).rejects.toThrow(/more than 1 renderable layers/);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
   });
 
   it("emits layout-preserving text capture code", () => {
