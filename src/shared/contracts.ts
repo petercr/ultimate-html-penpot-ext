@@ -143,13 +143,14 @@ export interface SceneDocument {
 }
 
 export type UiToPluginMessage =
-  | { type: "IMPORT"; protocolVersion: typeof PROTOCOL_VERSION; scenes: SceneDocument[] }
-  | { type: "CANCEL"; protocolVersion: typeof PROTOCOL_VERSION };
+  | { type: "IMPORT"; protocolVersion: typeof PROTOCOL_VERSION; runId: string; scenes: SceneDocument[] }
+  | { type: "CANCEL"; protocolVersion: typeof PROTOCOL_VERSION; runId: string };
 
 export type PluginToUiMessage =
-  | { type: "PROGRESS"; completed: number; total: number; label: string }
-  | { type: "COMPLETE"; boards: number }
-  | { type: "ERROR"; message: string };
+  | { type: "PROGRESS"; runId: string; completed: number; total: number; label: string }
+  | { type: "DIAGNOSTIC"; runId: string; diagnostic: Diagnostic }
+  | { type: "COMPLETE"; runId: string; boards: number }
+  | { type: "ERROR"; runId: string; message: string };
 
 export const SCENE_LIMITS = {
   warningLayers: 5_000,

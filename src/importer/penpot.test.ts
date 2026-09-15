@@ -325,12 +325,19 @@ describe("Penpot importer", () => {
     };
     const upload = (globalThis as typeof globalThis & { penpot: { uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot.uploadMediaUrl;
     upload.mockRejectedValueOnce(new Error("media unavailable"));
+    const diagnostics = vi.fn();
 
-    const result = await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
+    const result = await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn(), onDiagnostic: diagnostics });
     expect(upload).toHaveBeenCalledOnce();
     expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
     expect((result[1] as unknown as FakeShape).children?.[0]).toMatchObject({ fills: [{ fillColor: "#e5e7eb", fillOpacity: 1 }] });
     expect((result[0] as unknown as FakeShape).children?.[0]?.name).toBe("Image unavailable: logo");
+    expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({
+      code: "ASSET_IMPORT_FAILED",
+      source: "img",
+      message: expect.stringContaining("https://example.com/logo.png")
+    }));
+    expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("media unavailable") }));
   });
 
   it("keeps a named placeholder for every element that shares one failed asset", async () => {

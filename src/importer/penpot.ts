@@ -1,5 +1,5 @@
 import type { Board, Fill, Gradient, Shape, Text } from "@penpot/plugin-types";
-import type { AssetRef, SceneDocument, SceneNode, ScenePaint } from "../shared/contracts";
+import type { AssetRef, Diagnostic, SceneDocument, SceneNode, ScenePaint } from "../shared/contracts";
 
 export class ImportCancelledError extends Error {
   constructor() { super("Import cancelled."); }
@@ -14,6 +14,7 @@ function errorDetail(error: unknown): string {
 export interface ImportOptions {
   isCancelled: () => boolean;
   onProgress: (completed: number, total: number, label: string) => void;
+  onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
 
 const IMPORT_NAMESPACE = "ultimate-html-to-penpot";
@@ -426,27 +427,36 @@ function needsContainerBackdrop(node: SceneNode): boolean {
 }
 
 type Media = Awaited<ReturnType<typeof mediaFor>>;
-type MediaCache = Map<string, Media | null>;
+interface CachedMedia {
+  media?: Media;
+  failure?: string;
+}
+type MediaCache = Map<string, CachedMedia>;
+interface AssetFillResult {
+  applied: boolean;
+  failure?: string;
+}
 
-async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaCache): Promise<boolean> {
-  if (!asset || shape.type === "group") return false;
+async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaCache): Promise<AssetFillResult> {
+  if (!asset || shape.type === "group") return { applied: false, failure: "The source asset was unavailable to this Penpot layer." };
   const key = mediaKey(asset);
-  let uploaded = media.has(key) ? media.get(key) || undefined : undefined;
+  let cached = media.get(key);
   if (!media.has(key)) {
     try {
-      uploaded = await mediaFor(asset);
-      media.set(key, uploaded || null);
-    } catch {
+      const uploaded = await mediaFor(asset);
+      cached = uploaded ? { media: uploaded } : { failure: "Penpot did not return uploaded media." };
+      media.set(key, cached);
+    } catch (error) {
       // Cache failures as well as successes so repeated responsive boards do
       // not retry an unavailable asset for every viewport.
-      media.set(key, null);
-      return false;
+      cached = { failure: errorDetail(error) };
+      media.set(key, cached);
     }
   }
-  if (!uploaded) return false;
+  if (!cached?.media) return { applied: false, failure: cached?.failure || "Penpot did not return uploaded media." };
   const fillTarget = shape as Shape & { fills: Fill[] };
-  fillTarget.fills = [...(fillTarget.fills || []), { fillImage: uploaded, fillOpacity: 1 }];
-  return true;
+  fillTarget.fills = [...(fillTarget.fills || []), { fillImage: cached.media, fillOpacity: 1 }];
+  return { applied: true };
 }
 
 function markAssetFallback(shape: Shape, reason: string): void {
@@ -464,8 +474,9 @@ async function createContainerBackdrop(node: SceneNode, assets: Map<string, Asse
   // background and editable descendants.
   applyPaint(backdrop, { ...node.paint, opacity: 1 });
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
-  if (asset && !(await applyAssetFill(backdrop, asset, media))) {
-    markAssetFallback(backdrop, "Background image could not be loaded; a placeholder is shown.");
+  const applied = asset ? await applyAssetFill(backdrop, asset, media) : undefined;
+  if (asset && !applied?.applied) {
+    markAssetFallback(backdrop, `Background image could not be loaded; ${applied?.failure || "the upload failed"}.`);
   }
   return backdrop;
 }
@@ -520,10 +531,27 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
   }
   if ((node.kind === "image" || node.kind === "svg" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
     const applied = await applyAssetFill(shape, asset, media);
-    if (svgConversionFailed && applied) markAssetFallback(shape, "SVG vector conversion failed; the uploaded image fallback is shown.");
-    else if (!applied) markAssetFallback(shape, node.kind === "svg" ? "SVG could not be converted or loaded; an image placeholder is shown." : "Image could not be loaded; an image placeholder is shown.");
+    if (svgConversionFailed && applied.applied) markAssetFallback(shape, "SVG vector conversion failed; the uploaded image fallback is shown.");
+    else if (!applied.applied) markAssetFallback(shape, node.kind === "svg" ? `SVG could not be converted or loaded; ${applied.failure || "the upload failed"}.` : `Image could not be loaded; ${applied.failure || "the upload failed"}.`);
   }
   return shape;
+}
+
+function assetSource(asset: AssetRef | undefined): string {
+  return asset?.url || asset?.dataUrl?.slice(0, 200) || asset?.id || "unknown asset";
+}
+
+function reportAssetFallback(shape: Shape, node: SceneNode, asset: AssetRef | undefined, viewportId: string, options: ImportOptions): void {
+  const getPluginData = (shape as Shape & { getPluginData?: (key: string) => string }).getPluginData;
+  const reason = typeof getPluginData === "function" ? getPluginData.call(shape, "asset-fallback") : "";
+  if (!reason) return;
+  options.onDiagnostic?.({
+    severity: "warning",
+    code: "ASSET_IMPORT_FAILED",
+    message: `${reason} Asset: ${assetSource(asset)}.`,
+    viewportId,
+    source: node.source
+  });
 }
 
 export async function importScenes(scenes: SceneDocument[], options: ImportOptions): Promise<Board[]> {
@@ -617,10 +645,12 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             clip.clipContent = true;
             applyPaint(clip, node.paint);
             const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
-            if (clipAsset && !(await applyAssetFill(clip, clipAsset, media))) {
-              markAssetFallback(clip, "Background image could not be loaded; a placeholder is shown.");
+            const clipApplied = clipAsset ? await applyAssetFill(clip, clipAsset, media) : undefined;
+            if (clipAsset && !clipApplied?.applied) {
+              markAssetFallback(clip, `Background image could not be loaded; ${clipApplied?.failure || "the upload failed"}.`);
             }
             metadata(clip, node, scene.viewport.id);
+            reportAssetFallback(clip, node, clipAsset, scene.viewport.id, options);
             append(parentShape, clip);
             // Establish parentage and the container's own bounds before its
             // children: applyGeometry writes page-space coordinates, and the
@@ -641,6 +671,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media) : undefined;
             if (backdrop) {
               metadata(backdrop, node, scene.viewport.id);
+              reportAssetFallback(backdrop, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
               append(parentShape, backdrop);
               applyGeometry(backdrop, node, { x: board.x, y: board.y });
               children.unshift(backdrop);
@@ -692,6 +723,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           }
           try {
             metadata(shape, node, scene.viewport.id);
+            reportAssetFallback(shape, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
             shapes.set(node.id, shape);
             append(parentShape, shape);
             applyGeometry(shape, node, { x: board.x, y: board.y });
@@ -730,10 +762,12 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           if (root.kind === "container") {
             applyPaint(board, root.paint);
             const rootAsset = root.assetId ? assets.get(root.assetId) : undefined;
-            if (rootAsset && !(await applyAssetFill(board, rootAsset, media))) {
-              board.setPluginData("asset-fallback", "Page background image could not be loaded; the configured background color remains.");
+            const rootApplied = rootAsset ? await applyAssetFill(board, rootAsset, media) : undefined;
+            if (rootAsset && !rootApplied?.applied) {
+              board.setPluginData("asset-fallback", `Page background image could not be loaded; ${rootApplied?.failure || "the upload failed"}.`);
             }
             board.setPluginData("source", root.source);
+            reportAssetFallback(board, root, rootAsset, scene.viewport.id, options);
             for (const child of childrenByParent.get(root.id) || []) await render(child, board);
             reportProgress();
           } else await render(root, board);

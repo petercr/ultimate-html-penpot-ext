@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { capturePage } from "./capture/sandbox";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CaptureCancelledError, capturePage } from "./capture/sandbox";
 import { isSafeBaseUrl } from "./capture/prepareDocument";
-import { resolveSource } from "./capture/source";
+import { SourceCancelledError, resolveSource } from "./capture/source";
 import { isStandaloneHost } from "./host";
-import { DEFAULT_VIEWPORTS, PROTOCOL_VERSION, type CaptureRequest, type PluginToUiMessage, type SceneDocument, type ScriptPolicy, type ViewportSpec } from "./shared/contracts";
+import { DEFAULT_VIEWPORTS, PROTOCOL_VERSION, type CaptureRequest, type Diagnostic, type PluginToUiMessage, type SceneDocument, type ScriptPolicy, type ViewportSpec } from "./shared/contracts";
 import { sceneWarnings } from "./shared/validation";
 
 type Phase = "idle" | "capturing" | "ready" | "importing" | "complete" | "error";
+
+// Includes source fetching/inlining, font and image waits, the requested
+// settle delay, DOM settling, and every selected viewport.
+const ANALYSIS_DEADLINE_MS = 30_000;
 
 function postToPlugin(message: unknown) {
   window.parent.postMessage(message, "*");
@@ -35,6 +39,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   const [scriptPolicy, setScriptPolicy] = useState<ScriptPolicy>("off");
   const [settleDelayMs, setSettleDelayMs] = useState(300);
   const [scenes, setScenes] = useState<SceneDocument[]>([]);
+  const [importDiagnostics, setImportDiagnostics] = useState<Diagnostic[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string>();
@@ -44,12 +49,19 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   // made trusted scripts and heavy imports impossible to approve from inside
   // Penpot. Confirmations therefore render in the panel itself.
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest>();
+  const captureController = useRef<AbortController | undefined>(undefined);
+  const captureRunId = useRef<string | undefined>(undefined);
+  const importRunId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const receive = (event: MessageEvent<PluginToUiMessage>) => {
       const message = event.data;
       if (!message || typeof message !== "object" || !("type" in message)) return;
+      // Plugin messages are asynchronous. Ignore a late progress/error from a
+      // cancelled or older import rather than replacing the newer run's UI.
+      if (message.runId !== importRunId.current) return;
       if (message.type === "PROGRESS") setProgress(`${message.label}: ${message.completed}/${message.total}`);
+      if (message.type === "DIAGNOSTIC") setImportDiagnostics((current) => [...current, message.diagnostic]);
       if (message.type === "COMPLETE") {
         setPhase("complete");
         setProgress(`Imported ${message.boards} editable board${message.boards === 1 ? "" : "s"}.`);
@@ -64,9 +76,13 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   }, []);
 
   const warnings = useMemo(() => sceneWarnings(scenes), [scenes]);
-  const diagnostics = useMemo(() => scenes.flatMap((scene) => scene.diagnostics), [scenes]);
+  const diagnostics = useMemo(() => [...scenes.flatMap((scene) => scene.diagnostics), ...importDiagnostics], [scenes, importDiagnostics]);
   const resetCapture = () => {
+    captureController.current?.abort();
+    captureController.current = undefined;
+    captureRunId.current = undefined;
     setScenes([]);
+    setImportDiagnostics([]);
     if (phase !== "importing") setPhase("idle");
   };
 
@@ -81,20 +97,49 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
       setError("The base URL must use http:// or https://.");
       return;
     }
+    captureController.current?.abort();
+    const controller = new AbortController();
+    const runId = crypto.randomUUID();
+    captureController.current = controller;
+    captureRunId.current = runId;
+    let deadlineReached = false;
+    const deadline = Date.now() + ANALYSIS_DEADLINE_MS;
+    const timeout = window.setTimeout(() => {
+      deadlineReached = true;
+      controller.abort();
+    }, ANALYSIS_DEADLINE_MS);
     setError(undefined);
+    setImportDiagnostics([]);
     setScenes([]);
     setPhase("capturing");
     setProgress("Preparing page…");
     try {
-      const resolved = await resolveSource(source, baseUrl || undefined);
+      const resolved = await resolveSource(source, baseUrl || undefined, controller.signal);
       const request: CaptureRequest = { protocolVersion: PROTOCOL_VERSION, html: resolved.html, baseUrl: resolved.baseUrl, viewports, scriptPolicy, settleDelayMs };
-      const captured = await capturePage(request, (completed, total) => setProgress(`Rendered ${completed}/${total} viewport${total === 1 ? "" : "s"}.`));
+      const captured = await capturePage(request, (completed, total) => {
+        if (captureRunId.current === runId) setProgress(`Rendered ${completed}/${total} viewport${total === 1 ? "" : "s"}.`);
+      }, { signal: controller.signal, deadline });
+      if (captureRunId.current !== runId) return;
       setScenes(captured);
       setPhase("ready");
       setProgress(`Analyzed ${captured.length} viewport${captured.length === 1 ? "" : "s"}.`);
     } catch (captureError) {
+      if (captureRunId.current !== runId) return;
+      if (captureError instanceof CaptureCancelledError || captureError instanceof SourceCancelledError) {
+        if (deadlineReached) {
+          setPhase("error");
+          setError(`Analysis exceeded the ${ANALYSIS_DEADLINE_MS / 1000}-second deadline. Try fewer viewports, a shorter settle delay, or pasted HTML.`);
+        } else setPhase("idle");
+        return;
+      }
       setPhase("error");
       setError(captureError instanceof Error ? captureError.message : "Unable to render the supplied page.");
+    } finally {
+      window.clearTimeout(timeout);
+      if (captureRunId.current === runId) {
+        captureController.current = undefined;
+        captureRunId.current = undefined;
+      }
     }
   };
 
@@ -125,14 +170,22 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   };
 
   const startImport = () => {
+    const runId = crypto.randomUUID();
+    importRunId.current = runId;
     setPhase("importing");
     setError(undefined);
     setProgress("Preparing Penpot layers…");
-    postToPlugin({ type: "IMPORT", protocolVersion: PROTOCOL_VERSION, scenes });
+    postToPlugin({ type: "IMPORT", protocolVersion: PROTOCOL_VERSION, runId, scenes });
   };
 
   const cancel = () => {
-    postToPlugin({ type: "CANCEL", protocolVersion: PROTOCOL_VERSION });
+    if (phase === "capturing") {
+      captureController.current?.abort();
+      setProgress("Analysis cancelled.");
+      return;
+    }
+    if (!importRunId.current) return;
+    postToPlugin({ type: "CANCEL", protocolVersion: PROTOCOL_VERSION, runId: importRunId.current });
     setProgress("Cancelling after the current layer…");
   };
 
@@ -201,7 +254,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
     </div>}
     {(phase === "capturing" || phase === "importing" || phase === "complete" || phase === "ready") && <p className="progress" aria-live="polite">{progress}</p>}
     <footer>
-      {phase === "importing" ? <button className="secondary" onClick={cancel}>Cancel import</button> : <button className="secondary" onClick={requestAnalyze} disabled={phase === "capturing"}>Analyze page</button>}
+      {phase === "importing" ? <button className="secondary" onClick={cancel}>Cancel import</button> : phase === "capturing" ? <button className="secondary" onClick={cancel}>Cancel analysis</button> : <button className="secondary" onClick={requestAnalyze}>Analyze page</button>}
       <button className="primary" onClick={importScenes} disabled={phase !== "ready" || standaloneHost} title={standaloneHost ? "Importing requires Penpot — open this plugin inside Penpot" : undefined}>Import to Penpot</button>
     </footer>
   </main>;

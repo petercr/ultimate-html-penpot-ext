@@ -1,5 +1,5 @@
 import { utf8ByteLength } from "../shared/validation";
-import { fetchDocument } from "./source";
+import { SourceCancelledError, fetchDocument } from "./source";
 
 /** Fonts are inert presentation data; a small fleet per page is plenty. */
 const MAX_FONT_URLS = 24;
@@ -82,8 +82,8 @@ function base64Of(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function fontDataUrl(url: string): Promise<string | undefined> {
-  const response = await fetchDocument(url, "font");
+async function fontDataUrl(url: string, signal?: AbortSignal): Promise<string | undefined> {
+  const response = await fetchDocument(url, "font", signal);
   const buffer = new Uint8Array(await response.arrayBuffer());
   if (!buffer.byteLength || buffer.byteLength > MAX_FONT_BYTES) return undefined;
   const declared = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
@@ -104,7 +104,7 @@ async function fontDataUrl(url: string): Promise<string | undefined> {
  * site's real font metrics inside the sandbox. Existing markup and styles
  * are never modified; the original declarations keep working as a fallback.
  */
-export async function inlineWebFonts(html: string, baseUrl?: string): Promise<string> {
+export async function inlineWebFonts(html: string, baseUrl?: string, signal?: AbortSignal): Promise<string> {
   // Font rules may live in linked stylesheets rather than the markup itself,
   // so the cheap text check alone cannot rule the pass out.
   if (!baseUrl || typeof DOMParser === "undefined" || (!html.includes("@font-face") && !html.includes("<link"))) return html;
@@ -119,10 +119,11 @@ export async function inlineWebFonts(html: string, baseUrl?: string): Promise<st
     try {
       const target = new URL(href, baseUrl);
       if (target.protocol !== "https:" && target.protocol !== "http:") return;
-      const response = await fetchDocument(target.href, "css");
+      const response = await fetchDocument(target.href, "css", signal);
       const css = await response.text();
       if (utf8ByteLength(css) <= MAX_STYLESHEET_BYTES) stylesheets.push(css);
-    } catch {
+    } catch (error) {
+      if (error instanceof SourceCancelledError || signal?.aborted) throw new SourceCancelledError();
       // Linked fonts stay remote when the stylesheet cannot be read; the
       // sandbox behaves exactly as it would have without this pass.
     }
@@ -134,9 +135,10 @@ export async function inlineWebFonts(html: string, baseUrl?: string): Promise<st
     try {
       const absolute = new URL(url, baseUrl);
       if (absolute.protocol !== "https:" && absolute.protocol !== "http:") return;
-      const dataUrl = await fontDataUrl(absolute.href);
+      const dataUrl = await fontDataUrl(absolute.href, signal);
       if (dataUrl) dataUrls.set(url, dataUrl);
-    } catch {
+    } catch (error) {
+      if (error instanceof SourceCancelledError || signal?.aborted) throw new SourceCancelledError();
       // A font the service cannot reach stays remote; capture falls back to
       // system fonts for that family only.
     }

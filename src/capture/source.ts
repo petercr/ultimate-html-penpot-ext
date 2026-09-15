@@ -7,6 +7,15 @@ export interface ResolvedSource {
   sourceUrl?: string;
 }
 
+/** Deliberate user cancellation, kept distinct from a failed page or asset. */
+export class SourceCancelledError extends Error {
+  constructor() { super("Analysis cancelled."); }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new SourceCancelledError();
+}
+
 type AssetMode = "html" | "svg" | "css" | "font" | "asset";
 export type { AssetMode };
 
@@ -208,9 +217,10 @@ function normalizeSvgMarkup(svg: string): string {
   return root.outerHTML || svg;
 }
 
-async function imageDataUrl(url: string): Promise<{ dataUrl: string; bytes: number } | undefined> {
-  const response = await fetchDocument(url, "asset");
+async function imageDataUrl(url: string, signal?: AbortSignal): Promise<{ dataUrl: string; bytes: number } | undefined> {
+  const response = await fetchDocument(url, "asset", signal);
   const bytes = new Uint8Array(await response.arrayBuffer());
+  throwIfAborted(signal);
   if (!bytes.byteLength || bytes.byteLength > MAX_INLINE_IMAGE_BYTES) return undefined;
   const mimeType = assetMimeType(response, url, bytes);
   if (!mimeType) return undefined;
@@ -283,7 +293,7 @@ function stylesheetCandidates(document: Document, baseUrl?: string): StylesheetC
 }
 
 /** Inline external CSS so computed styles survive the opaque capture sandbox. */
-async function inlineStylesheets(html: string, baseUrl: string | undefined): Promise<string> {
+async function inlineStylesheets(html: string, baseUrl: string | undefined, signal?: AbortSignal): Promise<string> {
   if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
   const candidates = stylesheetCandidates(document, baseUrl).slice(0, MAX_INLINE_STYLESHEETS);
@@ -293,10 +303,12 @@ async function inlineStylesheets(html: string, baseUrl: string | undefined): Pro
   let totalBytes = 0;
   let changed = false;
   for (const candidate of candidates) {
+    throwIfAborted(signal);
     if (totalBytes >= MAX_INLINE_STYLES_TOTAL_BYTES) break;
     try {
-      const response = await fetchDocument(candidate.url, "css");
+      const response = await fetchDocument(candidate.url, "css", signal);
       const css = await response.text();
+      throwIfAborted(signal);
       const bytes = utf8ByteLength(css);
       if (!css.trim() || bytes > MAX_INLINE_STYLESHEET_BYTES || totalBytes + bytes > MAX_INLINE_STYLES_TOTAL_BYTES) continue;
       const style = document.createElement("style");
@@ -307,7 +319,8 @@ async function inlineStylesheets(html: string, baseUrl: string | undefined): Pro
       candidate.link?.remove();
       totalBytes += bytes;
       changed = true;
-    } catch {
+    } catch (error) {
+      if (error instanceof SourceCancelledError || signal?.aborted) throw new SourceCancelledError();
       // Keep an unavailable stylesheet in place; the sandbox may still load it.
     }
   }
@@ -376,7 +389,7 @@ function promoteLazyImages(document: Document): boolean {
 }
 
 /** Inline ordinary image assets so Penpot receives bytes instead of fetching remote URLs server-side. */
-async function inlineImageAssets(html: string, baseUrl: string | undefined): Promise<string> {
+async function inlineImageAssets(html: string, baseUrl: string | undefined, signal?: AbortSignal): Promise<string> {
   if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
   let changed = promoteLazyImages(document);
@@ -422,13 +435,15 @@ async function inlineImageAssets(html: string, baseUrl: string | undefined): Pro
   const dataUrls = new Map<string, string>();
   let totalBytes = 0;
   for (const target of [...targets].slice(0, MAX_INLINE_IMAGE_ASSETS)) {
+    throwIfAborted(signal);
     if (totalBytes >= MAX_INLINE_IMAGE_TOTAL_BYTES) break;
     try {
-      const result = await imageDataUrl(target);
+      const result = await imageDataUrl(target, signal);
       if (!result || totalBytes + result.bytes > MAX_INLINE_IMAGE_TOTAL_BYTES) continue;
       dataUrls.set(target, result.dataUrl);
       totalBytes += result.bytes;
-    } catch {
+    } catch (error) {
+      if (error instanceof SourceCancelledError || signal?.aborted) throw new SourceCancelledError();
       // A blocked or unsupported image remains a best-effort remote asset.
     }
   }
@@ -493,18 +508,21 @@ async function describeProxyRejection(url: string, response: Response): Promise<
  * failure, retry through the constrained fetch service. An answer from the
  * origin itself (any HTTP status) is authoritative and never retried.
  */
-export async function fetchDocument(url: string, mode: AssetMode): Promise<Response> {
+export async function fetchDocument(url: string, mode: AssetMode, signal?: AbortSignal): Promise<Response> {
+  throwIfAborted(signal);
   try {
-    const direct = await fetch(url, { credentials: "omit", redirect: "follow" });
+    const direct = await fetch(url, { credentials: "omit", redirect: "follow", signal });
+    throwIfAborted(signal);
     if (direct.ok) return direct;
     throw new UpstreamStatusError(`Unable to load ${url}: the server returned HTTP ${direct.status}.`);
   } catch (error) {
+    if (error instanceof SourceCancelledError || signal?.aborted || (error instanceof DOMException && error.name === "AbortError")) throw new SourceCancelledError();
     if (error instanceof UpstreamStatusError) throw error;
-    return await fetchThroughProxy(url, mode, error);
+    return await fetchThroughProxy(url, mode, error, signal);
   }
 }
 
-async function fetchThroughProxy(url: string, mode: AssetMode, directError: unknown): Promise<Response> {
+async function fetchThroughProxy(url: string, mode: AssetMode, directError: unknown, signal?: AbortSignal): Promise<Response> {
   const proxyTarget = proxyUrlFor(url, mode);
   if (!proxyTarget) {
     throw new Error(
@@ -513,8 +531,9 @@ async function fetchThroughProxy(url: string, mode: AssetMode, directError: unkn
   }
   let response: Response;
   try {
-    response = await fetch(proxyTarget, { credentials: "omit" });
+    response = await fetch(proxyTarget, { credentials: "omit", signal });
   } catch (proxyError) {
+    if (signal?.aborted || (proxyError instanceof DOMException && proxyError.name === "AbortError")) throw new SourceCancelledError();
     throw new Error(
       `Unable to load ${url}. Direct loading was blocked by CORS (${detailOf(directError)}); the import service also failed (${detailOf(proxyError)}). Paste the page HTML instead.`
     );
@@ -531,12 +550,13 @@ function isSvgUrl(value: string): boolean {
   }
 }
 
-async function inlineSvgImages(html: string, baseUrl: string | undefined): Promise<string> {
+async function inlineSvgImages(html: string, baseUrl: string | undefined, signal?: AbortSignal): Promise<string> {
   if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
   let changed = promoteLazyImages(document);
   const images = [...document.querySelectorAll("img[src]")];
   await Promise.all(images.map(async (image) => {
+    throwIfAborted(signal);
     const source = image.getAttribute("src");
     if (!source || source.startsWith("data:")) return;
     const targetHref = absoluteAssetUrl(source, baseUrl);
@@ -544,13 +564,15 @@ async function inlineSvgImages(html: string, baseUrl: string | undefined): Promi
     const target = new URL(targetHref);
     let response: Response;
     try {
-      response = await fetchDocument(target.href, "svg");
-    } catch {
+      response = await fetchDocument(target.href, "svg", signal);
+    } catch (error) {
+      if (error instanceof SourceCancelledError || signal?.aborted) throw new SourceCancelledError();
       return; // Assets are best-effort; the page still imports.
     }
     const contentLength = Number(response.headers.get("content-length") || "0");
     if (contentLength > MAX_INLINE_SVG_BYTES) return;
     const svg = await response.text();
+    throwIfAborted(signal);
     if (utf8ByteLength(svg) > MAX_INLINE_SVG_BYTES || !/<svg[\s>]/i.test(svg)) return;
     const normalized = normalizeSvgMarkup(svg);
     image.setAttribute("src", `data:image/svg+xml,${encodeURIComponent(normalized)}`);
@@ -578,26 +600,28 @@ export function sourceUrl(value: string): string | undefined {
  * fetch service taking over only when CORS or the network prevents it. The
  * final upstream URL (after redirects) becomes the asset base URL.
  */
-export async function resolveSource(value: string, explicitBaseUrl?: string): Promise<ResolvedSource> {
+export async function resolveSource(value: string, explicitBaseUrl?: string, signal?: AbortSignal): Promise<ResolvedSource> {
+  throwIfAborted(signal);
   const url = sourceUrl(value);
   if (!url) {
-    const styles = await inlineStylesheets(value, explicitBaseUrl);
-    const images = await inlineImageAssets(styles, explicitBaseUrl);
-    const fonts = await inlineWebFonts(images, explicitBaseUrl);
-    const html = await inlineSvgImages(fonts, explicitBaseUrl);
+    const styles = await inlineStylesheets(value, explicitBaseUrl, signal);
+    const images = await inlineImageAssets(styles, explicitBaseUrl, signal);
+    const fonts = await inlineWebFonts(images, explicitBaseUrl, signal);
+    const html = await inlineSvgImages(fonts, explicitBaseUrl, signal);
     return { html, baseUrl: explicitBaseUrl || undefined };
   }
 
-  const response = await fetchDocument(url, "html");
+  const response = await fetchDocument(url, "html", signal);
   const html = await response.text();
+  throwIfAborted(signal);
   if (!html.trim()) throw new Error(`Unable to load ${url}: the response did not contain HTML.`);
   const baseUrl = explicitBaseUrl || response.headers.get("X-HTML-Source-URL") || url;
-  const styles = await inlineStylesheets(html, baseUrl);
-  const images = await inlineImageAssets(styles, baseUrl);
-  const fonts = await inlineWebFonts(images, baseUrl);
+  const styles = await inlineStylesheets(html, baseUrl, signal);
+  const images = await inlineImageAssets(styles, baseUrl, signal);
+  const fonts = await inlineWebFonts(images, baseUrl, signal);
 
   return {
-    html: await inlineSvgImages(fonts, baseUrl),
+    html: await inlineSvgImages(fonts, baseUrl, signal),
     baseUrl,
     sourceUrl: url
   };
