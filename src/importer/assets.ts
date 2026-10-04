@@ -28,17 +28,17 @@ function inlineMedia(url: string, fallbackMime?: string): { data: Uint8Array; mi
     else if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd;
     if (code < 0x80) data[written++] = code;
     else if (code < 0x800) {
-      data[written++] = 0xc0 | code >> 6;
-      data[written++] = 0x80 | code & 0x3f;
+      data[written++] = 0xc0 | (code >> 6);
+      data[written++] = 0x80 | (code & 0x3f);
     } else if (code < 0x10000) {
-      data[written++] = 0xe0 | code >> 12;
-      data[written++] = 0x80 | code >> 6 & 0x3f;
-      data[written++] = 0x80 | code & 0x3f;
+      data[written++] = 0xe0 | (code >> 12);
+      data[written++] = 0x80 | ((code >> 6) & 0x3f);
+      data[written++] = 0x80 | (code & 0x3f);
     } else {
-      data[written++] = 0xf0 | code >> 18;
-      data[written++] = 0x80 | code >> 12 & 0x3f;
-      data[written++] = 0x80 | code >> 6 & 0x3f;
-      data[written++] = 0x80 | code & 0x3f;
+      data[written++] = 0xf0 | (code >> 18);
+      data[written++] = 0x80 | ((code >> 12) & 0x3f);
+      data[written++] = 0x80 | ((code >> 6) & 0x3f);
+      data[written++] = 0x80 | (code & 0x3f);
     }
   }
   return { data: data.subarray(0, written), mimeType };
