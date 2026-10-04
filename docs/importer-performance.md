@@ -3,8 +3,9 @@
 Phase 5's first batch adds local profiling, avoids redundant text/style reads,
 and batches Penpot object creation. This records the first before/after run;
 bounded asset concurrency and single-board checks now have
-[separate evidence](importer-assets-and-persistence.md). Transformed geometry,
-additional CSS features, and the upper live persistence limit remain open in
+[separate evidence](importer-assets-and-persistence.md), and transformed
+geometry has [its own](importer-transforms.md). Additional CSS features and the
+upper live persistence limit remain open in
 [the upgrade plan](../IMPORTER-UPGRADE-PLAN.md).
 
 ## Reproduce

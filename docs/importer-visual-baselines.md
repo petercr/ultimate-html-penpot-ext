@@ -26,15 +26,19 @@ Chrome binary fails clearly instead of leaving the command running.
 
 It injects the actual `buildExtractorScript()` into the real page after regular
 and bold font readiness, so scene evidence exercises browser layout and the
-capture extractor. This is direct capture only, not a source-preparation or
+capture extractor. The extractor replaces the transform of every supported
+element with an identity matrix while it measures, so each screenshot and its
+layout metrics are taken before the extractor runs; a screenshot taken afterwards
+would show transformed layers unrotated. This is direct capture only, not a source-preparation or
 HTTP-import-proxy end-to-end test; the focused Vitest command covers those
 separate paths and imports the checked-in generated scenes into a mocked host.
 
 The focused command runs exactly `src/capture/extractor.test.ts`,
-`src/capture/prepareDocument.test.ts`, `src/capture/source.test.ts`, and
-`src/importer/penpot.test.ts`; the last includes the generated-scene importer
-regressions for clipping ancestry/bounds, compositing opacity, and failed-asset
-placeholders across all three boards.
+`src/capture/extractor.transforms.test.ts`, `src/capture/prepareDocument.test.ts`,
+`src/capture/source.test.ts`, and `src/importer/penpot.test.ts`; the last includes
+the generated-scene importer regressions for clipping ancestry/bounds,
+compositing opacity, failed-asset placeholders, and transformed layers across
+all three boards.
 
 The command rewrites these checked-in artifacts:
 
@@ -59,7 +63,9 @@ when Chrome changes.
 fails if it cannot see root/container asset reuse, nested two-axis clips and
 the single-axis warning, alpha/opacity samples, negative/auto/zero/positive
 stacking values with their positioned flags, a surviving `display: contents`
-child, whitespace sample, or the local shared failed-asset response. It does
+child, whitespace sample, the local shared failed-asset response, transformed
+layers with their own size and rotation, no node for a collapsed element, or
+the `UNSUPPORTED_TRANSFORM` warnings on the skewed and mirrored samples. It does
 not run source preparation or the HTTP import proxy: the fixture pages are
 already local, static HTML. That boundary is intentional and is covered by the
 existing source/preparation tests rather than pretending this direct capture
@@ -74,6 +80,7 @@ is an end-to-end remote-page test.
 | `color-opacity.html` | Existing fill/border/shadow alpha, nested opacity, decorated text, transparent text | Parent compositing opacity is retained once; CSS Color 4 warnings remain explicit. |
 | `stacking-contents-whitespace.html` | Negative/auto/zero/positive stacking, omitted wrapper, pre-wrap/inline spaces, NBSP, `<br>`, a comment, mixed formatting, centered/padded text, tab-indented code, and a font-stack sample | Stacking layers import in browser paint order even though the fixture DOM order differs; child of `display: contents` survives; whitespace imports with per-`white-space` spacing, NBSP, and tab stops preserved as content. |
 | `asset-failures.html` | Explicitly separated repeated 404 image/background URL | One local failed URL is captured as one scene asset; import tests require a named placeholder for every affected image, while upload work is deduplicated. |
+| `transforms.html` | Rotated box and card, corner `transform-origin`, translate, uniform scale, the individual `rotate`/`scale`/`translate` properties with a percentage translate, nested rotations, a rotated clip, a −90° label, a rotated image, skew, mirror, a collapsed element, and an inline span | Each rotated layer keeps its own size and has a clockwise `rotation` about its top-left corner; skew and mirror stay unrotated with `UNSUPPORTED_TRANSFORM`; the collapsed element creates no nodes. See [Transformed geometry](importer-transforms.md). |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
 `DejaVuSans-Bold.ttf` under `src/capture/fixtures/assets/`, with their hashes
@@ -105,7 +112,10 @@ dependencies.
    Keep screenshot or exported-file evidence with that record; none is checked
    in here because the user confirmation did not include host metadata or
    exported Penpot evidence.
-5. Inspect the layer tree, not just pixels. Expect one top-level board per
+5. Inspect the layer tree, not just pixels. For transforms, check that a
+   rotated layer keeps its own width and height and shows the same rotation
+   in the design panel (Penpot normalizes rotation to 0-360, so −8° reads
+   352°). Expect one top-level board per
    viewport; clipping samples create nested clipping boards only for two-axis
    clips, with ordinary groups for visible overflow; alpha/decorated text has a
    parent compositing group with direct text below it; `display: contents` has

@@ -242,12 +242,22 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
     shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "inner" }];
   }
   applyShadow(shape, paint.boxShadow);
-  const matrix = paint.transform?.match(/^matrix\(([^)]+)\)$/);
-  if (matrix) {
-    const values = matrix[1].split(",").map(Number);
-    if (values.length >= 2) shape.rotation = Math.atan2(values[1], values[0]) * 180 / Math.PI;
-  }
   if (clipsContent(paint) && shape.type === "board") (shape as Board).clipContent = true;
+}
+
+/**
+ * Top-left of the bounding box of a width × height rectangle rotated clockwise
+ * by `degrees` about `origin`, which is the rectangle's own top-left corner.
+ * A rotated Penpot layer is addressed by this box rather than by its corner.
+ */
+export function rotatedBoundsOrigin(origin: { x: number; y: number }, width: number, height: number, degrees: number): { x: number; y: number } {
+  const radians = degrees * Math.PI / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: origin.x + Math.min(0, width * cos, -height * sin, width * cos - height * sin),
+    y: origin.y + Math.min(0, width * sin, height * cos, width * sin + height * cos)
+  };
 }
 
 function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y: number }): void {
@@ -257,9 +267,25 @@ function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y
   // Captured geometry is a fixed snapshot. Explicit top/left constraints stop
   // the host from stretching or repositioning it when a parent is resized.
   pinShapeConstraints(shape);
-  shape.x = pageOrigin.x + node.rect.x;
-  shape.y = pageOrigin.y + node.rect.y;
-  shape.resize(Math.max(0.1, node.rect.width), Math.max(0.1, node.rect.height));
+  const width = Math.max(0.1, node.rect.width);
+  const height = Math.max(0.1, node.rect.height);
+  const x = pageOrigin.x + node.rect.x;
+  const y = pageOrigin.y + node.rect.y;
+  shape.x = x;
+  shape.y = y;
+  shape.resize(width, height);
+  if (!node.rotation) return;
+  // The captured rect is the layer's own size with its top-left corner at the
+  // transformed position. The host turns a layer about its center, snaps the
+  // result to whole pixels, and reports x/y as the rotated bounding box, so
+  // rotate after sizing and then place that box exactly.
+  // Rotate in the same turn that created the layer. The host stalls the whole
+  // tab when a text layer in a board is rotated after its text has been laid
+  // out (observed on Penpot 2.18.1); rotation at creation time is safe.
+  shape.rotation = node.rotation;
+  const bounds = rotatedBoundsOrigin({ x, y }, width, height, node.rotation);
+  shape.x = bounds.x;
+  shape.y = bounds.y;
 }
 
 function pinShapeConstraints(shape: Shape): void {
@@ -344,6 +370,8 @@ function applyTextSizing(text: Text, style: NonNullable<SceneNode["textStyle"]>,
 }
 
 type TrackShape = <T extends Shape>(shape: T) => T;
+/** Attaches a new layer to its parent and applies its captured geometry. */
+type PlaceShape = (shape: Shape) => void;
 
 function createText(node: SceneNode, track: TrackShape): Text {
   const text = penpot.createText(node.text || "");
@@ -442,12 +470,13 @@ function markAssetFallback(shape: Shape, reason: string): void {
   shape.setPluginData("asset-fallback", reason);
 }
 
-async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape): Promise<Shape> {
+async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape, place: PlaceShape): Promise<Shape> {
   const backdrop = track(penpot.createRectangle());
   // Opacity belongs to the complete container compositing group. Keeping
   // the backdrop fully opaque lets the group apply it once to both the
   // background and editable descendants.
   applyPaint(backdrop, { ...node.paint, opacity: 1 });
+  place(backdrop);
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
   const applied = asset ? await applyAssetFill(backdrop, asset, media) : undefined;
   if (asset && !applied?.applied) {
@@ -481,7 +510,7 @@ function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
   if (node.fallbackReason) shape.setPluginData("fallback", node.fallbackReason);
 }
 
-async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape): Promise<Shape> {
+async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape, place: PlaceShape): Promise<Shape> {
   if (node.kind === "text") return createText(node, track);
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
   const svg = svgTextOf(asset);
@@ -509,6 +538,9 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
     applyPaint(shape, node.paint);
   }
   if ((node.kind === "image" || node.kind === "svg" || node.paint.backgroundImage?.includes("url(")) && node.assetId) {
+    // Place the layer before its upload: a rotation applied long after the
+    // host created a layer was observed to be left unapplied.
+    place(shape);
     const applied = await applyAssetFill(shape, asset, media);
     if (svgConversionFailed && applied.applied) markAssetFallback(shape, "SVG vector conversion failed; the uploaded image fallback is shown.");
     else if (!applied.applied) markAssetFallback(shape, node.kind === "svg" ? `SVG could not be converted or loaded; ${applied.failure || "the upload failed"}.` : `Image could not be loaded; ${applied.failure || "the upload failed"}.`);
@@ -686,6 +718,13 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             fixBoardSizing(clip);
             clip.clipContent = true;
             applyPaint(clip, node.paint);
+            // Establish parentage and the container's own bounds before its
+            // children: applyGeometry writes page-space coordinates, and the
+            // children are positioned against the same page origin. Do it
+            // before any background upload, which can take long enough for the
+            // host to leave a late rotation unapplied.
+            append(parentShape, clip);
+            applyGeometry(clip, node, { x: board.x, y: board.y });
             const clipAsset = node.assetId ? assets.get(node.assetId) : undefined;
             const clipApplied = clipAsset ? await applyAssetFill(clip, clipAsset, media) : undefined;
             throwIfCancelled();
@@ -694,11 +733,6 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             }
             metadata(clip, node, scene.viewport.id);
             reportAssetFallback(clip, node, clipAsset, scene.viewport.id, options);
-            append(parentShape, clip);
-            // Establish parentage and the container's own bounds before its
-            // children: applyGeometry writes page-space coordinates, and the
-            // children are positioned against the same page origin.
-            applyGeometry(clip, node, { x: board.x, y: board.y });
             shapes.set(node.id, clip);
             for (const child of childrenByParent.get(node.id) || []) await render(child, clip);
             reportProgress();
@@ -711,13 +745,14 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               if (childShape) children.push(childShape);
             }
 
-            const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media, track) : undefined;
+            const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media, track, (value) => {
+              append(parentShape, value);
+              applyGeometry(value, node, { x: board.x, y: board.y });
+            }) : undefined;
             throwIfCancelled();
             if (backdrop) {
               metadata(backdrop, node, scene.viewport.id);
               reportAssetFallback(backdrop, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
-              append(parentShape, backdrop);
-              applyGeometry(backdrop, node, { x: board.x, y: board.y });
               children.unshift(backdrop);
             }
 
@@ -761,8 +796,14 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           }
 
           let shape: Shape;
+          let placed = false;
+          const place: PlaceShape = (value) => {
+            placed = true;
+            append(parentShape, value);
+            applyGeometry(value, node, { x: board.x, y: board.y });
+          };
           try {
-            shape = await createShape(node, assets, media, track);
+            shape = await createShape(node, assets, media, track, place);
           } catch (error) {
             throw new Error(`Unable to create ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
           }
@@ -771,8 +812,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             metadata(shape, node, scene.viewport.id);
             reportAssetFallback(shape, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
             shapes.set(node.id, shape);
-            append(parentShape, shape);
-            applyGeometry(shape, node, { x: board.x, y: board.y });
+            if (!placed) place(shape);
             // Keep short inline controls on the same line as in the source
             // browser. Apply this after geometry because resize() can reset a
             // text layer's grow mode. Wrapped source text is split into one
@@ -784,13 +824,14 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               // Bound old captures too, and include enclosing cards: inline
               // elements can themselves have a bounding box wider than a card.
               let maximum = node.textMaxWidth ?? node.rect.width;
-              let ancestor = node.parentId ? nodes.get(node.parentId) : undefined;
+              // Comparing edges only makes sense between axis-aligned frames.
+              let ancestor = node.parentId && !node.rotation ? nodes.get(node.parentId) : undefined;
               const visited = new Set<string>();
               while (ancestor && !visited.has(ancestor.id)) {
                 visited.add(ancestor.id);
                 const right = ancestor.rect.x + ancestor.rect.width
                   - (ancestor.layout.padding?.[1] ?? 0) - (ancestor.paint.borderWidth ?? 0);
-                if (right > node.rect.x) maximum = Math.min(maximum, right - node.rect.x);
+                if (!ancestor.rotation && right > node.rect.x) maximum = Math.min(maximum, right - node.rect.x);
                 ancestor = ancestor.parentId ? nodes.get(ancestor.parentId) : undefined;
               }
               textLines.push({ text, node, maximum: Math.max(1, maximum) });
@@ -835,6 +876,15 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             if (saved) await saved;
             throwIfCancelled();
           }
+        }
+        // Fitting resizes auto-width text about its center, which moves the start
+        // of a rotated line. Put the line start back where the browser had it.
+        for (const { text, node } of textLines) {
+          if (!node.rotation) continue;
+          const bounds = rotatedBoundsOrigin({ x: board.x + node.rect.x, y: board.y + node.rect.y }, text.width, text.height, node.rotation);
+          text.x = bounds.x;
+          text.y = bounds.y;
+          persistence?.markDirty();
         }
         await persistence?.flush();
         throwIfCancelled();

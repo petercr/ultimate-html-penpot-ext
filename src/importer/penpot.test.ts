@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, type SceneDocument, type SceneNode } from "../shared/contracts";
 import { validateScenes } from "../shared/validation";
-import { ImportCancelledError, importScenes } from "./penpot";
+import { ImportCancelledError, importScenes, rotatedBoundsOrigin } from "./penpot";
 
 type FakeShape = Record<string, unknown> & { type: string; children?: FakeShape[]; removed?: boolean };
 
@@ -505,7 +505,9 @@ describe("Penpot importer", () => {
     finish[0]({});
     await vi.waitFor(() => expect(boards[0].removed).toBe(true));
     const loose = (penpot.createRectangle as ReturnType<typeof vi.fn>).mock.results.map((result) => result.value as FakeShape);
-    expect(loose.every((shape) => shape.removed)).toBe(true);
+    // A layer waiting for its upload is already placed in the board, which takes it along when removed.
+    const inRemovedBoard = new Set(shapesBelow(boards[0]));
+    expect(loose.every((shape) => shape.removed || inRemovedBoard.has(shape))).toBe(true);
     expect(returned).toBe(false);
     finish[1]({});
     finish[2]({});
@@ -970,6 +972,209 @@ describe("Penpot importer", () => {
     expect(Number(imported?.fontSize)).toBeCloseTo(7.95);
     expect(Number(imported?.width)).toBeLessThanOrEqual(80);
     expect(Number(imported?.lineHeight) * Number(imported?.fontSize)).toBeCloseTo(24);
+  });
+
+  describe("transformed layers", () => {
+    type HostCalls = string[];
+
+    /** Records writes in order and snaps the rotated bounds to whole pixels, as the live host does when rotating. */
+    function observe(shape: FakeShape, calls: HostCalls): FakeShape {
+      let x = 0;
+      let y = 0;
+      let rotation = 0;
+      let growType = String(shape.growType ?? "fixed");
+      Object.defineProperty(shape, "x", { configurable: true, enumerable: true, get: () => x, set: (value: number) => { calls.push("x"); x = value; } });
+      Object.defineProperty(shape, "y", { configurable: true, enumerable: true, get: () => y, set: (value: number) => { calls.push("y"); y = value; } });
+      Object.defineProperty(shape, "rotation", { configurable: true, enumerable: true, get: () => rotation, set: (value: number) => { calls.push("rotation"); rotation = value; x = Math.round(x); y = Math.round(y); } });
+      Object.defineProperty(shape, "growType", { configurable: true, enumerable: true, get: () => growType, set: (value: string) => { calls.push(`growType=${value}`); growType = value; } });
+      const resize = shape.resize as (width: number, height: number) => void;
+      shape.resize = vi.fn(function (this: FakeShape, width: number, height: number) { calls.push("resize"); resize.call(this, width, height); });
+      return shape;
+    }
+
+    function rotatedScene(node: Partial<SceneNode>): SceneDocument {
+      const rotated = scene();
+      const text = rotated.nodes[1];
+      rotated.nodes[1] = { ...text, id: "turned", rect: { x: 100.5, y: 50.25, width: 100, height: 40 }, rotation: 30, ...node };
+      rotated.nodes[0].children = ["turned"];
+      return rotated;
+    }
+
+    it("finds the bounds of a layer turned about its top-left corner", () => {
+      expect(rotatedBoundsOrigin({ x: 150, y: 150 }, 100, 40, 0)).toEqual({ x: 150, y: 150 });
+      // These match the live host's reported bounds for a 100x40 layer turned 30 degrees about (150, 150).
+      expect(rotatedBoundsOrigin({ x: 150, y: 150 }, 100, 40, 30).x).toBeCloseTo(130, 6);
+      expect(rotatedBoundsOrigin({ x: 150, y: 150 }, 100, 40, 30).y).toBeCloseTo(150, 6);
+      const quarter = rotatedBoundsOrigin({ x: 10, y: 20 }, 100, 40, 90);
+      expect(quarter.x).toBeCloseTo(-30, 6);
+      expect(quarter.y).toBeCloseTo(20, 6);
+      const half = rotatedBoundsOrigin({ x: 10, y: 20 }, 100, 40, 180);
+      expect(half.x).toBeCloseTo(-90, 6);
+      expect(half.y).toBeCloseTo(-20, 6);
+      const counter = rotatedBoundsOrigin({ x: 10, y: 20 }, 100, 40, -90);
+      expect(counter.x).toBeCloseTo(10, 6);
+      expect(counter.y).toBeCloseTo(-80, 6);
+    });
+
+    it("sizes a rotated layer, rotates it, then places its rotated bounds exactly", async () => {
+      const calls: HostCalls = [];
+      const host = (globalThis as typeof globalThis & { penpot: { createRectangle: ReturnType<typeof vi.fn> } }).penpot;
+      host.createRectangle.mockImplementationOnce(() => observe(Object.assign(fakeShape("rectangle"), { fills: [] }), calls));
+      const boxScene = rotatedScene({ kind: "box", text: undefined, textStyle: undefined, paint: { backgroundColor: "rgb(10, 20, 30)" } });
+      const result = await importScenes([boxScene], { isCancelled: () => false, onProgress: vi.fn() });
+      const board = result[0] as unknown as FakeShape;
+      const shape = shapesBelow(board).find((candidate) => candidate.type === "rectangle" && (candidate.pluginData as Record<string, string>).source === "body ::text");
+      expect(shape).toMatchObject({ width: 100, height: 40, rotation: 30 });
+      expect(calls.filter((call) => call === "resize")).toHaveLength(1);
+      expect(calls.indexOf("resize")).toBeLessThan(calls.indexOf("rotation"));
+      expect(calls.indexOf("rotation")).toBeLessThan(calls.lastIndexOf("x"));
+      const bounds = rotatedBoundsOrigin({ x: Number(board.x) + 100.5, y: Number(board.y) + 50.25 }, 100, 40, 30);
+      expect(Number(shape?.x)).toBeCloseTo(bounds.x, 6);
+      expect(Number(shape?.y)).toBeCloseTo(bounds.y, 6);
+      // The host snapped the bounds to whole pixels when rotating; the final write is exact.
+      expect(Number(shape?.x) % 1).not.toBe(0);
+    });
+
+    it("rotates a text layer when it is created and restores its line start after fitting", async () => {
+      const calls: HostCalls = [];
+      const textScene = rotatedScene({ rotation: 20, rect: { x: 50, y: 60, width: 80, height: 24 }, textNoWrap: true, textMaxWidth: 400 });
+      const host = (globalThis as typeof globalThis & { penpot: { createText: ReturnType<typeof vi.fn> } }).penpot;
+      host.createText.mockImplementationOnce((characters: string) => {
+        const shape = observe(Object.assign(fakeShape("text"), { characters, fills: [], width: 80 }), calls);
+        let fontSize = "16";
+        Object.defineProperty(shape, "fontSize", { get: () => fontSize, set: (value: string) => { fontSize = value; } });
+        const grow = Object.getOwnPropertyDescriptor(shape, "growType");
+        Object.defineProperty(shape, "growType", {
+          configurable: true,
+          get: grow?.get,
+          set: (value: string) => {
+            grow?.set?.call(shape, value);
+            // Auto-width text grows to the fallback font's width shortly after the mode changes.
+            if (value === "auto-width") setTimeout(() => { shape.width = 160; }, 50);
+          }
+        });
+        return shape;
+      });
+      const result = await importScenes([textScene], { isCancelled: () => false, onProgress: vi.fn() });
+      const board = result[0] as unknown as FakeShape;
+      const text = shapesBelow(board).find((candidate) => candidate.type === "text");
+      // Rotation happens once, between sizing and the switch to auto-width: the host stalls when a laid-out text layer is rotated later.
+      expect(calls.filter((call) => call === "rotation")).toHaveLength(1);
+      expect(calls.indexOf("resize")).toBeLessThan(calls.indexOf("rotation"));
+      expect(calls.indexOf("rotation")).toBeLessThan(calls.indexOf("growType=auto-width"));
+      expect(text).toMatchObject({ rotation: 20, width: 160, fontSize: "16" });
+      // The fitted line is wider than captured, so its bounds start 8.2085px further left; the line start stays put.
+      expect(Number(text?.x)).toBeCloseTo(Number(board.x) + 50 - 24 * Math.sin(20 * Math.PI / 180), 4);
+      expect(Number(text?.y)).toBeCloseTo(Number(board.y) + 60, 4);
+    });
+
+    it("places and rotates an image-filled layer before its upload completes", async () => {
+      const calls: HostCalls = [];
+      const imageScene = rotatedScene({ kind: "image", text: undefined, textStyle: undefined, assetId: "asset-0", rotation: 25, rect: { x: 40, y: 30, width: 160, height: 100 }, paint: {} });
+      imageScene.assets = [{ id: "asset-0", url: "https://example.test/rotated.png" }];
+      const host = (globalThis as typeof globalThis & { penpot: { createRectangle: ReturnType<typeof vi.fn> } }).penpot;
+      host.createRectangle.mockImplementationOnce(() => observe(Object.assign(fakeShape("rectangle"), { fills: [] }), calls));
+      let finish!: (value: unknown) => void;
+      (penpot.uploadMediaUrl as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+      const pending = importScenes([imageScene], { isCancelled: () => false, onProgress: vi.fn() });
+      await vi.waitFor(() => expect(host.createRectangle).toHaveBeenCalled());
+      await vi.waitFor(() => expect(calls).toContain("rotation"));
+      // The host left a rotation applied long after creation unapplied, so the layer is turned while its pixels still download.
+      const shape = shapesBelow(boards[0]).find((candidate) => candidate.type === "rectangle");
+      expect(shape).toMatchObject({ width: 160, height: 100, rotation: 25, fills: [] });
+      expect(calls.lastIndexOf("x")).toBeGreaterThan(calls.indexOf("rotation"));
+      finish({ id: "media-0" });
+      const [board] = await pending;
+      const bounds = rotatedBoundsOrigin({ x: Number((board as unknown as FakeShape).x) + 40, y: Number((board as unknown as FakeShape).y) + 30 }, 160, 100, 25);
+      expect(shape?.fills).toEqual([{ fillImage: { id: "media-0" }, fillOpacity: 1 }]);
+      expect(Number(shape?.x)).toBeCloseTo(bounds.x, 6);
+      expect(Number(shape?.y)).toBeCloseTo(bounds.y, 6);
+    });
+
+    it("places a rotated clipping board before its background upload completes", async () => {
+      const clipScene = rotatedScene({ kind: "container", text: undefined, textStyle: undefined, assetId: "asset-0", rotation: -12, rect: { x: 40, y: 30, width: 160, height: 100 },
+        paint: { backgroundImage: 'url("https://example.test/clip.png")', overflowX: "hidden", overflowY: "hidden", overflow: "hidden" } });
+      clipScene.assets = [{ id: "asset-0", url: "https://example.test/clip.png" }];
+      const calls: HostCalls = [];
+      const host = (globalThis as typeof globalThis & { penpot: { createBoard: ReturnType<typeof vi.fn> } }).penpot;
+      const create = host.createBoard.getMockImplementation()!;
+      host.createBoard.mockImplementation(() => { const value = create() as FakeShape; return boards.length === 2 ? observe(value, calls) : value; });
+      let finish!: (value: unknown) => void;
+      (penpot.uploadMediaUrl as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+      const pending = importScenes([clipScene], { isCancelled: () => false, onProgress: vi.fn() });
+      await vi.waitFor(() => expect(calls).toContain("rotation"));
+      expect(boards[1]).toMatchObject({ rotation: -12 });
+      finish({ id: "media-0" });
+      await pending;
+      expect(boards[1].fills).toEqual([{ fillImage: { id: "media-0" }, fillOpacity: 1 }]);
+    });
+
+    it("places a rotated container's background before its upload completes", async () => {
+      const panelScene = scene();
+      const [root, label] = panelScene.nodes;
+      root.children = ["panel"];
+      panelScene.nodes = [root,
+        { id: "panel", parentId: "root", children: ["label"], kind: "container", name: "panel", source: "#panel", rect: { x: 40, y: 30, width: 160, height: 100 }, rotation: 18, zIndex: 0,
+          paint: { backgroundImage: 'url("https://example.test/panel.png")', backgroundSize: "cover", backgroundRepeat: "no-repeat" }, layout: { kind: "none" }, assetId: "asset-0" },
+        { ...label, id: "label", parentId: "panel", rotation: 18, rect: { x: 50, y: 40, width: 80, height: 24 } }];
+      panelScene.assets = [{ id: "asset-0", url: "https://example.test/panel.png" }];
+      const calls: HostCalls = [];
+      const host = (globalThis as typeof globalThis & { penpot: { createRectangle: ReturnType<typeof vi.fn> } }).penpot;
+      host.createRectangle.mockImplementationOnce(() => observe(Object.assign(fakeShape("rectangle"), { fills: [] }), calls));
+      let finish!: (value: unknown) => void;
+      (penpot.uploadMediaUrl as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+      const pending = importScenes([panelScene], { isCancelled: () => false, onProgress: vi.fn() });
+      await vi.waitFor(() => expect(calls).toContain("rotation"));
+      const backdrop = shapesBelow(boards[0]).find((candidate) => candidate.type === "rectangle");
+      expect(backdrop).toMatchObject({ width: 160, height: 100, rotation: 18, fills: [] });
+      finish({ id: "media-0" });
+      await pending;
+      expect(backdrop?.fills).toEqual([{ fillImage: { id: "media-0" }, fillOpacity: 1 }]);
+    });
+
+    it("does not clamp a rotated line against axis-aligned ancestor edges", async () => {
+      const clampScene = rotatedScene({ rotation: 20, rect: { x: 20, y: 20, width: 80, height: 24 }, textNoWrap: true, textMaxWidth: 200 });
+      clampScene.nodes[0].rect.width = 120;
+      clampScene.nodes[0].layout.padding = [0, 20, 0, 0];
+      const host = (globalThis as typeof globalThis & { penpot: { createText: ReturnType<typeof vi.fn> } }).penpot;
+      host.createText.mockImplementationOnce((characters: string) => {
+        const shape = Object.assign(fakeShape("text"), { characters, fills: [], width: 80 });
+        let growType = "fixed";
+        let fontSize = "16";
+        Object.defineProperty(shape, "fontSize", { get: () => fontSize, set: (value: string) => { fontSize = value; if (growType === "auto-width") shape.width = Number(value) * 10; } });
+        Object.defineProperty(shape, "growType", {
+          configurable: true,
+          get: () => growType,
+          set: (value: string) => { growType = value; if (value === "auto-width") setTimeout(() => { shape.width = Number(fontSize) * 10; }, 50); }
+        });
+        return shape;
+      });
+      const result = await importScenes([clampScene], { isCancelled: () => false, onProgress: vi.fn() });
+      const text = shapesBelow(result[0] as unknown as FakeShape).find((candidate) => candidate.type === "text");
+      // An unrotated line this wide would shrink to fit the ancestor's 100px content edge.
+      expect(Number(text?.fontSize)).toBe(16);
+    });
+
+    it("imports the transform fixture with each layer's own size, rotation, and fallback", async () => {
+      const scenes = scenesForFixture(baselineEvidence().scenes, "transforms.html");
+      validateScenes(scenes);
+      const result = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+      const board = result[0] as unknown as FakeShape;
+      const withSource = (source: string) => shapesBelow(board).filter((shape) => (shape.pluginData as Record<string, string>).source === source);
+      const surface = (source: string) => withSource(source).find((shape) => shape.type === "rectangle" || shape.type === "board");
+      expect(surface("#rotated-box")).toMatchObject({ width: 180, height: 70, rotation: 30 });
+      expect(surface("#rotated-card")).toMatchObject({ width: 180, height: 70, rotation: -8 });
+      expect(surface("#corner-origin")).toMatchObject({ width: 180, height: 70, rotation: 15 });
+      expect(surface("#nested-child")).toMatchObject({ width: 120, height: 36, rotation: 30 });
+      expect(surface("#vertical-label")).toMatchObject({ rotation: -90 });
+      expect(surface("#rotated-clip")).toMatchObject({ type: "board", clipContent: true, width: 180, height: 70, rotation: 6 });
+      expect(withSource("#rotated-box ::text")[0]).toMatchObject({ type: "text", rotation: 30 });
+      expect(surface("#scaled")).toMatchObject({ width: 225, height: 87.5 });
+      expect(surface("#translated")?.rotation).toBeUndefined();
+      expect(surface("#skewed")?.rotation).toBeUndefined();
+      expect(withSource("#collapsed")).toHaveLength(0);
+      expect(scenes[0].diagnostics.filter((diagnostic) => diagnostic.code === "UNSUPPORTED_TRANSFORM").map((diagnostic) => diagnostic.source)).toEqual(["#skewed", "#flipped"]);
+    });
   });
 
   it("groups painted containers instead of creating nested boards", async () => {

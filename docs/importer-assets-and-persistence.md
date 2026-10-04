@@ -143,6 +143,22 @@ reattaches its observation listener to an already-open harness after an
 automation interruption. `assets 12` imports 12 distinct generated PNGs,
 reused twice on each of three boards.
 
+The transformed-geometry checks use the same harness. `fixture 0` imports the
+desktop scene (index 0; 1 is tablet and 2 is mobile) of the checked-in
+`transforms.html` baseline, with its assets inlined so no fixture server is
+needed; set `PHASE5_FIXTURE=<file>` when running `importer-live-harness.mjs` to
+embed another fixture's scenes. `rotated-image` imports a rotated image fill,
+a rotated background-image box, and a plain rotated control. `inspect` also
+reports each shape's geometry, including the corner of a rotated layer, so the
+result can be compared with the scene's expected frame, and `focus <pageId>
+<layerNames...>` zooms to named layers for a screenshot.
+`rotation-probe`, `pivot-probe`, `late-rotation-probe [1|2]`, and `delay-probe`
+each create a page and record how the host rotates and places shapes; their
+findings are summarized in [Transformed geometry](importer-transforms.md). The
+probes leave text out on purpose: rotating a text layer after its layout has
+settled can freeze the host tab. If a tab freezes or shows an internal-error
+page, open a new tab on the workspace instead of reusing it.
+
 For a large-board import, wait for `import-complete` with `saveAcknowledged`
 true, and HTTP 200 responses for all its save requests before reloading.
 For other operations, wait for their following `save-observed` event and

@@ -29,7 +29,8 @@ const fixtureFiles = [
   "overflow-clipping.html",
   "color-opacity.html",
   "stacking-contents-whitespace.html",
-  "asset-failures.html"
+  "asset-failures.html",
+  "transforms.html"
 ];
 const fixtureAssetDirectory = join(fixtureDirectory, "assets");
 const viewports = [
@@ -210,6 +211,22 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
     if (!first.assetId || first.assetId !== repeated.assetId || first.assetId !== background.assetId) throw new Error("Failed local asset was not shared across fixture uses.");
     if (!failedAssetUrls.some((url) => url.endsWith("/assets/intentional-missing.png"))) throw new Error("Controlled failed asset response was not observed.");
   }
+  if (file === "transforms.html") {
+    // A transformed layer keeps its own size and carries a rotation about its
+    // top-left corner, not the bounds of an already rotated box.
+    for (const [source, width, height, rotation] of [["#rotated-box", 180, 70, 30], ["#rotated-card", 180, 70, -8], ["#corner-origin", 180, 70, 15], ["#individual", 198, 77, 12], ["#nested-parent", 260, 100, 10], ["#nested-child", 120, 36, 30], ["#rotated-clip", 180, 70, 6], ["#vertical-label", 130, 28, -90], ["#image-frame", 140, 90, 12]]) {
+      const layer = sceneNode(scene, source);
+      if (Math.abs(layer.rect.width - width) > 0.01 || Math.abs(layer.rect.height - height) > 0.01 || layer.rotation !== rotation) {
+        throw new Error(`${source} did not capture its own ${width}x${height} size with rotation ${rotation} (got ${layer.rect.width}x${layer.rect.height}, rotation ${layer.rotation}).`);
+      }
+    }
+    if (Math.abs(sceneNode(scene, "#scaled").rect.width - 225) > 0.01 || sceneNode(scene, "#translated").rotation !== undefined) throw new Error("Uniform scale and translation must change the frame without a rotation.");
+    if (scene.nodes.some((node) => node.source.startsWith("#collapsed"))) throw new Error("A collapsed element must not create scene nodes.");
+    for (const source of ["#skewed", "#flipped"]) {
+      if (sceneNode(scene, source).rotation !== undefined) throw new Error(`${source} must stay unrotated.`);
+      if (!scene.diagnostics.some((diagnostic) => diagnostic.code === "UNSUPPORTED_TRANSFORM" && diagnostic.source === source)) throw new Error(`${source} transform diagnostic is missing.`);
+    }
+  }
 }
 
 function assertRequestEvidence(file, intentionalMissingUrl, responseFailures, networkFailures, blockedRequests) {
@@ -359,10 +376,8 @@ async function run() {
         const regularLoaded = state.fontFaces.some((face) => face.weight === "400" && face.status === "loaded");
         const boldLoaded = state.fontFaces.some((face) => face.weight === "700" && face.status === "loaded");
         if (state.fontStatus !== "loaded" || !state.fixtureFontRegularReady || !state.fixtureFontBoldReady || !regularLoaded || !boldLoaded) throw new Error(`${file} ${viewport.id} did not load regular and bold ${fontFamily}.`);
-        const scene = await captureScene(cdp, sessionId, buildExtractor, viewport);
-        assertRequestEvidence(file, intentionalMissingUrl, responseFailures, networkFailures, blockedRequests);
-        const failedAssetUrls = [...responseFailures].sort();
-        assertSceneEvidence(file, scene, failedAssetUrls);
+        // The extractor replaces supported element transforms with identity matrices
+        // to read layout geometry, so the browser reference is captured before it runs.
         const layout = await cdp.send("Page.getLayoutMetrics", {}, sessionId);
         const contentSize = layout.cssContentSize || layout.contentSize;
         if (!contentSize?.width || !contentSize?.height) throw new Error(`${file} ${viewport.id} did not provide full-page layout metrics.`);
@@ -371,6 +386,10 @@ async function run() {
         const png = Buffer.from(screenshot.data, "base64");
         const screenshotFile = `${file.replace(/\.html$/, "")}-${viewport.id === "desktop" ? "desktop-1440" : viewport.id === "tablet" ? "tablet-768" : "mobile-390"}.png`;
         await writeFile(join(outputDirectory, screenshotFile), png);
+        const scene = await captureScene(cdp, sessionId, buildExtractor, viewport);
+        assertRequestEvidence(file, intentionalMissingUrl, responseFailures, networkFailures, blockedRequests);
+        const failedAssetUrls = [...responseFailures].sort();
+        assertSceneEvidence(file, scene, failedAssetUrls);
         fixtureEvidence.viewports.push({
           ...viewport,
           screenshot: screenshotFile,
