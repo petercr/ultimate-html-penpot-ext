@@ -26,6 +26,15 @@ describe("scene validation", () => {
     expect(() => validateScenes([scene({ nodes: [{ ...scene().nodes[0], textFitScale: 1.1 }] })])).toThrow("no greater than 1");
   });
 
+  it("accepts only finite rotations within a full turn", () => {
+    const rotated = (rotation: number) => scene({ nodes: [{ ...scene().nodes[0], rotation }] });
+    expect(validateScenes([rotated(-90)])).toHaveLength(1);
+    expect(validateScenes([rotated(360)])).toHaveLength(1);
+    expect(() => validateScenes([rotated(Number.NaN)])).toThrow("rotation");
+    expect(() => validateScenes([rotated(361)])).toThrow("no greater than 360");
+    expect(() => validateScenes([rotated(-361)])).toThrow("rotation");
+  });
+
   it("rejects impossible document height", () => {
     expect(() => validateScenes([scene({ documentSize: { width: 1440, height: 100_001 } })])).toThrow("100,000px");
   });

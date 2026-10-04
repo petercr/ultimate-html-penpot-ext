@@ -70,6 +70,129 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const number = (value) => { const parsed = parseFloat(value || "0"); return Number.isFinite(parsed) ? parsed : 0; };
   const compact = (value) => String(value || "").replace(/\\s+/g, " ").trim();
   const rectOf = (rect) => ({ x: Math.round(rect.x * 100) / 100, y: Math.round(rect.y * 100) / 100, width: Math.round(rect.width * 100) / 100, height: Math.round(rect.height * 100) / 100 });
+  // CSS transforms. A transformed element's own transform is recorded and
+  // replaced by an identity matrix before its box is read, so that element and
+  // every descendant are measured in untransformed layout space. The recorded
+  // matrices are composed into a frame for each node: its own size, the
+  // position of its top-left corner after all transforms, and a rotation about
+  // that corner. Penpot rotates a layer from its own unrotated size, so
+  // rotating a transformed bounding box would grow and displace the layer.
+  const IDENTITY = [1, 0, 0, 1, 0, 0];
+  const matrices = new Map();
+  const compose = (outer, inner) => [
+    outer[0] * inner[0] + outer[2] * inner[1], outer[1] * inner[0] + outer[3] * inner[1],
+    outer[0] * inner[2] + outer[2] * inner[3], outer[1] * inner[2] + outer[3] * inner[3],
+    outer[0] * inner[4] + outer[2] * inner[5] + outer[4], outer[1] * inner[4] + outer[3] * inner[5] + outer[5]
+  ];
+  const tokensOf = (value) => String(value || "").trim().split(/\\s+/).filter(Boolean);
+  const angleDegrees = (token) => {
+    const match = /^([+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?)(deg|grad|rad|turn)$/i.exec(token || "");
+    if (!match) return undefined;
+    const amount = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit === "deg" ? amount : unit === "grad" ? amount * 0.9 : unit === "rad" ? amount * 180 / Math.PI : amount * 360;
+  };
+  const isSet = (value) => Boolean(value) && value !== "none";
+  // Computed transforms serialize as matrix() or matrix3d(); the 3D form is
+  // flat only when every component outside the 2D plane is the identity.
+  const parseMatrix = (value) => {
+    const match = /^matrix(3d)?\\(([^)]*)\\)$/.exec(String(value).trim());
+    if (!match) return undefined;
+    const values = match[2].split(",").map(parseFloat);
+    if (values.some((entry) => !Number.isFinite(entry))) return undefined;
+    if (!match[1]) return values.length === 6 ? { matrix: values, flat: true } : undefined;
+    if (values.length !== 16) return undefined;
+    const flat = [2, 3, 6, 7, 8, 9, 11, 14].every((index) => values[index] === 0) && values[10] === 1 && values[15] === 1;
+    return { matrix: [values[0], values[1], values[4], values[5], values[12], values[13]], flat };
+  };
+  // CSS applies translate, then rotate, then scale, then transform. The result
+  // is flat only when none of them has a 3D component.
+  const readTransform = (style) => {
+    if (!isSet(style.transform) && !isSet(style.translate) && !isSet(style.rotate) && !isSet(style.scale)) return undefined;
+    let matrix = IDENTITY;
+    let flat = true;
+    // The computed translate property keeps percentages, which refer to the
+    // layer's own box and are resolved once that box has been measured.
+    let percent;
+    if (isSet(style.translate)) {
+      const [x = "0", y = "0", z = "0"] = tokensOf(style.translate);
+      const parts = [x, y, z].map((token) => /^([+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?)(px|%)?$/i.exec(token));
+      if (parts.some((part) => !part) || parseFloat(z)) flat = false;
+      else {
+        const [lengthX, lengthY] = parts.map((part, index) => index < 2 && part[2] !== "%" ? parseFloat(part[1]) : 0);
+        const [percentX, percentY] = parts.map((part, index) => index < 2 && part[2] === "%" ? parseFloat(part[1]) : 0);
+        matrix = compose(matrix, [1, 0, 0, 1, lengthX, lengthY]);
+        if (percentX || percentY) percent = [percentX, percentY];
+      }
+    }
+    if (isSet(style.rotate)) {
+      const tokens = tokensOf(style.rotate);
+      const degrees = tokens.length === 1 ? angleDegrees(tokens[0]) : undefined;
+      if (degrees === undefined) flat = false;
+      else {
+        const radians = degrees * Math.PI / 180;
+        matrix = compose(matrix, [Math.cos(radians), Math.sin(radians), -Math.sin(radians), Math.cos(radians), 0, 0]);
+      }
+    }
+    if (isSet(style.scale)) {
+      const [x = 1, y = x, z = 1] = tokensOf(style.scale).map(parseFloat);
+      matrix = compose(matrix, [x, 0, 0, y, 0, 0]);
+      if (z !== 1) flat = false;
+    }
+    if (isSet(style.transform)) {
+      const own = parseMatrix(style.transform);
+      if (!own || !own.flat) flat = false;
+      else matrix = compose(matrix, own.matrix);
+    }
+    const origin = tokensOf(style.transformOrigin).map(parseFloat);
+    if (origin[2]) flat = false;
+    return { matrix, percent, originX: origin[0] || 0, originY: origin[1] || 0, flat: flat && matrix.every(Number.isFinite) };
+  };
+  // Penpot layers carry a rotation, a position and a size, so only similarity
+  // transforms (rotation, uniform scale, translation) map onto them exactly.
+  const SIMILARITY_TOLERANCE = 0.001;
+  const isSimilarity = (matrix) => {
+    const [a, b, c, d] = matrix;
+    const scaleX = Math.hypot(a, b);
+    const scaleY = Math.hypot(c, d);
+    if (!(scaleX > 0) || !(scaleY > 0)) return false;
+    return a * d - b * c > 0 && Math.abs(a * c + b * d) <= SIMILARITY_TOLERANCE * scaleX * scaleY && Math.abs(scaleX - scaleY) <= SIMILARITY_TOLERANCE * Math.max(scaleX, scaleY);
+  };
+  const isDegenerate = (matrix) => Math.hypot(matrix[0], matrix[1]) < 1e-4 || Math.hypot(matrix[2], matrix[3]) < 1e-4;
+  // Inline boxes that are not replaced content are not transformable: the browser ignores their transform.
+  const REPLACED_TAGS = ["IMG", "SVG", "VIDEO", "CANVAS", "IFRAME", "EMBED", "OBJECT", "AUDIO"];
+  const transformable = (element, style) => style.display !== "contents" && (style.display !== "inline" || REPLACED_TAGS.includes(element.tagName.toUpperCase()));
+  const neutralize = (element) => {
+    // An identity matrix, not "none", keeps the element the containing block
+    // for fixed and absolute descendants, so layout is unchanged.
+    element.style?.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
+    for (const property of ["translate", "rotate", "scale"]) element.style?.setProperty(property, "none", "important");
+  };
+  const aboutOrigin = (transform, box) => {
+    const x = box.x + transform.originX;
+    const y = box.y + transform.originY;
+    return compose([1, 0, 0, 1, x, y], compose(transform.matrix, [1, 0, 0, 1, -x, -y]));
+  };
+  // Replaces a node's layout-space rect with its frame. Sizes and the text,
+  // border and corner measurements that scale with the layer follow a uniform scale.
+  const placeNode = (node, matrix) => {
+    const box = node.rect;
+    const [a, b, c, d, e, f] = matrix;
+    const scale = Math.hypot(a, b);
+    const degrees = Math.atan2(b, a) * 180 / Math.PI;
+    node.rect = rectOf({ x: a * box.x + c * box.y + e, y: b * box.x + d * box.y + f, width: box.width * scale, height: box.height * scale });
+    if (Math.abs(degrees) > 0.005) node.rotation = Math.round(degrees * 1000) / 1000;
+    if (Math.abs(scale - 1) <= 1e-4) return;
+    const scaled = (value) => Math.round(value * scale * 100) / 100;
+    if (node.paint.borderWidth) node.paint.borderWidth = scaled(node.paint.borderWidth);
+    if (node.paint.radius) node.paint.radius = node.paint.radius.map(scaled);
+    if (node.layout.padding) node.layout.padding = node.layout.padding.map(scaled);
+    if (node.textMaxWidth) node.textMaxWidth = Math.max(0.1, scaled(node.textMaxWidth));
+    if (node.textStyle) {
+      node.textStyle.fontSize = scaled(node.textStyle.fontSize);
+      node.textStyle.letterSpacing = scaled(node.textStyle.letterSpacing);
+    }
+  };
   const visible = (element, style, rect) => style.display !== "none" && style.visibility !== "hidden" && number(style.opacity) !== 0 && (rect.width > 0 || rect.height > 0);
   const suppressesSubtree = (style) => style.display === "none" || number(style.opacity) === 0;
   const sourceOf = (element) => {
@@ -376,8 +499,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       // worse than leaving the overflow visible.
       overflow: clipsAxis(overflowX) && clipsAxis(overflowY)
         ? (overflowX === "clip" && overflowY === "clip" ? "clip" : "hidden")
-        : "visible",
-      transform: style.transform
+        : "visible"
     };
   };
   const paintOfElement = (element, style) => {
@@ -639,7 +761,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     return clone.outerHTML;
   };
-  const appendText = (parent, textNode, style, textSource = parent.source + " ::text", measuredLayout) => {
+  const appendText = (parent, textNode, style, textSource = parent.source + " ::text", measuredLayout, matrix = IDENTITY) => {
     // A text node inherits white-space (and tab size) from its parent chain,
     // so the passed-in element style is the correct processing context.
     const layout = measuredLayout || textLayout(Array.isArray(textNode) ? textNode : [textNode], whiteSpaceOf(style), tabSizeOf(style));
@@ -655,11 +777,12 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       // position: sibling order within the parent decides placement, so no
       // fractional offset is added that could push the run across a stacking
       // boundary (for example above an explicit positive z-index sibling).
+      if (matrix !== IDENTITY) matrices.set(id, matrix);
       nodes.push({ id, parentId: parent.id, children: [], kind: "text", name: line.text.slice(0, 80), source: textSource, rect: line.rect, zIndex: parent.zIndex, zIndexAuto: parent.zIndexAuto, paint: { color: style.color, opacity: 1 }, layout: { kind: "none" }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(parent.rect, line.rect), textMaxWidth: textMaxWidthOf(parent.rect, line.rect), textStyle: textStyleOf(style, layout.measuredLineHeight) });
       parent.children.push(id);
     }
   };
-  const visit = (element, parentId, inlineControlAncestor = false) => {
+  const visit = (element, parentId, inlineControlAncestor = false, parentMatrix = IDENTITY) => {
     const tag = element.tagName.toLowerCase();
     // A line break is represented by the source line coordinates above, not
     // by a visible rectangle in the Penpot layer tree.
@@ -670,13 +793,26 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Visibility can also be restored by a descendant. Only properties
     // that suppress the whole compositing subtree let us stop traversal.
     if (suppressesSubtree(style)) return;
+    const transform = transformable(element, style) ? readTransform(style) : undefined;
+    // A transform that collapses the element to a line or point hides its whole subtree.
+    if (transform?.flat && isDegenerate(transform.matrix)) return;
+    const exact = Boolean(transform?.flat) && isSimilarity(transform.matrix);
+    // Read the layout box with this element's own transform removed. A transform
+    // that cannot become a Penpot rotation stays in place, so the element and its
+    // descendants keep the transformed bounding boxes the browser reports.
+    if (exact) neutralize(element);
     const rect = boundsOf(element);
+    if (exact && transform.percent) transform.matrix = compose([1, 0, 0, 1, rect.width * transform.percent[0] / 100, rect.height * transform.percent[1] / 100], transform.matrix);
+    const matrix = exact ? compose(parentMatrix, aboutOrigin(transform, rect)) : parentMatrix;
+    if (transform && !exact) {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_TRANSFORM", message: "This element's transform (skew, flip, non-uniform scale, or 3D) cannot be imported as a Penpot rotation, so it keeps the bounds of the transformed element without rotation.", viewportId: viewport.id, source: sourceOf(element) });
+    }
     if (!visible(element, style, rect)) {
       const survivingParent = parentId ? nodeById.get(parentId) : undefined;
       const textSource = sourceOf(element) + " ::text";
       for (const child of element.childNodes) {
-        if (child.nodeType === Node.TEXT_NODE && style.visibility !== "hidden" && survivingParent) appendText(survivingParent, child, style, textSource);
-        if (child.nodeType === Node.ELEMENT_NODE) visit(child, parentId, inlineControlAncestor);
+        if (child.nodeType === Node.TEXT_NODE && style.visibility !== "hidden" && survivingParent) appendText(survivingParent, child, style, textSource, undefined, matrix);
+        if (child.nodeType === Node.ELEMENT_NODE) visit(child, parentId, inlineControlAncestor, matrix);
       }
       return parentId;
     }
@@ -754,6 +890,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     if (tag === "svg") { scene.assetId = asset("data:image/svg+xml," + encodeURIComponent(svgMarkupOf(element)), "image/svg+xml"); }
     reserveNode();
+    if (matrix !== IDENTITY) matrices.set(id, matrix);
     nodes.push(scene);
     nodeById.set(id, scene);
     if (parentId) nodeById.get(parentId)?.children.push(id);
@@ -769,10 +906,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // can visibly distort the imported vector when the host conversion also
     // succeeds.
     if (tag === "svg") return id;
-    if (expandedDirectText) appendText(scene, directTextNodes, style, source + " ::text", directTextLayout);
+    if (expandedDirectText) appendText(scene, directTextNodes, style, source + " ::text", directTextLayout, matrix);
     for (const child of element.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style, source + " ::text");
-      if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl);
+      if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style, source + " ::text", undefined, matrix);
+      if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl, matrix);
     }
     for (const pseudo of ["::before", "::after"]) {
       const pseudoStyle = styleOf(element, pseudo);
@@ -781,6 +918,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         reportUnsupportedTextColor(pseudoStyle.color, source + " " + pseudo);
         reserveNode();
         const pseudoId = "node-" + (++sequence);
+        if (matrix !== IDENTITY) matrices.set(pseudoId, matrix);
         nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex, zIndexAuto: scene.zIndexAuto, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
         scene.children.push(pseudoId);
       }
@@ -838,6 +976,12 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       if (documentWidth > limits.maxWidth) throw new Error("Capture stopped before import: " + viewport.name + " is " + Math.round(documentWidth).toLocaleString() + "px wide, above the " + limits.maxWidth.toLocaleString() + "px limit. Reduce the page width or choose a smaller viewport.");
       if (documentHeight > limits.maxHeight) throw new Error("Capture stopped before import: " + viewport.name + " is " + Math.round(documentHeight).toLocaleString() + "px tall, above the " + limits.maxHeight.toLocaleString() + "px limit. Reduce the page height or split it into smaller imports.");
       visit(root, undefined);
+      // Layout rects stay in untransformed space during traversal so measurements
+      // such as a text line's width compare like with like; place frames last.
+      for (const node of nodes) {
+        const matrix = matrices.get(node.id);
+        if (matrix) placeNode(node, matrix);
+      }
       if (scriptsDisabled) {
         diagnostics.push({
           severity: "warning",

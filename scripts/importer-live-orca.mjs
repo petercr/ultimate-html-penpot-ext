@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 const [page, action, ...args] = process.argv.slice(2);
-if (!page || !action) throw new Error("Usage: node scripts/importer-live-orca.mjs <browserPageId> open|run <nodes>|status|inspect <pageId>|cleanup <originalPageId> <testPageIds...>|network <output.json>");
+if (!page || !action) throw new Error("Usage: node scripts/importer-live-orca.mjs <browserPageId> open|run <nodes>|fixture <viewportIndex>|rotated-image|status|inspect <pageId>|focus <pageId> <layerNames...>|rotation-probe|pivot-probe|late-rotation-probe|delay-probe|cleanup <originalPageId> <testPageIds...>|network <output.json>");
 const executable = process.env.ORCA_CLI_COMMAND || (process.env.ORCA_DEV_REPO_ROOT ? "orca-dev" : process.platform === "linux" ? "orca-ide" : "orca");
 function call(command, options = []) {
   let output;
@@ -60,6 +60,20 @@ if (action === "open" || action === "connect") {
   console.log(JSON.stringify(evaluate('JSON.stringify({results:window.phase5Results.filter(r=>r.type!=="progress"),last:window.phase5Results.at(-1)})'), null, 2));
 } else if (action === "inspect") {
   console.log(send({ action: "inspect", pageId: args[0] }));
+} else if (action === "rotation-probe") {
+  console.log(send({ action: "rotation-probe" }));
+} else if (action === "pivot-probe") {
+  console.log(send({ action: "pivot-probe" }));
+} else if (action === "late-rotation-probe") {
+  console.log(send({ action: "late-rotation-probe", size: Number(args[0] ?? 1) }));
+} else if (action === "delay-probe") {
+  console.log(send({ action: "delay-probe" }));
+} else if (action === "rotated-image") {
+  console.log(send({ action: "rotated-image", size: 0 }));
+} else if (action === "fixture") {
+  console.log(send({ action: "fixture", size: Number(args[0] || 0) }));
+} else if (action === "focus") {
+  console.log(send({ action: "focus", pageId: args[0], names: args.slice(1) }));
 } else if (action === "list-pages") {
   console.log(send({ action: "list-pages" }));
 } else if (action === "remove-boards") {

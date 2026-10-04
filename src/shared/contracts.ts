@@ -57,7 +57,6 @@ export interface ScenePaint {
   /** Computed per-axis CSS overflow, retained so single-axis clipping can be diagnosed rather than guessed at. */
   overflowX?: string;
   overflowY?: string;
-  transform?: string;
 }
 
 export interface TextStyle {
@@ -104,7 +103,13 @@ export interface SceneNode {
   kind: SceneKind;
   name: string;
   source: string;
+  /** Captured box in page pixels. For a transformed layer this is the layer's
+   * own (scaled) size plus the position of its top-left corner after every
+   * CSS transform; see `rotation`. */
   rect: Rect;
+  /** Clockwise rotation in degrees (the CSS convention) about the top-left
+   * corner of `rect`. Absent when no transform rotates the layer. */
+  rotation?: number;
   /** Effective integer z-index. `z-index: auto` is stored as 0 (its paint
    * position for positioned elements) with `zIndexAuto` set, so explicit
    * numeric zero stays distinct from automatic stacking. */

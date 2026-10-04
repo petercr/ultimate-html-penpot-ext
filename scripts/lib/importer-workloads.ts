@@ -28,3 +28,17 @@ export function singleBoardScene(nodeCount: number): SceneDocument {
   return { protocolVersion: PROTOCOL_VERSION, viewport, documentSize: { width: viewport.width, height }, diagnostics: [], assets: [],
     nodes: [{ id: "root", children: nodes.map((node) => node.id), kind: "container", name: "body", source: "body", rect: { x: 0, y: 0, width: viewport.width, height }, zIndex: 0, paint: { backgroundColor: "#ffffff" }, layout: { kind: "none" } }, ...nodes] };
 }
+
+/** Rotated layers whose fills arrive through an asynchronous upload: an image, a background image, and a plain control. */
+export function rotatedAssetScene(): SceneDocument {
+  const viewport = DEFAULT_VIEWPORTS[0];
+  const nodes: SceneNode[] = [
+    { id: "image", parentId: "root", children: [], kind: "image", name: "Rotated image", source: "#image", rect: { x: 100, y: 100, width: 160, height: 100 }, rotation: 25, zIndex: 0, paint: {}, layout: { kind: "none" }, assetId: "asset-0" },
+    { id: "background", parentId: "root", children: [], kind: "box", name: "Rotated background", source: "#background", rect: { x: 400, y: 100, width: 180, height: 120 }, rotation: -15, zIndex: 0,
+      paint: { backgroundImage: 'url("https://fixture.invalid/image-1.png")', backgroundSize: "cover", backgroundRepeat: "no-repeat" }, layout: { kind: "none" }, assetId: "asset-1" },
+    { id: "control", parentId: "root", children: [], kind: "box", name: "Rotated control", source: "#control", rect: { x: 700, y: 100, width: 160, height: 100 }, rotation: 40, zIndex: 0, paint: { backgroundColor: "#2563eb" }, layout: { kind: "none" } }
+  ];
+  return { protocolVersion: PROTOCOL_VERSION, viewport, documentSize: { width: viewport.width, height: 400 }, diagnostics: [],
+    nodes: [{ id: "root", children: nodes.map((node) => node.id), kind: "container", name: "body", source: "body", rect: { x: 0, y: 0, width: viewport.width, height: 400 }, zIndex: 0, paint: { backgroundColor: "#ffffff" }, layout: { kind: "none" } }, ...nodes],
+    assets: [0, 1].map((index) => ({ id: `asset-${index}`, url: `https://fixture.invalid/image-${index}.png`, mimeType: "image/png" })) };
+}

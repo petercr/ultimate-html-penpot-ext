@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer transformed geometry fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 "DejaVu Sans", sans-serif; }
+  h2 { margin: 20px 0 0; font-size: 14px; font-weight: 700; color: #475467; }
+  /* Each stage reserves room for its rotated content so neighbors never overlap. */
+  .stage { position: relative; height: 150px; margin: 4px 0; }
+  .tile { position: absolute; left: 40px; top: 30px; width: 180px; height: 70px; padding: 10px; background: #dbeafe; border: 3px solid #2563eb; border-radius: 14px; font-weight: 700; }
+
+  /* A rotated box must keep its own 180x70 size, not the bounds of the rotated box. */
+  #rotated-box { transform: rotate(30deg); }
+  /* Rotation about the default center, with decoration and text that must turn with it. */
+  #rotated-card { transform: rotate(-8deg); background: #fef3c7; border-color: #d97706; box-shadow: 0 4px 10px rgb(15 23 42 / 20%); }
+  /* Rotation about a corner moves the layer's center. */
+  #corner-origin { transform-origin: top left; transform: rotate(15deg); background: #dcfce7; border-color: #16a34a; }
+  #translated { transform: translate(40px, 12px); background: #ede9fe; border-color: #7c3aed; }
+  /* Uniform scale resizes the box, text, border, and corner radius together. */
+  #scaled { transform: scale(1.25); background: #ffe4e6; border-color: #e11d48; }
+  /* The individual transform properties compose before the transform property. */
+  #individual { rotate: 12deg; scale: 1.1; translate: 5% 4px; background: #cffafe; border-color: #0891b2; }
+
+  /* Nested transforms compose: the child ends up turned 30 degrees. */
+  #nested-parent { transform: rotate(10deg); background: #f1f5f9; border-color: #64748b; width: 260px; height: 100px; }
+  #nested-child { position: absolute; left: 20px; top: 28px; width: 120px; height: 36px; padding: 4px 8px; transform: rotate(20deg); background: #bbf7d0; border: 2px solid #15803d; border-radius: 8px; font-size: 13px; }
+
+  /* A rotated clip must clip its contents along its own rotated edges. */
+  #rotated-clip { transform: rotate(6deg); overflow: hidden; background: #e0f2fe; border-color: #0284c7; padding: 0; }
+  #rotated-clip .wide { width: 320px; padding: 10px; background: #bae6fd; }
+
+  /* Vertical labels are rotated text. */
+  #vertical-label { position: absolute; left: 70px; top: 60px; width: 130px; height: 28px; padding: 3px 8px; transform: rotate(-90deg); background: #fae8ff; border: 2px solid #a21caf; border-radius: 6px; font-size: 14px; }
+  #image-frame { position: absolute; left: 60px; top: 25px; width: 140px; height: 90px; transform: rotate(12deg); border: 3px solid #0f766e; }
+
+  /* Transforms that cannot become a Penpot rotation keep their transformed bounds and report a diagnostic. */
+  #skewed { transform: skewX(20deg); background: #fee2e2; border-color: #dc2626; }
+  #flipped { transform: scaleX(-1); background: #fef9c3; border-color: #ca8a04; }
+  /* A collapsed element paints nothing, and neither does its subtree. */
+  #collapsed { transform: scale(0); background: #fecaca; border-color: #b91c1c; }
+  /* An inline box is not transformable, so the browser ignores this transform. */
+  .inline-note { transform: rotate(40deg); background: #fde68a; }
+</style>
+<main>
+  <h2>rotate(30deg) — size stays 180x70</h2>
+  <div class="stage"><div class="tile" id="rotated-box">Rotated box</div></div>
+
+  <h2>rotate(-8deg) — decorated card with text</h2>
+  <div class="stage"><div class="tile" id="rotated-card">Tilted card text</div></div>
+
+  <h2>transform-origin: top left; rotate(15deg)</h2>
+  <div class="stage"><div class="tile" id="corner-origin">Corner origin</div></div>
+
+  <h2>translate(40px, 12px)</h2>
+  <div class="stage"><div class="tile" id="translated">Translated</div></div>
+
+  <h2>scale(1.25) — box, text, border, and radius</h2>
+  <div class="stage"><div class="tile" id="scaled">Scaled 1.25</div></div>
+
+  <h2>rotate, scale, and translate properties (translate: 5% 4px)</h2>
+  <div class="stage"><div class="tile" id="individual">Properties</div></div>
+
+  <h2>nested rotations compose to 30deg</h2>
+  <div class="stage"><div class="tile" id="nested-parent"><div id="nested-child">Child text</div></div></div>
+
+  <h2>rotated overflow: hidden</h2>
+  <div class="stage"><div class="tile" id="rotated-clip"><div class="wide">This line is 320px wide inside a 180px rotated clip</div></div></div>
+
+  <h2>rotate(-90deg) — vertical label</h2>
+  <div class="stage"><div id="vertical-label">Vertical label</div></div>
+
+  <h2>rotated image</h2>
+  <div class="stage"><img id="image-frame" src="./assets/fixture-illustration.svg" alt="Fixture illustration"></div>
+
+  <h2>skewX(20deg) — unsupported, bounds only</h2>
+  <div class="stage"><div class="tile" id="skewed">Skewed</div></div>
+
+  <h2>scaleX(-1) — unsupported, bounds only</h2>
+  <div class="stage"><div class="tile" id="flipped">Flipped</div></div>
+
+  <h2>scale(0) — collapsed, nothing imported</h2>
+  <div class="stage"><div class="tile" id="collapsed">Collapsed</div></div>
+
+  <h2>inline element — transform ignored</h2>
+  <p>Plain text with an <span class="inline-note">inline span</span> that the browser does not transform.</p>
+</main>

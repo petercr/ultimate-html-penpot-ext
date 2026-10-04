@@ -2,8 +2,8 @@
 // Temporarily replace ignored dist output for a signed-in, local host pass.
 // Restore the normal plugin with npm run build after validation.
 import { build } from "vite";
-import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { extname, resolve } from "node:path";
 import { deflateSync } from "node:zlib";
 
 function png(index) {
@@ -18,7 +18,21 @@ function png(index) {
   return `data:image/png;base64,${data.toString("base64")}`;
 }
 
-const result = await build({ configFile: false, logLevel: "error", define: { LIVE_IMAGES: JSON.stringify(Array.from({ length: 120 }, (_, index) => png(index))) }, build: { write: false, lib: { entry: resolve("scripts/lib/importer-live-harness.ts"), formats: ["iife"], name: "ImporterHostValidation" } } });
+// Real extractor output for a checked-in fixture; `fixture <viewport>` imports one of its scenes.
+const fixtureFile = process.env.PHASE5_FIXTURE || "transforms.html";
+const evidence = JSON.parse(await readFile(resolve("src/capture/fixtures/baselines/scene-evidence.json"), "utf8"));
+const mediaTypes = { ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
+// The baselines captured assets from a local fixture server; inline them so the host pass needs no server.
+async function inlineFixtureAsset(asset) {
+  const name = asset.url && new URL(asset.url).pathname.split("/").pop();
+  const type = name && mediaTypes[extname(name)];
+  if (!type) return asset;
+  try { return { id: asset.id, dataUrl: `data:${type};base64,${(await readFile(resolve("src/capture/fixtures/assets", name))).toString("base64")}`, mimeType: type }; }
+  catch { return asset; }
+}
+const fixtureScenes = await Promise.all((evidence.fixtures.find((fixture) => fixture.file === fixtureFile)?.viewports ?? [])
+  .map(async ({ scene }) => ({ ...scene, assets: await Promise.all(scene.assets.map(inlineFixtureAsset)) })));
+const result = await build({ configFile: false, logLevel: "error", define: { FIXTURE_SCENES: JSON.stringify(fixtureScenes), LIVE_IMAGES: JSON.stringify(Array.from({ length: 120 }, (_, index) => png(index))) }, build: { write: false, lib: { entry: resolve("scripts/lib/importer-live-harness.ts"), formats: ["iife"], name: "ImporterHostValidation" } } });
 const output = (Array.isArray(result) ? result : [result]).flatMap((entry) => entry.output);
 const bundle = output.find((entry) => entry.type === "chunk")?.code;
 if (!bundle) throw new Error("Empty validation bundle.");

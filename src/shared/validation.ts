@@ -86,6 +86,7 @@ function validateNode(value: unknown, index: number): asserts value is SceneNode
   if (width > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].rect.width must be no greater than ${SCENE_LIMITS.maxDimension}.`);
   const height = number(rect.height, `nodes[${index}].rect.height`, 0);
   if (height > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].rect.height must be no greater than ${SCENE_LIMITS.maxDimension}.`);
+  optionalNumber(node.rotation, `nodes[${index}].rotation`, -360, 360);
   number(node.zIndex, `nodes[${index}].zIndex`);
   optionalBoolean(node.zIndexAuto, `nodes[${index}].zIndexAuto`);
   validatePaint(node.paint, index);
@@ -124,7 +125,6 @@ function validatePaint(value: unknown, index: number): void {
   // so they are bounded as strings instead of restricted to a fixed set.
   optionalString(paint.overflowX, `nodes[${index}].paint.overflowX`, 50);
   optionalString(paint.overflowY, `nodes[${index}].paint.overflowY`, 50);
-  optionalString(paint.transform, `nodes[${index}].paint.transform`, 500);
 }
 
 function validateLayout(value: unknown, index: number): void {
