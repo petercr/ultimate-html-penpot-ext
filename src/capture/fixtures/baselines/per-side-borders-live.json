@@ -1,0 +1,95 @@
+{
+  "verifiedAt": "2026-10-04",
+  "host": {
+    "url": "https://design.penpot.app",
+    "penpotVersion": "2.18.1",
+    "browser": "Windows Chromium 150.0.7871.250 through Orca"
+  },
+  "fixture": "per-side-borders.html",
+  "inputs": {
+    "src/capture/fixtures/per-side-borders.html": "c45e1fb12d50285b3ea70466e9ee40f70e4e605a77d93ce89a0992c4582d56e2",
+    "src/capture/extractor.ts": "6609c3f8a07d1d566a10e4cd5a2205a9e509543a1f32b5b4f019650eac74922c",
+    "src/importer/penpot.ts": "6c2d97028b20c2d94f4dd9c0c4aa12ad4923c3cfd1e0d36ead643eeb4be366a8",
+    "src/importer/borders.ts": "cfc73f7d450f4b97429ac73eb97fe0abc3f5213a4e4d0d320efa7b490406f8f5"
+  },
+  "viewports": [
+    {
+      "viewport": "desktop",
+      "sceneNodes": 48,
+      "hostShapes": 96,
+      "borderPaths": 29,
+      "maxCornerErrorPx": 0.0000047162574219328235,
+      "maxSizeErrorPx": 0.00005919167710999318,
+      "contentClip": {
+        "width": 246.00000381469727,
+        "height": 80.0000011920929
+      },
+      "elementOpacity": 0.8,
+      "sideAlpha": [
+        0.5,
+        0.75
+      ],
+      "importMs": 6691,
+      "saveObserved": true
+    },
+    {
+      "viewport": "tablet",
+      "sceneNodes": 48,
+      "hostShapes": 96,
+      "borderPaths": 29,
+      "maxCornerErrorPx": 0.000004664726475311909,
+      "maxSizeErrorPx": 0.00005859375005456968,
+      "contentClip": {
+        "width": 246.00000381469727,
+        "height": 80.0000011920929
+      },
+      "elementOpacity": 0.8,
+      "sideAlpha": [
+        0.5,
+        0.75
+      ],
+      "importMs": 6326,
+      "saveObserved": true
+    },
+    {
+      "viewport": "mobile",
+      "sceneNodes": 64,
+      "hostShapes": 112,
+      "borderPaths": 29,
+      "maxCornerErrorPx": 0.000022600287422847032,
+      "maxSizeErrorPx": 0.0001087013788492186,
+      "contentClip": {
+        "width": 246.00000381469727,
+        "height": 80.00000119209267
+      },
+      "elementOpacity": 0.8,
+      "sideAlpha": [
+        0.5,
+        0.75
+      ],
+      "importMs": 8739,
+      "saveObserved": true
+    }
+  ],
+  "visualComparison": {
+    "viewport": "desktop",
+    "cases": [
+      "bottom-only",
+      "left accent",
+      "four widths/colors/alpha",
+      "oversized clipping child",
+      "rotation",
+      "uniform scale",
+      "image border geometry"
+    ],
+    "notes": "Representative border appearance checked against the browser reference. Image content sizing remains the existing importer behavior; object-fit/object-position is deferred."
+  },
+  "undoRedo": {
+    "viewport": "mobile",
+    "beforeShapes": 112,
+    "afterUndoShapes": 1,
+    "afterUndoBorderPaths": 0,
+    "afterRedoShapes": 112,
+    "afterRedoBorderPaths": 29
+  }
+}

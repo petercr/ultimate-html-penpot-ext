@@ -4,6 +4,7 @@ import { profileNow, type ImportMetrics } from "../shared/performance";
 import { ImportScheduler } from "./scheduler";
 import { MediaUploads, mediaKey } from "./assets";
 import { BoardPersistence, LARGE_BOARD_NODES } from "./persistence";
+import { borderInsets, borderPolygons, borderWidth, hasBorder, uniformBorder } from "./borders";
 
 export class ImportCancelledError extends Error {
   constructor() { super("Import cancelled."); }
@@ -234,12 +235,14 @@ function applyPaint(shape: Shape, paint: ScenePaint): void {
   if (paint.radius) {
     [shape.borderRadiusTopLeft, shape.borderRadiusTopRight, shape.borderRadiusBottomRight, shape.borderRadiusBottomLeft] = paint.radius;
   }
-  const stroke = cssColorWithOpacity(paint.borderColor);
-  if (stroke && paint.borderWidth && paint.borderStyle !== "none") {
+  const border = uniformBorder(paint);
+  const stroke = cssColorWithOpacity(border?.color);
+  shape.strokes = [];
+  if (stroke && border?.width && (border.style === "solid" || border.style === "dashed" || border.style === "dotted")) {
     // CSS borders paint inside the border box, so the stroke stays inside the
     // captured rect. A centered stroke would extend half its width outside on
     // every side and shift each bordered card's visible edges outward.
-    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: paint.borderWidth, strokeStyle: "solid", strokeAlignment: "inner" }];
+    shape.strokes = [{ strokeColor: stroke.color, strokeOpacity: stroke.opacity, strokeWidth: border.width, strokeStyle: border.style, strokeAlignment: "inner" }];
   }
   applyShadow(shape, paint.boxShadow);
   if (clipsContent(paint) && shape.type === "board") (shape as Board).clipContent = true;
@@ -260,15 +263,15 @@ export function rotatedBoundsOrigin(origin: { x: number; y: number }, width: num
   };
 }
 
-function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y: number }): void {
+function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y: number }, minimumDimension = 0.1): void {
   // Penpot stores a nested shape's coordinates in page space. Set these only
   // after parentage is established; setting local DOM coordinates beforehand
   // puts children outside their clipping board.
   // Captured geometry is a fixed snapshot. Explicit top/left constraints stop
   // the host from stretching or repositioning it when a parent is resized.
   pinShapeConstraints(shape);
-  const width = Math.max(0.1, node.rect.width);
-  const height = Math.max(0.1, node.rect.height);
+  const width = Math.max(minimumDimension, node.rect.width);
+  const height = Math.max(minimumDimension, node.rect.height);
   const x = pageOrigin.x + node.rect.x;
   const y = pageOrigin.y + node.rect.y;
   shape.x = x;
@@ -286,6 +289,19 @@ function applyGeometry(shape: Shape, node: SceneNode, pageOrigin: { x: number; y
   const bounds = rotatedBoundsOrigin({ x, y }, width, height, node.rotation);
   shape.x = bounds.x;
   shape.y = bounds.y;
+}
+
+/** Position an element-local rectangle in the element's composed frame. */
+function localFrame(node: SceneNode, rect: SceneNode["rect"]): SceneNode {
+  const radians = (node.rotation ?? 0) * Math.PI / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return { ...node, rect: {
+    x: node.rect.x + rect.x * cos - rect.y * sin,
+    y: node.rect.y + rect.x * sin + rect.y * cos,
+    width: rect.width,
+    height: rect.height
+  } };
 }
 
 function pinShapeConstraints(shape: Shape): void {
@@ -442,7 +458,7 @@ function needsContainerBackdrop(node: SceneNode): boolean {
   return Boolean(
     cssColor(paint.backgroundColor) ||
     (paint.backgroundImage && paint.backgroundImage !== "none") ||
-    (paint.borderWidth && paint.borderWidth > 0 && paint.borderStyle !== "none") ||
+    hasBorder(paint) ||
     (paint.boxShadow && paint.boxShadow !== "none") ||
     paint.radius?.some((radius) => radius > 0)
   );
@@ -698,6 +714,29 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           persistence?.markDirty();
         };
 
+        const createBorders = (node: SceneNode, parentShape: Board | Shape): Shape[] => {
+          const borders: Shape[] = [];
+          for (const polygon of borderPolygons(node.paint, node.rect.width, node.rect.height)) {
+            const color = cssColorWithOpacity(polygon.border.color);
+            if (!color) continue;
+            throwIfCancelled();
+            const path = track(penpot.createPath());
+            path.d = polygon.d;
+            path.fills = [{ fillColor: color.color, fillOpacity: color.opacity }];
+            path.strokes = [];
+            path.opacity = 1;
+            append(parentShape, path);
+            // A side's local corner travels with the element's own frame.
+            // Rotate the path at creation, before any asynchronous host work.
+            applyGeometry(path, localFrame(node, polygon.rect), { x: board.x, y: board.y }, 0);
+            metadata(path, node, scene.viewport.id);
+            path.name = `${path.name.slice(0, 170)} ${polygon.side} border`;
+            path.setPluginData("border-side", polygon.side);
+            borders.push(path);
+          }
+          return borders;
+        };
+
         const reportProgress = () => {
           completed += 1;
           if (completed % 25 === 0 || completed === total) {
@@ -734,7 +773,28 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             metadata(clip, node, scene.viewport.id);
             reportAssetFallback(clip, node, clipAsset, scene.viewport.id, options);
             shapes.set(node.id, clip);
-            for (const child of childrenByParent.get(node.id) || []) await render(child, clip);
+            let contentClip = clip;
+            if (node.paint.borders && hasBorder(node.paint) && !uniformBorder(node.paint) && !node.paint.radius?.some((radius) => radius > 0)) {
+              // CSS clips overflow at the padding box. A board clips at its
+              // outer bounds, so inset a transparent content board to keep
+              // oversized children out of the border, including alpha sides.
+              const [top, right, bottom, left] = borderInsets(node.paint, node.rect.width, node.rect.height);
+              contentClip = track(penpot.createBoard());
+              fixBoardSizing(contentClip);
+              contentClip.clipContent = true;
+              contentClip.fills = [];
+              contentClip.strokes = [];
+              contentClip.opacity = 1;
+              append(clip, contentClip);
+              applyGeometry(contentClip, localFrame(node, { x: left, y: top, width: node.rect.width - left - right, height: node.rect.height - top - bottom }), { x: board.x, y: board.y });
+              metadata(contentClip, node, scene.viewport.id);
+              contentClip.name = `${contentClip.name.slice(0, 180)} content clip`;
+              contentClip.setPluginData("border-content-clip", "true");
+            }
+            for (const child of childrenByParent.get(node.id) || []) await render(child, contentClip);
+            // Append after descendants: the host inserts these at the back,
+            // above the board background and below CSS child content.
+            createBorders(node, clip);
             reportProgress();
             return clip;
           }
@@ -745,6 +805,10 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               if (childShape) children.push(childShape);
             }
 
+            // The host preserves existing sibling order when grouping.
+            // Append borders before the backdrop so its index-zero insertion
+            // puts the background behind the side fills and descendants.
+            const borders = createBorders(node, parentShape);
             const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media, track, (value) => {
               append(parentShape, value);
               applyGeometry(value, node, { x: board.x, y: board.y });
@@ -773,10 +837,12 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // members run in the opposite order with the backdrop behind.
             const rendered = backdrop ? children.slice(1) : children;
             const members = rendered.slice().reverse();
+            members.unshift(...borders);
             if (backdrop) members.unshift(backdrop);
             const shape = collapsed ? children[0] : penpot.group(members);
             if (!collapsed || node.paint.opacity !== undefined && node.paint.opacity !== 1) persistence?.markDirty();
             if (!shape) {
+              if (borders.length) throw new Error("Penpot could not group the container and its side borders.");
               reportProgress();
               return children[0];
             }
@@ -797,6 +863,9 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
 
           let shape: Shape;
           let placed = false;
+          // Append the decoration before placing the base surface; the host
+          // inserts that surface behind the existing borders.
+          const borders = createBorders(node, parentShape);
           const place: PlaceShape = (value) => {
             placed = true;
             append(parentShape, value);
@@ -811,8 +880,25 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           try {
             metadata(shape, node, scene.viewport.id);
             reportAssetFallback(shape, node, node.assetId ? assets.get(node.assetId) : undefined, scene.viewport.id, options);
-            shapes.set(node.id, shape);
             if (!placed) place(shape);
+            if (borders.length) {
+              // The background/image and side colors share the element's
+              // compositing opacity; apply it once to the complete group.
+              const background = shape;
+              background.opacity = 1;
+              const members = [background, ...borders];
+              const group = penpot.group(members);
+              if (!group) throw new Error("Penpot could not group the element and its side borders.");
+              members.forEach(pinShapeConstraints);
+              pinShapeConstraints(group);
+              group.opacity = node.paint.opacity ?? 1;
+              const reason = background.getPluginData("asset-fallback");
+              if (reason) group.setPluginData("asset-fallback", reason);
+              metadata(group, node, scene.viewport.id);
+              shape = group;
+              persistence?.markDirty();
+            }
+            shapes.set(node.id, shape);
             // Keep short inline controls on the same line as in the source
             // browser. Apply this after geometry because resize() can reset a
             // text layer's grow mode. Wrapped source text is split into one
@@ -830,7 +916,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               while (ancestor && !visited.has(ancestor.id)) {
                 visited.add(ancestor.id);
                 const right = ancestor.rect.x + ancestor.rect.width
-                  - (ancestor.layout.padding?.[1] ?? 0) - (ancestor.paint.borderWidth ?? 0);
+                  - (ancestor.layout.padding?.[1] ?? 0) - borderWidth(ancestor.paint, "right");
                 if (!ancestor.rotation && right > node.rect.x) maximum = Math.min(maximum, right - node.rect.x);
                 ancestor = ancestor.parentId ? nodes.get(ancestor.parentId) : undefined;
               }
@@ -859,6 +945,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             board.setPluginData("source", root.source);
             reportAssetFallback(board, root, rootAsset, scene.viewport.id, options);
             for (const child of childrenByParent.get(root.id) || []) await render(child, board);
+            createBorders(root, board);
             reportProgress();
           } else await render(root, board);
         }

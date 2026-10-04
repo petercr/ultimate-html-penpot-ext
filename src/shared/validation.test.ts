@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PROTOCOL_VERSION, type SceneDocument } from "./contracts";
+import { PROTOCOL_VERSION, SCENE_LIMITS, type SceneBorders, type SceneDocument } from "./contracts";
 import { sceneWarnings, utf8ByteLength, validateScenes } from "./validation";
 
 function scene(overrides: Partial<SceneDocument> = {}): SceneDocument {
@@ -67,6 +67,62 @@ describe("scene validation", () => {
     expect(() => validateScenes([scene({ nodes: [{ ...root, layout: { kind: "table" as "none" } }] })])).toThrow("layout.kind");
     expect(() => validateScenes([scene({ nodes: [{ ...root, textStyle: { fontFamily: "Inter", fontSize: 16, fontWeight: 400, fontStyle: "normal", lineHeight: 0, letterSpacing: 0, textAlign: "left", textDecoration: "none", textTransform: "none" } }] })])).toThrow("textStyle.lineHeight");
     expect(() => validateScenes([scene({ nodes: [{ ...root, rect: { ...root.rect, width: 100_001 } }] })])).toThrow("rect.width");
+  });
+
+  it("accepts complete per-side borders and legacy uniform borders", () => {
+    const root = scene().nodes[0];
+    const borders: SceneBorders = {
+      top: { color: "rgb(1, 2, 3)", width: 1, style: "solid" },
+      right: { color: "rgba(4, 5, 6, 0.5)", width: 2, style: "solid" },
+      bottom: { color: "transparent", width: 0, style: "none" },
+      left: { color: "#123456", width: SCENE_LIMITS.maxDimension, style: "dashed" }
+    };
+    expect(validateScenes([scene({ nodes: [{ ...root, paint: { borders } }] })])).toHaveLength(1);
+    expect(validateScenes([scene({ nodes: [{ ...root, paint: { borderColor: "#123456", borderWidth: 2, borderStyle: "solid" } }] })])).toHaveLength(1);
+  });
+
+  it("requires all border sides and all fields on every side", () => {
+    const root = scene().nodes[0];
+    const border = { color: "#123456", width: 2, style: "solid" };
+    for (const side of ["top", "right", "bottom", "left"] as const) {
+      const borders: Record<string, unknown> = { top: { ...border }, right: { ...border }, bottom: { ...border }, left: { ...border } };
+      delete borders[side];
+      expect(() => validateScenes([scene({ nodes: [{ ...root, paint: { borders: borders as unknown as SceneBorders } }] })])).toThrow(`paint.borders.${side}`);
+      for (const field of ["color", "width", "style"] as const) {
+        const incomplete = { ...border } as Record<string, unknown>;
+        delete incomplete[field];
+        borders[side] = incomplete;
+        expect(() => validateScenes([scene({ nodes: [{ ...root, paint: { borders: borders as unknown as SceneBorders } }] })])).toThrow(`paint.borders.${side}.${field}`);
+      }
+    }
+  });
+
+  it("bounds each border side's color, width, and style", () => {
+    const root = scene().nodes[0];
+    const border = { color: "#123456", width: 2, style: "solid" };
+    const invalidFields = [
+      ["color", null], ["color", "a".repeat(201)],
+      ["width", -1], ["width", Number.NaN], ["width", Number.POSITIVE_INFINITY], ["width", SCENE_LIMITS.maxDimension + 1],
+      ["style", 5], ["style", "a".repeat(51)]
+    ] as const;
+    for (const side of ["top", "right", "bottom", "left"] as const) {
+      for (const [field, value] of invalidFields) {
+        const borders = { top: border, right: border, bottom: border, left: border, [side]: { ...border, [field]: value } };
+        expect(() => validateScenes([scene({ nodes: [{ ...root, paint: { borders: borders as unknown as SceneBorders } }] })])).toThrow(`paint.borders.${side}.${field}`);
+      }
+    }
+  });
+
+  it("rejects border collections and sides that are not objects", () => {
+    const root = scene().nodes[0];
+    const border = { color: "#123456", width: 2, style: "solid" };
+    for (const malformed of [null, [], "borders"]) {
+      expect(() => validateScenes([scene({ nodes: [{ ...root, paint: { borders: malformed as unknown as SceneBorders } }] })])).toThrow("paint.borders");
+      for (const side of ["top", "right", "bottom", "left"] as const) {
+        const borders = { top: border, right: border, bottom: border, left: border, [side]: malformed };
+        expect(() => validateScenes([scene({ nodes: [{ ...root, paint: { borders: borders as unknown as SceneBorders } }] })])).toThrow(`paint.borders.${side}`);
+      }
+    }
   });
 
   it("validates asset references and duplicate viewport ids", () => {

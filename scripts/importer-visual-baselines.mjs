@@ -30,7 +30,8 @@ const fixtureFiles = [
   "color-opacity.html",
   "stacking-contents-whitespace.html",
   "asset-failures.html",
-  "transforms.html"
+  "transforms.html",
+  "per-side-borders.html"
 ];
 const fixtureAssetDirectory = join(fixtureDirectory, "assets");
 const viewports = [
@@ -225,6 +226,51 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
     for (const source of ["#skewed", "#flipped"]) {
       if (sceneNode(scene, source).rotation !== undefined) throw new Error(`${source} must stay unrotated.`);
       if (!scene.diagnostics.some((diagnostic) => diagnostic.code === "UNSUPPORTED_TRANSFORM" && diagnostic.source === source)) throw new Error(`${source} transform diagnostic is missing.`);
+    }
+  }
+  if (file === "per-side-borders.html") {
+    const sides = ["top", "right", "bottom", "left"];
+    const assertBorders = (source, widths, colors, styles = ["solid", "solid", "solid", "solid"]) => {
+      const layer = sceneNode(scene, source);
+      for (const [index, side] of sides.entries()) {
+        const border = layer.paint.borders?.[side];
+        if (!border || Math.abs(border.width - widths[index]) > 0.01 || border.style !== styles[index] || (colors && border.color !== colors[index])) {
+          throw new Error(`${source} did not retain its ${side} border (got ${JSON.stringify(border)}).`);
+        }
+      }
+      return layer;
+    };
+    const standardColors = ["rgb(220, 38, 38)", "rgb(37, 99, 235)", "rgb(22, 163, 74)", "rgb(124, 58, 237)"];
+    assertBorders("body", [2, 4, 6, 8], standardColors);
+    const bottomText = assertBorders("#bottom-only-text", [0, 0, 4, 0], undefined, ["none", "none", "solid", "none"]);
+    if (bottomText.kind !== "container" || !scene.nodes.some((node) => node.parentId === bottomText.id && node.kind === "text" && node.text === "Bottom edge stays visible")) throw new Error("Bottom-only border did not retain a decorated container with a text child.");
+    assertBorders("#left-accent", [0, 0, 0, 8], undefined, ["none", "none", "none", "solid"]);
+    const fourSides = assertBorders("#four-sides", [4, 8, 12, 16], [standardColors[0], "rgba(37, 99, 235, 0.5)", standardColors[2], "rgba(124, 58, 237, 0.75)"]);
+    if (fourSides.paint.opacity !== 0.8) throw new Error("Per-side color alpha changed the element's compositing opacity.");
+    const clip = assertBorders("#border-clip", [3, 5, 7, 9], Array(4).fill("rgb(3, 105, 161)"));
+    if (clip.paint.overflow !== "hidden" || sceneNode(scene, "#clip-child").parentId !== clip.id) throw new Error("Per-side border clip did not retain its clipped child.");
+    const rotated = assertBorders("#rotated-border", [2, 4, 6, 8], standardColors);
+    if (rotated.rotation !== 12 || Math.abs(rotated.rect.width - 220) > 0.01 || Math.abs(rotated.rect.height - 80) > 0.01) throw new Error("Rotated per-side borders changed the layer frame.");
+    const scaled = assertBorders("#scaled-border", [2.5, 5, 7.5, 10], standardColors);
+    if (Math.abs(scaled.rect.width - 250) > 0.01 || Math.abs(scaled.rect.height - 90) > 0.01) throw new Error("Scaled per-side borders did not retain the scaled layer frame.");
+    const image = assertBorders("#image-border", [2, 4, 6, 8], standardColors);
+    if (image.kind !== "image" || !image.assetId || !scene.assets.some((asset) => asset.id === image.assetId && asset.url?.includes("fixture-illustration.svg"))) throw new Error("Per-side image border lost its bundled image asset.");
+    assertBorders("#invisible-sides", [5, 0, 0, 8], ["rgba(0, 0, 0, 0)", standardColors[0], standardColors[2], "rgb(217, 119, 6)"], ["solid", "hidden", "none", "solid"]);
+    const uniform = sceneNode(scene, "#uniform-control");
+    if (uniform.paint.borders !== undefined || uniform.paint.borderWidth !== 4 || uniform.paint.borderStyle !== "solid" || uniform.paint.borderColor !== "rgb(71, 84, 103)") throw new Error("Uniform border must retain its legacy paint fields without per-side payload.");
+    if (sceneNode(scene, "#no-border-control").paint.borders !== undefined) throw new Error("A borderless layer must not carry a per-side payload.");
+    const rounded = assertBorders("#rounded-asymmetric", [4, 8, 12, 16], standardColors);
+    if (JSON.stringify(rounded.paint.radius) !== JSON.stringify([22, 12, 28, 8])) throw new Error("Rounded asymmetric border did not retain its background corner radii.");
+    assertBorders("#unsupported-styles", [6, 6, 8, 8], standardColors, ["dashed", "dotted", "double", "solid"]);
+    const modern = assertBorders("#modern-side-color", [0, 0, 3, 6], undefined, ["none", "none", "solid", "solid"]);
+    if (!modern.paint.borders.left.color.startsWith("color(display-p3 ")) throw new Error("CSS Color 4 side paint was replaced before diagnostics.");
+    const borderImage = sceneNode(scene, "#border-image-sample");
+    if (borderImage.paint.borderWidth !== 8 || borderImage.paint.borderStyle !== "solid" || borderImage.paint.borders !== undefined) throw new Error("Border image did not retain its uniform solid fallback.");
+    for (const [source, code] of [["#rounded-asymmetric", "UNSUPPORTED_BORDER_RADIUS"], ["#unsupported-styles", "UNSUPPORTED_BORDER_STYLE"], ["#modern-side-color", "UNSUPPORTED_COLOR_FORMAT"], ["#border-image-sample", "UNSUPPORTED_BORDER_IMAGE"]]) {
+      if (!scene.diagnostics.some((diagnostic) => diagnostic.code === code && diagnostic.source === source)) throw new Error(`${source} ${code} diagnostic is missing.`);
+    }
+    for (const source of ["body", "#bottom-only-text", "#left-accent", "#four-sides", "#border-clip", "#rotated-border", "#scaled-border", "#image-border", "#invisible-sides", "#uniform-control", "#no-border-control"]) {
+      if (scene.diagnostics.some((diagnostic) => diagnostic.source === source && diagnostic.code.startsWith("UNSUPPORTED_BORDER"))) throw new Error(`${source} unexpectedly diagnosed a supported border.`);
     }
   }
 }

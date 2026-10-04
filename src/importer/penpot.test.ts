@@ -101,6 +101,7 @@ describe("Penpot importer", () => {
         return board;
       }),
       createRectangle: vi.fn(() => Object.assign(fakeShape("rectangle"), { fills: [] })),
+      createPath: vi.fn(() => Object.assign(fakeShape("path"), { fills: [], d: "" })),
       createText: vi.fn((characters: string) => {
         const shape = Object.assign(fakeShape("text"), { characters, fills: [], growType: "fixed" });
         let fontFamily = "";
@@ -126,6 +127,28 @@ describe("Penpot importer", () => {
       uploadMediaData: vi.fn().mockResolvedValue({}),
       uploadMediaUrl: vi.fn().mockResolvedValue({})
     });
+  });
+
+  it("imports generated border scenes with editable sides and bounded content clips across all viewports", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "per-side-borders.html");
+    validateScenes(scenes);
+    const imported = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(imported).toHaveLength(3);
+    for (const board of imported) {
+      const all = shapesBelow(board as unknown as FakeShape);
+      const sides = (source: string) => all.filter((shape) => {
+        const data = shape.pluginData as Record<string, string>;
+        return data.source === source && Boolean(data["border-side"]);
+      });
+      expect(sides("body")).toHaveLength(4);
+      expect(sides("#bottom-only-text").map((shape) => (shape.pluginData as Record<string, string>)["border-side"])).toEqual(["bottom"]);
+      expect(sides("#four-sides")).toHaveLength(4);
+      expect(sides("#image-border")).toHaveLength(4);
+      expect(sides("#unsupported-styles").map((shape) => (shape.pluginData as Record<string, string>)["border-side"])).toEqual(["left"]);
+      expect(sides("#rounded-asymmetric")).toHaveLength(0);
+      const clip = all.find((shape) => (shape.pluginData as Record<string, string>)["border-content-clip"] === "true");
+      expect(clip).toMatchObject({ type: "board", clipContent: true, width: 246, height: 80, opacity: 1 });
+    }
   });
 
   it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {

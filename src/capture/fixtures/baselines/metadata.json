@@ -11,7 +11,7 @@
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "f2464027ab57057fa2d85cb435fce1b003187b2000ff6d52e58214f98886565d"
+      "sha256": "6609c3f8a07d1d566a10e4cd5a2205a9e509543a1f32b5b4f019650eac74922c"
     },
     "assets": [
       {
@@ -1175,6 +1175,195 @@
           "png": {
             "width": 375,
             "height": 2740
+          }
+        }
+      ]
+    },
+    {
+      "file": "per-side-borders.html",
+      "sha256": "c45e1fb12d50285b3ea70466e9ee40f70e4e605a77d93ce89a0992c4582d56e2",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "per-side-borders-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1425,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1425,
+              "height": 2075
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1425,
+              "height": 2075,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1425,
+            "height": 2075
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "per-side-borders-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 753,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 753,
+              "height": 2075
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 753,
+              "height": 2075,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 753,
+            "height": 2075
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "per-side-borders-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 375,
+              "clientHeight": 844
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 375,
+              "height": 2254
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 375,
+              "height": 2254,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 375,
+            "height": 2254
           }
         }
       ]

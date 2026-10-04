@@ -34,6 +34,19 @@ export interface Rect {
   height: number;
 }
 
+export interface SceneBorder {
+  color: string;
+  width: number;
+  style: string;
+}
+
+export interface SceneBorders {
+  top: SceneBorder;
+  right: SceneBorder;
+  bottom: SceneBorder;
+  left: SceneBorder;
+}
+
 export interface ScenePaint {
   backgroundColor?: string;
   backgroundImage?: string;
@@ -49,6 +62,9 @@ export interface ScenePaint {
   borderColor?: string;
   borderWidth?: number;
   borderStyle?: string;
+  /** All computed sides when their color, width, or style differs. Uniform
+   * borders keep the legacy borderColor/borderWidth/borderStyle fields. */
+  borders?: SceneBorders;
   radius?: [number, number, number, number];
   opacity?: number;
   boxShadow?: string;
