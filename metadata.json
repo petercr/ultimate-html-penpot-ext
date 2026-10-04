@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M448Q1MYJEYWEFJXJ4F4MQZJ",
+  "strategy": "manual-commit",
+  "branch": "phase5-transformed-geometry",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-assets-and-persistence.md",
+    "docs/importer-performance.md",
+    "docs/importer-transforms.md",
+    "docs/importer-visual-baselines.md",
+    "package.json",
+    "scripts/importer-live-harness.mjs",
+    "scripts/importer-live-orca.mjs",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/lib/importer-live-harness.ts",
+    "scripts/lib/importer-workloads.ts",
+    "src/capture/extractor.transforms.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/baselines/transforms-desktop-1440.png",
+    "src/capture/fixtures/baselines/transforms-mobile-390.png",
+    "src/capture/fixtures/baselines/transforms-tablet-768.png",
+    "src/capture/fixtures/transforms.html",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.test.ts",
+    "src/shared/validation.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
