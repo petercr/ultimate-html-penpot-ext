@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "command": "npm run baseline:importer",
   "browser": {
-    "product": "Chrome/153.0.8010.36",
-    "revision": "@507c6ee3e2f3b2ca0e660547e5b9ea4820c67f4c",
+    "product": "Chrome/153.0.8010.52",
+    "revision": "@78e5e45d4bb41035e17ea4da2cc257f496416ac9",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
   },
   "fixtureServer": "loopback only; all external http(s) requests are failed through CDP Fetch interception",
@@ -11,7 +11,7 @@
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "53854824a61ef859ad0dde44e531f4e150473c40c9b530696b50c772278a04b2"
+      "sha256": "1fdfd196b5daaabb1922a6fa35bd862a7af06dd4534401b4ceb1cf1043ad852f"
     },
     "assets": [
       {

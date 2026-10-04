@@ -1,5 +1,6 @@
 import { utf8ByteLength } from "../shared/validation";
 import { inlineWebFonts } from "./fonts";
+import type { SourceMetrics } from "../shared/performance";
 
 export interface ResolvedSource {
   html: string;
@@ -600,29 +601,32 @@ export function sourceUrl(value: string): string | undefined {
  * fetch service taking over only when CORS or the network prevents it. The
  * final upstream URL (after redirects) becomes the asset base URL.
  */
-export async function resolveSource(value: string, explicitBaseUrl?: string, signal?: AbortSignal): Promise<ResolvedSource> {
+export async function resolveSource(value: string, explicitBaseUrl?: string, signal?: AbortSignal, onMetrics?: (metrics: SourceMetrics) => void): Promise<ResolvedSource> {
   throwIfAborted(signal);
-  const url = sourceUrl(value);
-  if (!url) {
-    const styles = await inlineStylesheets(value, explicitBaseUrl, signal);
-    const images = await inlineImageAssets(styles, explicitBaseUrl, signal);
-    const fonts = await inlineWebFonts(images, explicitBaseUrl, signal);
-    const html = await inlineSvgImages(fonts, explicitBaseUrl, signal);
-    return { html, baseUrl: explicitBaseUrl || undefined };
-  }
-
-  const response = await fetchDocument(url, "html", signal);
-  const html = await response.text();
-  throwIfAborted(signal);
-  if (!html.trim()) throw new Error(`Unable to load ${url}: the response did not contain HTML.`);
-  const baseUrl = explicitBaseUrl || response.headers.get("X-HTML-Source-URL") || url;
-  const styles = await inlineStylesheets(html, baseUrl, signal);
-  const images = await inlineImageAssets(styles, baseUrl, signal);
-  const fonts = await inlineWebFonts(images, baseUrl, signal);
-
-  return {
-    html: await inlineSvgImages(fonts, baseUrl, signal),
-    baseUrl,
-    sourceUrl: url
+  const started = performance.now();
+  const metrics: SourceMetrics = { durationMs: 0, fetchMs: 0, stylesheetsMs: 0, imagesMs: 0, fontsMs: 0, svgMs: 0 };
+  const timed = async (phase: Exclude<keyof SourceMetrics, "durationMs">, work: () => Promise<string>) => {
+    if (!onMetrics) return work();
+    const start = performance.now();
+    try { return await work(); } finally { metrics[phase] += performance.now() - start; }
   };
+  const url = sourceUrl(value);
+  let html = value;
+  let baseUrl = explicitBaseUrl || undefined;
+  if (url) {
+    html = await timed("fetchMs", async () => {
+      const response = await fetchDocument(url, "html", signal);
+      baseUrl ||= response.headers.get("X-HTML-Source-URL") || url;
+      return response.text();
+    });
+    throwIfAborted(signal);
+    if (!html.trim()) throw new Error(`Unable to load ${url}: the response did not contain HTML.`);
+  }
+  const styles = await timed("stylesheetsMs", () => inlineStylesheets(html, baseUrl, signal));
+  const images = await timed("imagesMs", () => inlineImageAssets(styles, baseUrl, signal));
+  const fonts = await timed("fontsMs", () => inlineWebFonts(images, baseUrl, signal));
+  const prepared = await timed("svgMs", () => inlineSvgImages(fonts, baseUrl, signal));
+  metrics.durationMs = performance.now() - started;
+  try { onMetrics?.(metrics); } catch { /* Profiling must not change the capture input. */ }
+  return { html: prepared, baseUrl, ...(url ? { sourceUrl: url } : {}) };
 }

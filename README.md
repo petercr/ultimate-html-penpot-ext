@@ -42,6 +42,10 @@ Pasting HTML is the reliable workflow. Direct page URLs and remote images, fonts
 
 The deterministic browser suite covers root/container/reused background assets, the existing nested clipping and color/opacity cases, stacking, `display: contents`, whitespace (including NBSP/`<br>`/comment samples), and deliberately local failed assets. Run `npm run test:importer-fixtures` for focused capture/import behavior and `npm run baseline:importer` to regenerate real-Chrome Desktop 1440×900, Tablet 768×1024, and Mobile 390×844 reference screenshots, metadata, and extractor scene evidence; it verifies exact `innerWidth`/`innerHeight`, device scale 1, loaded regular/bold bundled fonts, and rejects unexpected failed or external HTTP(S) requests. The complete browser evidence, fixed-port local fixture server command, live Penpot comparison/undo workflow, expected layer structures, known later-phase mismatches, and font license are documented in [Importer fixture baselines](docs/importer-visual-baselines.md). This repository does not claim a live Penpot visual validation until that manual record exists.
 
+For local performance measurements, run `npm run benchmark:importer -- /tmp/importer-benchmark.json` with Google Chrome installed. It profiles source preparation, opaque-sandbox capture, and importer processing with a mocked Penpot API across small, medium, and large fixtures. See [Importer performance measurements](docs/importer-performance.md) for results and the live-host limitations.
+
+Add `--assets` to benchmark shared media with controlled upload delays, or `--single-board` to validate imports through 20,000 nodes on one mocked board. See [Asset uploads and single-board validation](docs/importer-assets-and-persistence.md) for measurements and the live Penpot test procedure.
+
 ## URL import service (v0.2)
 
 When a build sets `VITE_FETCH_PROXY_ORIGIN` to the deployment origin, CORS-blocked page imports are retried through a deliberately constrained fetch service (`api/fetch-html.ts`, deployed as a Vercel serverless function next to the plugin). The service:

@@ -1,5 +1,9 @@
 import type { Board, Fill, Gradient, Shape, Text } from "@penpot/plugin-types";
 import type { AssetRef, Diagnostic, SceneDocument, SceneNode, ScenePaint } from "../shared/contracts";
+import { profileNow, type ImportMetrics } from "../shared/performance";
+import { ImportScheduler } from "./scheduler";
+import { MediaUploads, mediaKey } from "./assets";
+import { BoardPersistence, LARGE_BOARD_NODES } from "./persistence";
 
 export class ImportCancelledError extends Error {
   constructor() { super("Import cancelled."); }
@@ -15,6 +19,7 @@ export interface ImportOptions {
   isCancelled: () => boolean;
   onProgress: (completed: number, total: number, label: string) => void;
   onDiagnostic?: (diagnostic: Diagnostic) => void;
+  onMetrics?: (metrics: ImportMetrics) => void;
 }
 
 const IMPORT_NAMESPACE = "ultimate-html-to-penpot";
@@ -338,9 +343,12 @@ function applyTextSizing(text: Text, style: NonNullable<SceneNode["textStyle"]>,
   text.letterSpacing = String(Math.max(0, style.letterSpacing * effectiveScale));
 }
 
-function createText(node: SceneNode): Text {
+type TrackShape = <T extends Shape>(shape: T) => T;
+
+function createText(node: SceneNode, track: TrackShape): Text {
   const text = penpot.createText(node.text || "");
   if (!text) throw new Error(`Unable to create text layer: ${node.name}`);
+  track(text);
   const style = node.textStyle;
   text.growType = "fixed";
   // CSS lays inline content out from the top of its line box. Make that
@@ -371,26 +379,12 @@ function createText(node: SceneNode): Text {
   return text;
 }
 
-function constrainTextToCapturedWidth(text: Text, node: SceneNode, maximum: number): void {
+function constrainTextToCapturedWidth(text: Text, node: SceneNode, maximum: number): boolean {
   const actual = text.width;
-  if (!maximum || !Number.isFinite(actual) || actual <= maximum + 0.01 || !node.textStyle) return;
+  if (!maximum || !Number.isFinite(actual) || actual <= maximum + 0.01 || !node.textStyle) return false;
   const scale = Number(text.fontSize) / Math.max(1, node.textStyle.fontSize) * (maximum - 0.5) / actual;
   applyTextSizing(text, node.textStyle, scale);
-}
-
-async function mediaFor(asset: AssetRef) {
-  const dataUrl = asset.dataUrl || (asset.url?.startsWith("data:") ? asset.url : undefined);
-  if (dataUrl) {
-    const response = await fetch(dataUrl);
-    const data = new Uint8Array(await response.arrayBuffer());
-    return penpot.uploadMediaData(asset.id, data, response.headers.get("content-type") || asset.mimeType || "image/png");
-  }
-  if (asset.url) return penpot.uploadMediaUrl(asset.id, asset.url);
-  return undefined;
-}
-
-function mediaKey(asset: AssetRef): string {
-  return asset.dataUrl || asset.url || asset.id;
+  return true;
 }
 
 function svgTextOf(asset: AssetRef | undefined): string | undefined {
@@ -426,33 +420,14 @@ function needsContainerBackdrop(node: SceneNode): boolean {
   );
 }
 
-type Media = Awaited<ReturnType<typeof mediaFor>>;
-interface CachedMedia {
-  media?: Media;
-  failure?: string;
-}
-type MediaCache = Map<string, CachedMedia>;
 interface AssetFillResult {
   applied: boolean;
   failure?: string;
 }
 
-async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaCache): Promise<AssetFillResult> {
+async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaUploads): Promise<AssetFillResult> {
   if (!asset || shape.type === "group") return { applied: false, failure: "The source asset was unavailable to this Penpot layer." };
-  const key = mediaKey(asset);
-  let cached = media.get(key);
-  if (!media.has(key)) {
-    try {
-      const uploaded = await mediaFor(asset);
-      cached = uploaded ? { media: uploaded } : { failure: "Penpot did not return uploaded media." };
-      media.set(key, cached);
-    } catch (error) {
-      // Cache failures as well as successes so repeated responsive boards do
-      // not retry an unavailable asset for every viewport.
-      cached = { failure: errorDetail(error) };
-      media.set(key, cached);
-    }
-  }
+  const cached = await media.get(asset);
   if (!cached?.media) return { applied: false, failure: cached?.failure || "Penpot did not return uploaded media." };
   const fillTarget = shape as Shape & { fills: Fill[] };
   fillTarget.fills = [...(fillTarget.fills || []), { fillImage: cached.media, fillOpacity: 1 }];
@@ -467,8 +442,8 @@ function markAssetFallback(shape: Shape, reason: string): void {
   shape.setPluginData("asset-fallback", reason);
 }
 
-async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: MediaCache): Promise<Shape> {
-  const backdrop = penpot.createRectangle();
+async function createContainerBackdrop(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape): Promise<Shape> {
+  const backdrop = track(penpot.createRectangle());
   // Opacity belongs to the complete container compositing group. Keeping
   // the backdrop fully opaque lets the group apply it once to both the
   // background and editable descendants.
@@ -493,36 +468,40 @@ function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
   if (typeof getPluginData === "function") {
     try { assetFallback = getPluginData.call(shape, "asset-fallback"); } catch { /* Older hosts may not expose plugin data reads. */ }
   }
+  // NBSP and other whitespace can be meaningful text content, but Penpot
+  // rejects a blank layer name. Keep the characters and use a visible label.
+  const capturedName = node.name.slice(0, 200);
+  const name = capturedName.trim() ? capturedName : node.kind === "text" ? "Text" : "Layer";
   shape.name = assetFallback
-    ? `${assetFallback.startsWith("SVG") ? "SVG fallback" : "Image unavailable"}: ${node.name}`.slice(0, 200)
-    : node.name.slice(0, 200);
+    ? `${assetFallback.startsWith("SVG") ? "SVG fallback" : "Image unavailable"}: ${name}`.slice(0, 200)
+    : name;
   shape.setPluginData("importer", IMPORT_NAMESPACE);
   shape.setPluginData("viewport", viewportId);
   shape.setPluginData("source", node.source);
   if (node.fallbackReason) shape.setPluginData("fallback", node.fallbackReason);
 }
 
-async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: MediaCache): Promise<Shape> {
-  if (node.kind === "text") return createText(node);
+async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape): Promise<Shape> {
+  if (node.kind === "text") return createText(node, track);
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
   const svg = svgTextOf(asset);
   let svgConversionFailed = node.kind === "svg" || Boolean(svg);
   if (svg) {
     try {
       const group = await penpot.createShapeFromSvgWithImages(svg);
-      if (group) return group;
+      if (group) return track(group);
     } catch {
       // Try the synchronous converter for SVGs without image dependencies.
     }
     try {
       const group = penpot.createShapeFromSvg(svg);
-      if (group) return group;
+      if (group) return track(group);
     } catch {
       // Keep an image-backed rectangle if the SVG uses features Penpot cannot
       // translate into editable vectors.
     }
   }
-  const shape = penpot.createRectangle();
+  const shape = track(penpot.createRectangle());
   if (node.kind === "fallback") {
     (shape as Shape & { fills: Fill[] }).fills = [{ fillColor: "#f4f4f5" }];
     shape.name = `Unsupported: ${node.name}`;
@@ -555,26 +534,74 @@ function reportAssetFallback(shape: Shape, node: SceneNode, asset: AssetRef | un
 }
 
 export async function importScenes(scenes: SceneDocument[], options: ImportOptions): Promise<Board[]> {
+  const started = profileNow();
+  const scheduler = new ImportScheduler();
   const boards: Board[] = [];
   const total = scenes.reduce((sum, scene) => sum + scene.nodes.length, 0);
+  const metrics: ImportMetrics = { outcome: "error", nodeCount: total, assetCount: new Set(scenes.flatMap((scene) => scene.assets.map(mediaKey))).size, uploadCount: 0, maxConcurrentUploads: 0, saveWaitCount: 0, saveWaitMs: 0, completedNodes: 0, boardCount: 0, durationMs: 0, renderMs: 0, textFitMs: 0, commitWaitMs: 0, yieldMs: 0, yieldCount: 0 };
+  let phase: "renderMs" | "textFitMs" | "commitWaitMs" | undefined;
+  let phaseStart = started;
+  const startPhase = (next?: typeof phase) => {
+    const now = profileNow();
+    if (phase) metrics[phase] += now - phaseStart;
+    phase = next;
+    phaseStart = now;
+  };
   let completed = 0;
   const origin = { x: penpot.viewport.center.x, y: penpot.viewport.center.y };
   let x = origin.x;
   // Keep one uploaded media object per source URL across responsive boards.
   // Re-uploading the same page asset for each viewport creates noisy failed
   // requests in Penpot and needlessly increases the file update payload.
-  const media: MediaCache = new Map();
+  const media = new MediaUploads(options.isCancelled);
+  let persistence: BoardPersistence | undefined;
   const throwIfCancelled = () => {
     if (options.isCancelled()) throw new ImportCancelledError();
   };
+  const checkpoint = async () => {
+    throwIfCancelled();
+    const saved = persistence?.checkpoint();
+    if (saved) { await saved; throwIfCancelled(); }
+    const pause = scheduler.checkpoint();
+    if (pause) {
+      await pause;
+      throwIfCancelled();
+    }
+  };
+  const waitForHost = (milliseconds: number) => new Promise<void>((resolve, reject) => {
+    // Keep one completion timer so hidden-tab timer throttling cannot stretch
+    // a settle delay into a chain of waits. Poll cancellation independently.
+    let cancellationTimer: ReturnType<typeof setTimeout>;
+    const finish = () => {
+      clearTimeout(completionTimer);
+      clearTimeout(cancellationTimer);
+      if (options.isCancelled()) reject(new ImportCancelledError());
+      else resolve();
+    };
+    const poll = () => {
+      if (options.isCancelled()) finish();
+      else cancellationTimer = setTimeout(poll, 4);
+    };
+    const completionTimer = setTimeout(finish, milliseconds);
+    cancellationTimer = setTimeout(poll, 4);
+  });
 
   try {
     for (const scene of scenes) {
       throwIfCancelled();
+      startPhase("renderMs");
+      // Real plugin hosts expose save notifications. Small imports retain the
+      // existing behavior; large boards stop feeding changes between batches
+      // so the host can drain its persistence buffer without splitting undo.
+      persistence = scene.nodes.length >= LARGE_BOARD_NODES && typeof penpot.on === "function" && typeof penpot.off === "function"
+        ? new BoardPersistence(throwIfCancelled, () => options.onProgress(completed, total, `Saving ${scene.viewport.name}`)) : undefined;
       const undo = penpot.history.undoBlockBegin();
+      const unattached = new Set<Shape>();
+      const track: TrackShape = (shape) => { unattached.add(shape); persistence?.markDirty(); return shape; };
       try {
         const board = penpot.createBoard();
         boards.push(board);
+        persistence?.markDirty();
         board.name = `Page — ${scene.viewport.name} ${scene.viewport.width}`;
         fixBoardSizing(board);
         board.x = x;
@@ -618,6 +645,16 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         };
         for (const siblings of childrenByParent.values()) siblings.sort(byPaintOrder);
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
+        // Prefetch referenced media for this board, excluding SVG leaves that
+        // first try editable conversion. Their raster fallback uploads remain
+        // on demand. Unused scene assets and later boards are not uploaded.
+        media.prefetch(scene.nodes.flatMap((node) => {
+          const asset = node.assetId ? assets.get(node.assetId) : undefined;
+          if (!asset || node.kind === "text") return [];
+          if (node.kind === "container") return [asset];
+          if (svgTextOf(asset)) return [];
+          return node.kind === "image" || node.kind === "svg" || node.paint.backgroundImage?.includes("url(") ? [asset] : [];
+        }));
         const shapes = new Map<string, Shape>();
         const textLines: { text: Text; node: SceneNode; maximum: number }[] = [];
         const roots = scene.nodes.filter((node) => !node.parentId || !nodes.has(node.parentId)).sort(byPaintOrder);
@@ -625,6 +662,8 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         const append = (parentShape: Board | Shape, shape: Shape) => {
           if (parentShape.type === "board") (parentShape as Board).appendChild(shape);
           else (parentShape as Shape & { appendChild?: (child: Shape) => void }).appendChild?.(shape);
+          unattached.delete(shape);
+          persistence?.markDirty();
         };
 
         const reportProgress = () => {
@@ -635,7 +674,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         };
 
         const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
-          throwIfCancelled();
+          await checkpoint();
           if (node.kind === "container" && clipsContent(node.paint)) {
             // A Penpot board is the clipping-capable container. Unlike a
             // group, its bounds stay at the captured element's box instead of
@@ -643,7 +682,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // hidden rather than resizing the container. The board also paints
             // the element's own decoration, which keeps the clip and the
             // rounded corners on one surface.
-            const clip = penpot.createBoard();
+            const clip = track(penpot.createBoard());
             fixBoardSizing(clip);
             clip.clipContent = true;
             applyPaint(clip, node.paint);
@@ -672,7 +711,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               if (childShape) children.push(childShape);
             }
 
-            const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media) : undefined;
+            const backdrop = needsContainerBackdrop(node) ? await createContainerBackdrop(node, assets, media, track) : undefined;
             throwIfCancelled();
             if (backdrop) {
               metadata(backdrop, node, scene.viewport.id);
@@ -701,6 +740,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             const members = rendered.slice().reverse();
             if (backdrop) members.unshift(backdrop);
             const shape = collapsed ? children[0] : penpot.group(members);
+            if (!collapsed || node.paint.opacity !== undefined && node.paint.opacity !== 1) persistence?.markDirty();
             if (!shape) {
               reportProgress();
               return children[0];
@@ -722,7 +762,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
 
           let shape: Shape;
           try {
-            shape = await createShape(node, assets, media);
+            shape = await createShape(node, assets, media, track);
           } catch (error) {
             throw new Error(`Unable to create ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
           }
@@ -759,13 +799,14 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             throw new Error(`Unable to place ${scene.viewport.name} layer "${node.name}" (${node.kind}) from ${node.source}: ${errorDetail(error)}`);
           }
           reportProgress();
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
           return shape;
         };
         for (const root of roots) {
           // The top-level Penpot board already represents <body>. Importing it
           // again creates an offset nested board and makes its size misleading.
           if (root.kind === "container") {
+            await checkpoint();
+            persistence?.markDirty();
             applyPaint(board, root.paint);
             const rootAsset = root.assetId ? assets.get(root.assetId) : undefined;
             const rootApplied = rootAsset ? await applyAssetFill(board, rootAsset, media) : undefined;
@@ -773,6 +814,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             if (rootAsset && !rootApplied?.applied) {
               board.setPluginData("asset-fallback", `Page background image could not be loaded; ${rootApplied?.failure || "the upload failed"}.`);
             }
+            persistence?.markDirty();
             board.setPluginData("source", root.source);
             reportAssetFallback(board, root, rootAsset, scene.viewport.id, options);
             for (const child of childrenByParent.get(root.id) || []) await render(child, board);
@@ -782,24 +824,65 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         // Font loading and host text layout are asynchronous. A zero-delay
         // check immediately after creation can still see the source width.
         // Fit all lines together, then remeasure the result of each adjustment.
+        startPhase("textFitMs");
         for (let pass = 0; textLines.length && pass < 4; pass += 1) {
-          await new Promise<void>((resolve) => setTimeout(resolve, pass === 0 ? 250 : 100));
+          await waitForHost(pass === 0 ? 250 : 100);
           throwIfCancelled();
-          for (const { text, node, maximum } of textLines) constrainTextToCapturedWidth(text, node, maximum);
+          for (const { text, node, maximum } of textLines) {
+            if (!constrainTextToCapturedWidth(text, node, maximum)) continue;
+            persistence?.markDirty();
+            const saved = persistence?.checkpoint();
+            if (saved) await saved;
+            throwIfCancelled();
+          }
         }
+        await persistence?.flush();
+        throwIfCancelled();
+      } catch (error) {
+        // A layer awaiting an upload/conversion may still be on the page root.
+        // Removing the partial board alone would leave that layer behind.
+        for (const shape of unattached) shape.remove();
+        throw error;
       } finally {
-        // Each responsive board gets its own persistence-sized transaction.
-        // A single 662-layer undo block generated a ~6.3 MB update-file
-        // request, which Penpot could not persist.
-        penpot.history.undoBlockFinish(undo);
+        // Undo blocks group history. Penpot batches save requests separately;
+        // ending this block does not force or acknowledge a backend save.
+        try { penpot.history.undoBlockFinish(undo); }
+        finally {
+          if (persistence) {
+            metrics.saveWaitCount += persistence.waitCount;
+            metrics.saveWaitMs += persistence.waitMs;
+            persistence.close();
+            persistence = undefined;
+          }
+        }
       }
-      // Let the Penpot host flush the completed transaction before starting
-      // the next board. This keeps network requests and undo history bounded.
-      await new Promise<void>((resolve) => setTimeout(resolve, 250));
+      // Give the host time to settle before the next board. This delay is not
+      // a save barrier and does not bound an individual persistence payload.
+      startPhase("commitWaitMs");
+      await waitForHost(250);
+      throwIfCancelled();
+      startPhase();
     }
+    metrics.outcome = "complete";
     return boards;
   } catch (error) {
+    metrics.outcome = error instanceof ImportCancelledError ? "cancelled" : "error";
+    media.stop();
     for (const board of boards) board.remove();
     throw error;
+  } finally {
+    startPhase();
+    persistence?.close();
+    media.stop();
+    await media.drain();
+    metrics.uploadCount = media.uploadCount;
+    metrics.maxConcurrentUploads = media.peakConcurrency;
+    metrics.completedNodes = completed;
+    metrics.boardCount = metrics.outcome === "complete" ? boards.length : 0;
+    metrics.durationMs = profileNow() - started;
+    metrics.yieldCount = scheduler.yieldCount;
+    metrics.yieldMs = scheduler.yieldMs;
+    // Profiling must not change rollback or the result of a successful import.
+    try { options.onMetrics?.(metrics); } catch { /* Ignore a profiling observer failure. */ }
   }
 }

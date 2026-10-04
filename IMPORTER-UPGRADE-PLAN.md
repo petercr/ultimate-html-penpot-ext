@@ -146,17 +146,19 @@ Acceptance: cancelled or superseded work cannot mark a newer run complete, leave
 
 ## Phase 5 — Performance and remaining CSS fidelity
 
-- [ ] Measure capture and import time by phase, node count, and asset count using small, medium, and large fixtures.
-- [ ] Reduce repeated style and geometry reads within a capture pass.
-- [ ] Optimize per-character text measurement while preserving verified line boundaries and Unicode text.
-- [ ] Replace unconditional per-layer yielding with a measured batch/time budget that keeps progress and cancellation responsive.
-- [ ] Evaluate bounded asset concurrency; preserve deduplication and import order.
-- [ ] Verify persistence limits on large single boards; the current per-board undo block does not bound an individual large transaction.
+- [x] Measure capture and import time by phase, node count, and asset count using small, medium, and large fixtures. The first benchmark uses the actual opaque capture sandbox in Chrome and a mocked Penpot API; live host upload/persistence timings remain a follow-up.
+- [x] Reduce repeated style and geometry reads within a capture pass. Cache element styles for the synchronous traversal, reuse measured wrapped-text layouts, and avoid geometry reads for suppressed subtrees.
+- [x] Optimize per-character text measurement while preserving verified line boundaries and Unicode text. Single-line runs use existing Range rectangles; wrapped runs stream whole graphemes, with a code-point fallback for older browsers.
+- [x] Replace unconditional per-layer yielding with a measured batch/time budget that keeps progress and cancellation responsive. Yield after 4 ms or 100 visited nodes, including empty and clipping containers; check cancellation during host settling and the final board flush.
+- [x] Evaluate bounded asset concurrency; preserve deduplication and import order. Up to three media uploads share in-flight promises and cached failures; creation and SVG conversion remain serial. Controlled benchmark output hashes match and regression tests verify cancellation, rollback of unattached layers, and draining active host calls.
+- [x] Verify persistence limits on large single boards. Boards with at least 500 scene nodes now wait for save notifications every 250 nodes and after remaining mutations. A live 1,000-node board survives a confirmed saved reload; all five save requests return HTTP 200 and stay below 2 MB. Mock workloads pass through 20,000 nodes. A live 500-node board imports in one undo block: one undo removes it, one redo restores it, and both saves return HTTP 200. The live upper limit is deferred and remains unverified; node batching does not impose a byte ceiling on complex shapes or SVGs.
 - [ ] Correct transformed geometry using untransformed dimensions plus transforms, avoiding rotation of an already transformed bounding box.
 - [ ] Add per-side borders, image object-fit/object-position, and pseudo-element geometry in separate, fixture-backed changes.
 - [ ] Diagnose unsupported CSS instead of silently implying full fidelity.
 
 Acceptance: publish before/after timings from the same fixtures, with no visual regression or reduction in cancellation responsiveness. Each added CSS feature has a defined supported subset.
+
+First-batch evidence: [Importer performance measurements](docs/importer-performance.md) records three runs of each fixture size across the default viewports, raw measurements, scene hashes, and cancellation/heartbeat probes. All 15 existing browser screenshots and all generated fixture scenes are unchanged. The benchmark measures this repository's import processing with a mock host; it does not establish Penpot's persistence limits or constitute a new live Penpot visual pass. [Asset and persistence evidence](docs/importer-assets-and-persistence.md) adds matching output hashes with 33–62% faster controlled uploads and a successful saved reload in the live host. Phase 5 remains in progress for the live upper persistence limit, transforms, and the remaining CSS features above.
 
 ## Phase 6 — Optional native layout conversion
 
@@ -179,4 +181,4 @@ Acceptance: supported native layouts preserve their initial appearance and behav
 - [ ] Update support documentation and diagnostics for any remaining limitation.
 - [ ] Record completed checklist items, validation evidence, and any deferred scope in the change description.
 
-Recommended first batch: browser fixtures plus container/root background images, nested clipping, and alpha/opacity fixes. Native layout conversion is a later milestone, after the snapshot importer reliably preserves appearance.
+Current batch: Phase 5 bounded asset uploads and single-board persistence checks. [Asset and persistence evidence](docs/importer-assets-and-persistence.md) includes controlled upload timings, 20,000-node mock workloads, and live host observations. Persistence checks are complete apart from the deferred live upper limit; transformed geometry and the remaining CSS features come next. Native layout conversion remains a later milestone.

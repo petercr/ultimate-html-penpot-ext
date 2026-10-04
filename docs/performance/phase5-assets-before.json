@@ -1,0 +1,320 @@
+{
+  "schemaVersion": 1,
+  "mode": "assets",
+  "command": "npm run benchmark:importer -- /tmp/importer-assets-before.json --assets",
+  "commit": "a41e3c4b2fae5af51218a3a0c47c313dff0b3705",
+  "recordedAt": "2026-10-04T15:57:21.282Z",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/153.0.8010.52",
+    "revision": "@78e5e45d4bb41035e17ea4da2cc257f496416ac9",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "jsVersion": "15.3.76.13"
+  },
+  "environment": {
+    "node": "v24.21.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i5-8400 CPU @ 2.80GHz"
+  },
+  "host": "mock Penpot API in real Chrome; excludes host rendering, real network uploads and persistence",
+  "simulatedUploadDelaysMs": [
+    100,
+    20,
+    60
+  ],
+  "failedAssetInterval": 7,
+  "usesPerAssetPerBoard": 2,
+  "repetitions": 3,
+  "inputs": [
+    {
+      "path": "src/capture/source.ts",
+      "sha256": "4fb7ff9f8d099ac98b419f72012fa7cd80097f7d4f2af0033f3b45bd9846bb3d"
+    },
+    {
+      "path": "src/capture/fonts.ts",
+      "sha256": "ccc14c7a8a406ab37632b6638be7b4da16e6dcdede76f0639b500474aa2827d9"
+    },
+    {
+      "path": "src/capture/sandbox.ts",
+      "sha256": "c812158afdf7f669eebdc853ba5986570d9cbedf8890017b57b9e44540500c2a"
+    },
+    {
+      "path": "src/capture/prepareDocument.ts",
+      "sha256": "8347450bd585d9dd3484faa92a5c2e76f8b92403e3ce4aa39e662f9007c6aa04"
+    },
+    {
+      "path": "src/capture/extractor.ts",
+      "sha256": "1fdfd196b5daaabb1922a6fa35bd862a7af06dd4534401b4ceb1cf1043ad852f"
+    },
+    {
+      "path": "src/importer/penpot.ts",
+      "sha256": "050d2f57a5a1a3fdac51e49dce168c8acae0ea7d79b948310be03c27408de817"
+    },
+    {
+      "path": "src/importer/assets.ts",
+      "sha256": "89f84220bddb047e8d052ed3cb8cdd089cbeac5ef2266c1b9b4044313a0bec53"
+    },
+    {
+      "path": "src/importer/scheduler.ts",
+      "sha256": "d3be145a8523906b6aeafb59c461b87195ae04b913077e965b3c4bccab3c8f93"
+    },
+    {
+      "path": "src/shared/contracts.ts",
+      "sha256": "72b9ca2fe0e177944df0117d1b3bffe7b55c20b8eadc551d78f4beb4f7d636aa"
+    },
+    {
+      "path": "src/shared/validation.ts",
+      "sha256": "d784dcaddd2539ccd2ce8eb312b4345f1145cf1497b894fd341d383307111ee7"
+    },
+    {
+      "path": "src/shared/performance.ts",
+      "sha256": "712d032988ab98df4ce0b188b846bc6d7893dbe2a4d1432a0f5e426771b33a47"
+    },
+    {
+      "path": "scripts/importer-benchmark.mjs",
+      "sha256": "ef89c59370498d20865af682245c18605b9613ea79aa4fd7226c642705ccd427"
+    },
+    {
+      "path": "scripts/lib/importer-benchmark-harness.ts",
+      "sha256": "6920b78758805d76b5a8608f63ec1ab2513b2679496a6a9b06106c229dcc47cd"
+    },
+    {
+      "path": "scripts/lib/importer-workloads.ts",
+      "sha256": "e084f7bbb9a466731111572ddb1ad8c705dd4b9c9b58aa228578b36fef076019"
+    },
+    {
+      "path": "scripts/lib/chrome.mjs",
+      "sha256": "0f0d9b615f5ce2af331e104c8404b09627be602ef60aa63a027a76a18e0e3a09"
+    }
+  ],
+  "bundleSha256": "f4962b6d0172af152d5014e2b066637aee03475588b390b2a30fa1cd94eb70ad",
+  "fontSha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+  "samples": [
+    {
+      "case": "12",
+      "size": 12,
+      "iteration": 1,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 75,
+        "assetCount": 12,
+        "completedNodes": 75,
+        "boardCount": 3,
+        "durationMs": 1539.5,
+        "renderMs": 780.6999999999534,
+        "textFitMs": 0.10000000009313226,
+        "commitWaitMs": 758.6000000000931,
+        "yieldMs": 49.300000000046566,
+        "yieldCount": 14
+      },
+      "uploads": {
+        "count": 12,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "9adf5e747798729b25d3e40d828749247a16d858346b4d1f49b37fbdc03a9f6e",
+      "sceneBytes": 21730
+    },
+    {
+      "case": "12",
+      "size": 12,
+      "iteration": 2,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 75,
+        "assetCount": 12,
+        "completedNodes": 75,
+        "boardCount": 3,
+        "durationMs": 1528.3000000000466,
+        "renderMs": 772.5,
+        "textFitMs": 0,
+        "commitWaitMs": 755.8000000000466,
+        "yieldMs": 46.799999999580905,
+        "yieldCount": 14
+      },
+      "uploads": {
+        "count": 12,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "9adf5e747798729b25d3e40d828749247a16d858346b4d1f49b37fbdc03a9f6e",
+      "sceneBytes": 21730
+    },
+    {
+      "case": "12",
+      "size": 12,
+      "iteration": 3,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 75,
+        "assetCount": 12,
+        "completedNodes": 75,
+        "boardCount": 3,
+        "durationMs": 1532.5999999998603,
+        "renderMs": 774.4000000001397,
+        "textFitMs": 0,
+        "commitWaitMs": 758,
+        "yieldMs": 46.89999999990687,
+        "yieldCount": 14
+      },
+      "uploads": {
+        "count": 12,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "9adf5e747798729b25d3e40d828749247a16d858346b4d1f49b37fbdc03a9f6e",
+      "sceneBytes": 21730
+    },
+    {
+      "case": "48",
+      "size": 48,
+      "iteration": 1,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 291,
+        "assetCount": 48,
+        "completedNodes": 291,
+        "boardCount": 3,
+        "durationMs": 3879,
+        "renderMs": 3119.5,
+        "textFitMs": 0,
+        "commitWaitMs": 759.5,
+        "yieldMs": 202.2999999988824,
+        "yieldCount": 50
+      },
+      "uploads": {
+        "count": 48,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "995dccd48fd95b5285e6bcf631ee43c7f47627611aa337865a989f80266825e6",
+      "sceneBytes": 84763
+    },
+    {
+      "case": "48",
+      "size": 48,
+      "iteration": 2,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 291,
+        "assetCount": 48,
+        "completedNodes": 291,
+        "boardCount": 3,
+        "durationMs": 3897.3000000000466,
+        "renderMs": 3145.5,
+        "textFitMs": 0,
+        "commitWaitMs": 751.8000000000466,
+        "yieldMs": 210.30000000051223,
+        "yieldCount": 51
+      },
+      "uploads": {
+        "count": 48,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "995dccd48fd95b5285e6bcf631ee43c7f47627611aa337865a989f80266825e6",
+      "sceneBytes": 84763
+    },
+    {
+      "case": "48",
+      "size": 48,
+      "iteration": 3,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 291,
+        "assetCount": 48,
+        "completedNodes": 291,
+        "boardCount": 3,
+        "durationMs": 3889.7000000001863,
+        "renderMs": 3132.1999999999534,
+        "textFitMs": 0,
+        "commitWaitMs": 757.4000000001397,
+        "yieldMs": 207.09999999962747,
+        "yieldCount": 50
+      },
+      "uploads": {
+        "count": 48,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "995dccd48fd95b5285e6bcf631ee43c7f47627611aa337865a989f80266825e6",
+      "sceneBytes": 84763
+    },
+    {
+      "case": "120",
+      "size": 120,
+      "iteration": 1,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 723,
+        "assetCount": 120,
+        "completedNodes": 723,
+        "boardCount": 3,
+        "durationMs": 8629.800000000047,
+        "renderMs": 7872.699999999953,
+        "textFitMs": 0,
+        "commitWaitMs": 756.6999999999534,
+        "yieldMs": 540.6000000000931,
+        "yieldCount": 126
+      },
+      "uploads": {
+        "count": 120,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "9bda9012c598b88148f4188ceb43c56d2a2b54c58797ca87b91af1f4e0679236",
+      "sceneBytes": 213163
+    },
+    {
+      "case": "120",
+      "size": 120,
+      "iteration": 2,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 723,
+        "assetCount": 120,
+        "completedNodes": 723,
+        "boardCount": 3,
+        "durationMs": 8666.399999999907,
+        "renderMs": 7913.800000000047,
+        "textFitMs": 0,
+        "commitWaitMs": 752.5,
+        "yieldMs": 549.4000000001397,
+        "yieldCount": 126
+      },
+      "uploads": {
+        "count": 120,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "9bda9012c598b88148f4188ceb43c56d2a2b54c58797ca87b91af1f4e0679236",
+      "sceneBytes": 213163
+    },
+    {
+      "case": "120",
+      "size": 120,
+      "iteration": 3,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 723,
+        "assetCount": 120,
+        "completedNodes": 723,
+        "boardCount": 3,
+        "durationMs": 8608.59999999986,
+        "renderMs": 7853.09999999986,
+        "textFitMs": 0,
+        "commitWaitMs": 755.3000000000466,
+        "yieldMs": 541.6999999990221,
+        "yieldCount": 126
+      },
+      "uploads": {
+        "count": 120,
+        "active": 0,
+        "peak": 1
+      },
+      "outputSha256": "9bda9012c598b88148f4188ceb43c56d2a2b54c58797ca87b91af1f4e0679236",
+      "sceneBytes": 213163
+    }
+  ]
+}

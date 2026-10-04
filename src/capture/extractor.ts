@@ -16,7 +16,7 @@ const DEFAULT_CAPTURE_LIMITS: CaptureLimits = {
 };
 
 /** A self-contained script run inside the opaque, sandboxed document. */
-export function buildExtractorScript(token: string, viewport: ViewportSpec, settleDelayMs: number, limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS): string {
+export function buildExtractorScript(token: string, viewport: ViewportSpec, settleDelayMs: number, limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS, collectMetrics = false): string {
   const encodedViewport = JSON.stringify(viewport);
   const captureLimits: CaptureLimits = {
     maxNodes: Math.max(1, Math.floor(limits.maxNodes)),
@@ -30,6 +30,31 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const viewport = ${encodedViewport};
   const delay = ${Math.max(0, Math.min(settleDelayMs, 10_000))};
   const limits = ${JSON.stringify(captureLimits)};
+  const collectMetrics = ${collectMetrics};
+  const startedAt = performance.now();
+  const metrics = { viewportId: viewport.id, nodeCount: 0, assetCount: 0, settleMs: 0, extractionMs: 0, textMeasurementMs: 0, styleReads: 0, geometryReads: 0, textRangeReads: 0 };
+  // Capture reads run synchronously after settling. A child's style is often
+  // needed both to classify its parent and to visit the child itself.
+  const styleCache = new WeakMap();
+  const styleOf = (element, pseudo) => {
+    if (!pseudo && styleCache.has(element)) return styleCache.get(element);
+    if (collectMetrics) metrics.styleReads += 1;
+    const style = getComputedStyle(element, pseudo);
+    if (!pseudo) styleCache.set(element, style);
+    return style;
+  };
+  const boundsOf = (element) => {
+    if (collectMetrics) metrics.geometryReads += 1;
+    return element.getBoundingClientRect();
+  };
+  const rangeRects = (range) => {
+    if (collectMetrics) metrics.textRangeReads += 1;
+    return range.getClientRects();
+  };
+  const rangeBounds = (range) => {
+    if (collectMetrics) metrics.textRangeReads += 1;
+    return range.getBoundingClientRect();
+  };
   const scriptsDisabled = document.documentElement.getAttribute("data-html-to-penpot-scripts-disabled");
   const diagnostics = [];
   const assets = new Map();
@@ -363,7 +388,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Carry the effective document background onto the top-level board while
     // preserving an explicitly colored body or html background.
     if (element === document.body && transparent(paint.backgroundColor) && paint.backgroundImage === "none") {
-      const htmlStyle = getComputedStyle(document.documentElement);
+      const htmlStyle = styleOf(document.documentElement);
       paint.backgroundColor = transparent(htmlStyle.backgroundColor) ? "rgb(255, 255, 255)" : htmlStyle.backgroundColor;
       if (paint.backgroundImage === "none" && htmlStyle.backgroundImage !== "none") {
         const htmlPaint = paintOf(htmlStyle);
@@ -436,18 +461,33 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const parsed = Number.parseInt(style.tabSize, 10);
     return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 64) : 8;
   };
+  let graphemeSegmenter;
+  const textSegments = function* (text) {
+    if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+      graphemeSegmenter ||= new Intl.Segmenter(undefined, { granularity: "grapheme" });
+      yield* graphemeSegmenter.segment(text);
+    } else {
+      // Code points still protect surrogate pairs on older browser engines.
+      let index = 0;
+      for (const segment of text) {
+        yield { segment, index };
+        index += segment.length;
+      }
+    }
+  };
   const expandTabs = (line, tabSize) => {
+    if (!line.includes("\\t")) return line;
     // Advance tabs to the next tab stop the way CSS does by default. Every
     // glyph counts as one column, which is exact for the fixture fonts.
     let column = 0;
     let expanded = "";
-    for (let index = 0; index < line.length; index += 1) {
-      if (line[index] === "\\t") {
+    for (const { segment } of textSegments(line)) {
+      if (segment === "\\t") {
         const spaces = tabSize - (column % tabSize);
         expanded += " ".repeat(spaces);
         column += spaces;
       } else {
-        expanded += line[index];
+        expanded += segment;
         column += 1;
       }
     }
@@ -467,25 +507,20 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (preservesSpaces(whiteSpace)) return expandTabs(source, tabSize).replace(/^\\n+|\\n+$/g, "").replace(/\\n/g, " ");
     return trimCollapsibleEdges(collapseRun(source));
   };
-  const textLayout = (textNodes, whiteSpace = "normal", tabSize = 8) => {
+  const measureTextLayout = (textNodes, whiteSpace = "normal", tabSize = 8) => {
     const nodes = Array.isArray(textNodes) ? textNodes : [textNodes];
     const raw = nodes.map((node) => String(node.textContent || "")).join("");
     const keepLines = preservesNewlines(whiteSpace);
     const keepSpaces = preservesSpaces(whiteSpace);
     const fallback = processSingleLine(raw, whiteSpace, tabSize);
     const rects = [];
-    const characters = [];
+    const ranges = [];
     for (const node of nodes) {
       const text = String(node.textContent || "");
       const range = document.createRange();
       range.selectNodeContents(node);
-      rects.push(...range.getClientRects());
-      if (raw.length > 20_000) continue;
-      for (let index = 0; index < text.length; index += 1) {
-        range.setStart(node, index);
-        range.setEnd(node, index + 1);
-        characters.push({ character: text[index], rect: range.getBoundingClientRect() });
-      }
+      rects.push(...rangeRects(range));
+      ranges.push({ node, text, range });
     }
     // A single-line text node needs no extra work. For wrapped text, preserve
     // the browser's line breaks so Penpot does not reflow it differently when
@@ -504,9 +539,20 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       return rectOf({ x: left, y: top, width: right - left, height: bottom - top });
     };
     if (!rects.length) return { text: fallback, lines: [], rects, measuredLineHeight };
-    if (rects.length < 2 || raw.length > 20_000) {
+    if ((lineTops.length < 2 && !(keepLines && /[\\r\\n]/.test(raw))) || raw.length > 20_000) {
       return { text: fallback, lines: fallback ? [{ text: fallback, rect: rectFor(rects) }] : [], rects, measuredLineHeight };
     }
+    // Only wrapped text needs detailed measurement. Stream complete
+    // graphemes rather than retaining a rectangle per UTF-16 code unit.
+    const characters = function* () {
+      for (const { node, text, range } of ranges) {
+        for (const { segment, index } of textSegments(text)) {
+          range.setStart(node, index);
+          range.setEnd(node, index + segment.length);
+          yield { character: segment, rect: rangeBounds(range) };
+        }
+      }
+    };
     // Preserve the browser's line breaks as separate, non-wrapping scene
     // nodes. Penpot can use different font metrics from the source browser;
     // one fixed text box per source line prevents those metrics from making
@@ -518,11 +564,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       const text = keepSpaces ? expandTabs(current.text, tabSize) : current.text;
       if (text && current.rects.length) lines.push({ text, rect: rectFor(current.rects) });
     };
-    for (const { character, rect } of characters) {
+    for (const { character, rect } of characters()) {
       // An author newline starts a new line only where white-space preserves
       // it; elsewhere it collapses like any other whitespace run. Blank lines
       // need no layer of their own: neighbors stay at their measured places.
-      if (character === "\\n" && keepLines) {
+      if (/^[\\r\\n]+$/.test(character) && keepLines) {
         flush();
         current = { top: undefined, text: "", rects: [] };
         pendingSpace = false;
@@ -537,7 +583,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         current.top = line;
       }
       // A nonbreaking space is content, never a collapse or break opportunity.
-      if (character === "\\u00A0") {
+      if (character.includes("\\u00A0")) {
         current.text += character;
         if (rect.width > 0 && rect.height > 0) current.rects.push(rect);
         pendingSpace = false;
@@ -548,7 +594,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         if (rect.width > 0 && rect.height > 0) current.rects.push(rect);
         continue;
       }
-      if (/\\s/.test(character)) {
+      if (/^\\s+$/.test(character)) {
         if (current.text) pendingSpace = true;
         continue;
       }
@@ -559,6 +605,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     flush();
     return { text: lines.map((line) => line.text).join("\\n") || fallback, lines, rects, measuredLineHeight };
+  };
+  const textLayout = (...args) => {
+    if (!collectMetrics) return measureTextLayout(...args);
+    const start = performance.now();
+    try { return measureTextLayout(...args); } finally { metrics.textMeasurementMs += performance.now() - start; }
   };
   const svgMarkupOf = (element) => {
     const clone = element.cloneNode(true);
@@ -579,7 +630,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const originalElements = [element, ...element.querySelectorAll("*")];
     const clonedElements = [clone, ...clone.querySelectorAll("*")];
     for (let index = 0; index < Math.min(originalElements.length, clonedElements.length); index += 1) {
-      const computed = getComputedStyle(originalElements[index]);
+      const computed = styleOf(originalElements[index]);
       const target = clonedElements[index];
       for (const property of presentationProperties) {
         const value = computed.getPropertyValue(property);
@@ -588,10 +639,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     return clone.outerHTML;
   };
-  const appendText = (parent, textNode, style, textSource = parent.source + " ::text") => {
+  const appendText = (parent, textNode, style, textSource = parent.source + " ::text", measuredLayout) => {
     // A text node inherits white-space (and tab size) from its parent chain,
     // so the passed-in element style is the correct processing context.
-    const layout = textLayout([textNode], whiteSpaceOf(style), tabSizeOf(style));
+    const layout = measuredLayout || textLayout(Array.isArray(textNode) ? textNode : [textNode], whiteSpaceOf(style), tabSizeOf(style));
     if ((layout.lines || []).some((line) => line.text && line.rect)) reportUnsupportedTextColor(style.color, textSource);
     for (const line of (layout.lines || [])) {
       if (!line.text || !line.rect) continue;
@@ -613,13 +664,13 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // A line break is represented by the source line coordinates above, not
     // by a visible rectangle in the Penpot layer tree.
     if (tag === "br") return;
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
+    const style = styleOf(element);
     // A wrapper can have no box of its own (for example display: contents), or a
     // zero-size element with visible overflow) while its descendants paint.
     // Visibility can also be restored by a descendant. Only properties
     // that suppress the whole compositing subtree let us stop traversal.
     if (suppressesSubtree(style)) return;
+    const rect = boundsOf(element);
     if (!visible(element, style, rect)) {
       const survivingParent = parentId ? nodeById.get(parentId) : undefined;
       const textSource = sourceOf(element) + " ::text";
@@ -644,14 +695,14 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Include wrappers which do not have their own box: they may still carry
     // visible descendants and therefore require this node to remain a parent
     // container rather than collapsing into a text-only layer.
-    const childElements = [...element.children].filter((child) => !suppressesSubtree(getComputedStyle(child)));
+    const childElements = [...element.children].filter((child) => !suppressesSubtree(styleOf(child)));
     // Use the effective paint here rather than the body's raw computed style:
     // a transparent body inherits the html element's visible page background.
     const paint = paintOfElement(element, style);
     reportUnsupportedPaintColors(paint, source);
     reportPartialOverflowClip(paint, source);
     const rawBackgroundImage = element === document.body && transparent(style.backgroundColor) && style.backgroundImage === "none"
-      ? getComputedStyle(document.documentElement).backgroundImage
+      ? styleOf(document.documentElement).backgroundImage
       : style.backgroundImage;
     const visibleBackgroundLayers = backgroundLayers(rawBackgroundImage).filter((layer) => layer !== "none");
     const imageUrl = tag === "img" ? element.currentSrc || element.src : materializeSvgBackground(paint, rect);
@@ -718,13 +769,13 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // can visibly distort the imported vector when the host conversion also
     // succeeds.
     if (tag === "svg") return id;
-    if (expandedDirectText) for (const textNode of directTextNodes) appendText(scene, textNode, style, source + " ::text");
+    if (expandedDirectText) appendText(scene, directTextNodes, style, source + " ::text", directTextLayout);
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style, source + " ::text");
       if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl);
     }
     for (const pseudo of ["::before", "::after"]) {
-      const pseudoStyle = getComputedStyle(element, pseudo);
+      const pseudoStyle = styleOf(element, pseudo);
       const content = compact(pseudoStyle.content).replace(/^("|')|("|')$/g, "");
       if (content && content !== "none" && content !== "normal" && pseudoStyle.display !== "none" && pseudoStyle.visibility !== "hidden" && number(pseudoStyle.opacity) !== 0) {
         reportUnsupportedTextColor(pseudoStyle.color, source + " " + pseudo);
@@ -779,6 +830,8 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   };
   settle().then(() => {
     try {
+      const extractionStart = performance.now();
+      if (collectMetrics) metrics.settleMs = extractionStart - startedAt;
       const root = document.body || document.documentElement;
       const documentWidth = Math.max(document.documentElement.scrollWidth, viewport.width);
       const documentHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0, viewport.height);
@@ -805,7 +858,12 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
           source: "body"
         });
       }
-      parent.postMessage({ type: "CAPTURE_RESULT", token, scene: { protocolVersion: ${PROTOCOL_VERSION}, viewport, documentSize: { width: documentWidth, height: documentHeight }, nodes, assets: [...assets.values()], diagnostics } }, "*");
+      if (collectMetrics) {
+        metrics.nodeCount = nodes.length;
+        metrics.assetCount = assets.size;
+        metrics.extractionMs = performance.now() - extractionStart;
+      }
+      parent.postMessage({ type: "CAPTURE_RESULT", token, ...(collectMetrics ? { metrics } : {}), scene: { protocolVersion: ${PROTOCOL_VERSION}, viewport, documentSize: { width: documentWidth, height: documentHeight }, nodes, assets: [...assets.values()], diagnostics } }, "*");
     } catch (error) {
       parent.postMessage({ type: "CAPTURE_ERROR", token, message: error instanceof Error ? error.message : String(error) }, "*");
     }

@@ -52,7 +52,7 @@ filenames retain their established `desktop-1440`, `tablet-768`, and
 `mobile-390` suffixes even though the scene viewport IDs now match the plugin.
 Regeneration fails unless every width and height matches the default viewport,
 device scale is 1, and both faces are loaded. The checked-in run was made with
-Chrome 153.0.8010.36; do not replace the metadata version with an assumption
+Chrome 153.0.8010.52; do not replace the metadata version with an assumption
 when Chrome changes.
 
 `scene-evidence.json` retains the actual scene documents. The runner also
@@ -166,3 +166,7 @@ Per-line layers carry measured bounds (`textMaxWidth`, `textFitScale`) so an
 overflowing fallback font shrinks toward its source width instead of painting
 over neighboring content. Runs longer than 20,000 characters skip
 per-character measurement and import as a single collapsed layer.
+
+Whitespace-only text, including nonbreaking spaces, is preserved as content.
+When its captured name is empty or only whitespace, the importer names the
+layer `Text` so Penpot accepts it. Other blank layer names use `Layer`.
