@@ -1,0 +1,89 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M44CYRWDWSW72Y6SX0N3XJK2",
+  "session_id": "01a10897-19a8-7b42-975e-95de7cba9169",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T21:26:15.393781646Z",
+  "branch": "phase5-per-side-borders",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "docs/importer-borders.md",
+    "docs/importer-visual-baselines.md",
+    "package.json",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/lib/importer-live-harness.ts",
+    "src/capture/extractor.borders.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/per-side-borders-desktop-1440.png",
+    "src/capture/fixtures/baselines/per-side-borders-live.json",
+    "src/capture/fixtures/baselines/per-side-borders-mobile-390.png",
+    "src/capture/fixtures/baselines/per-side-borders-tablet-768.png",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/per-side-borders.html",
+    "src/importer/borders.ts",
+    "src/importer/penpot.borders.test.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.test.ts",
+    "src/shared/validation.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "2830bfc4603f",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 215846,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10758784,
+    "output_tokens": 37673,
+    "api_call_count": 100,
+    "subagent_tokens_complete": false
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T21:26:15.243901958Z",
+    "agent_lines": 11476,
+    "agent_removed": 40,
+    "human_added": 2,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 11481,
+    "total_lines_changed": 11521,
+    "agent_percentage": 99.95660098949743,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11479,
+      "agent_lines_removed": 40,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    }
+  ]
+}

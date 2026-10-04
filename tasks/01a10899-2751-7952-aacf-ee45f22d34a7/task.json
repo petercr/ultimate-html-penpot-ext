@@ -1,0 +1,21 @@
+{
+  "tool_use_id": "01a10899-2751-7952-aacf-ee45f22d34a7",
+  "agent_id": "01a10899-2751-7952-aacf-ee45f22d34a7",
+  "subagent_type": "default",
+  "files": [
+    "src/capture/extractor.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.ts",
+    "src/capture/extractor.borders.test.ts",
+    "src/shared/validation.test.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 89415,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1161728,
+    "output_tokens": 12410,
+    "api_call_count": 21
+  },
+  "started_at": "2026-10-04T16:26:59.249974883-04:00",
+  "completed_at": "2026-10-04T16:53:19.310879483-04:00"
+}

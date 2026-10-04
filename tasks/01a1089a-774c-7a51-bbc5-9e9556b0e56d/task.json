@@ -1,0 +1,17 @@
+{
+  "tool_use_id": "01a1089a-774c-7a51-bbc5-9e9556b0e56d",
+  "agent_id": "01a1089a-774c-7a51-bbc5-9e9556b0e56d",
+  "subagent_type": "default",
+  "files": [
+    "src/importer/penpot.borders.test.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 64498,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1464448,
+    "output_tokens": 13338,
+    "api_call_count": 26
+  },
+  "started_at": "2026-10-04T16:28:25.614218861-04:00",
+  "completed_at": "2026-10-04T16:53:19.311237851-04:00"
+}
