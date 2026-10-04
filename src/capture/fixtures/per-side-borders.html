@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer per-side borders fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body {
+    margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 "DejaVu Sans", sans-serif;
+    border-style: solid; border-width: 2px 4px 6px 8px; border-color: #dc2626 #2563eb #16a34a #7c3aed;
+  }
+  main { max-width: 560px; }
+  h2 { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: #475467; }
+  .tile { width: 260px; min-height: 82px; padding: 12px; background: #fff; font-weight: 700; }
+  .four-colors { border-style: solid; border-width: 2px 4px 6px 8px; border-color: #dc2626 #2563eb #16a34a #7c3aed; }
+  /* Borders on any side must keep a text-bearing element as a decorated container. */
+  #bottom-only-text { margin: 0; width: 260px; padding: 10px; border-bottom: 4px solid #2563eb; }
+  #left-accent { border-left: 8px solid #7c3aed; background: #f5f3ff; }
+  /* Alpha belongs to each side's paint, while element opacity composites the whole box. */
+  #four-sides { border-style: solid; border-width: 4px 8px 12px 16px; border-color: #dc2626 rgb(37 99 235 / 50%) #16a34a rgb(124 58 237 / 75%); opacity: 0.8; }
+  /* The child reaches underneath all four edges; border decoration must remain visible above it. */
+  #border-clip { position: relative; width: 260px; height: 90px; padding: 0; overflow: hidden; border: solid #0369a1; border-width: 3px 5px 7px 9px; background: #e0f2fe; }
+  #clip-child { position: absolute; left: -12px; top: -12px; width: 400px; height: 140px; padding: 26px; background: #bae6fd; }
+  /* Reserve space for the rotated/scaled surface so neighboring samples do not overlap. */
+  .stage { position: relative; height: 130px; }
+  #rotated-border { position: absolute; left: 24px; top: 22px; width: 220px; height: 80px; min-height: 0; transform: rotate(12deg); }
+  #scaled-border { position: absolute; left: 32px; top: 20px; width: 200px; height: 72px; min-height: 0; transform: scale(1.25); }
+  #image-border { display: block; width: 220px; height: 140px; }
+  /* A transparent solid side reserves space; hidden and none have computed width zero. */
+  #invisible-sides { border-top: 5px solid transparent; border-right: 6px hidden #dc2626; border-bottom: 7px none #16a34a; border-left: 8px solid #d97706; background: #fffbeb; }
+  #uniform-control { border: 4px solid #475467; border-radius: 12px; background: #f1f5f9; }
+  #no-border-control { background: #ecfdf5; }
+  /* Rounded asymmetric borders are preserved in scene data and diagnosed before import. */
+  #rounded-asymmetric { border-style: solid; border-width: 4px 8px 12px 16px; border-color: #dc2626 #2563eb #16a34a #7c3aed; border-radius: 22px 12px 28px 8px; background: #fef3c7; }
+  /* The square solid left edge is supported; the other styles are individually diagnosed. */
+  #unsupported-styles { border-top: 6px dashed #dc2626; border-right: 6px dotted #2563eb; border-bottom: 8px double #16a34a; border-left: 8px solid #7c3aed; }
+  /* A CSS Color 4 value on a non-top side must still produce a color diagnostic. */
+  #modern-side-color { border-bottom: 3px solid #d97706; border-left: 6px solid color(display-p3 1 0.3 0); }
+  /* The unsupported image decoration retains its ordinary uniform solid border fallback. */
+  #border-image-sample { border: 8px solid #64748b; border-image: url("./assets/checker-tile.svg") 4 stretch; }
+</style>
+<main>
+  <h2>Root body — four widths and colors</h2>
+  <p>The page edge also carries an asymmetric border.</p>
+
+  <h2>Bottom-only border with direct text</h2>
+  <p id="bottom-only-text">Bottom edge stays visible</p>
+
+  <h2>Left accent border</h2>
+  <div class="tile" id="left-accent">Left accent</div>
+
+  <h2>Four widths and colors, side alpha, and element opacity</h2>
+  <div class="tile" id="four-sides">Independent edges</div>
+
+  <h2>Clipped child reaches underneath the border</h2>
+  <div id="border-clip"><div id="clip-child">Oversized clipped child</div></div>
+
+  <h2>rotate(12deg) with per-side borders</h2>
+  <div class="stage"><div class="tile four-colors" id="rotated-border">Rotated edges</div></div>
+
+  <h2>scale(1.25) scales all four border widths</h2>
+  <div class="stage"><div class="tile four-colors" id="scaled-border">Scaled edges</div></div>
+
+  <h2>Image with per-side borders</h2>
+  <img class="four-colors" id="image-border" src="./assets/fixture-illustration.svg" alt="Fixture illustration">
+
+  <h2>Transparent, hidden, none, and visible sides</h2>
+  <div class="tile" id="invisible-sides">Only the left edge paints</div>
+
+  <h2>Uniform rounded border control</h2>
+  <div class="tile" id="uniform-control">Uniform border</div>
+
+  <h2>No-border control</h2>
+  <div class="tile" id="no-border-control">No border decoration</div>
+
+  <h2>Rounded asymmetric borders — unsupported radius combination</h2>
+  <div class="tile" id="rounded-asymmetric">Rounded asymmetric</div>
+
+  <h2>Dashed, dotted, and double sides — unsupported styles</h2>
+  <div class="tile" id="unsupported-styles">Solid left edge remains</div>
+
+  <h2>CSS Color 4 on the left side — unsupported color</h2>
+  <div class="tile" id="modern-side-color">Modern side color</div>
+
+  <h2>Border image — unsupported, solid fallback retained</h2>
+  <div class="tile" id="border-image-sample">Border image</div>
+</main>

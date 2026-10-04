@@ -185,6 +185,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (Math.abs(scale - 1) <= 1e-4) return;
     const scaled = (value) => Math.round(value * scale * 100) / 100;
     if (node.paint.borderWidth) node.paint.borderWidth = scaled(node.paint.borderWidth);
+    if (node.paint.borders) for (const border of Object.values(node.paint.borders)) border.width = scaled(border.width);
     if (node.paint.radius) node.paint.radius = node.paint.radius.map(scaled);
     if (node.layout.padding) node.layout.padding = node.layout.padding.map(scaled);
     if (node.textMaxWidth) node.textMaxWidth = Math.max(0.1, scaled(node.textMaxWidth));
@@ -418,6 +419,29 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const normalized = String(value || "").replace(/\\s+/g, "").toLowerCase();
     return !normalized || normalized === "transparent" || normalized === "rgba(0,0,0,0)";
   };
+  const BORDER_SIDES = ["top", "right", "bottom", "left"];
+  const borderOf = (style, side) => {
+    const property = "border" + side[0].toUpperCase() + side.slice(1);
+    return { color: String(style[property + "Color"] || "transparent"), width: number(style[property + "Width"]), style: String(style[property + "Style"] || "none") };
+  };
+  const activeBorder = (border) => border.width > 0 && border.style !== "none" && border.style !== "hidden";
+  const borderEntries = (paint) => paint.borders
+    ? BORDER_SIDES.map((side) => [side, paint.borders[side]])
+    : [["", { color: paint.borderColor, width: paint.borderWidth || 0, style: paint.borderStyle || "none" }]];
+  const reportUnsupportedBorders = (paint, style, source) => {
+    const entries = borderEntries(paint).filter(([, border]) => activeBorder(border));
+    for (const [side, border] of entries) {
+      const supported = border.style === "solid" || (!paint.borders && ["dashed", "dotted"].includes(border.style));
+      if (supported) continue;
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_BORDER_STYLE", message: "The " + (side ? side + " " : "") + "border uses the unsupported CSS style " + border.style + "; that border was omitted.", viewportId: viewport.id, source });
+    }
+    if (paint.borders && entries.length && paint.radius.some((radius) => radius > 0)) {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_BORDER_RADIUS", message: "Rounded corners with differing border sides cannot yet be reproduced as editable Penpot borders; the borders were omitted and the background retains its corner radii.", viewportId: viewport.id, source });
+    }
+    if (style.borderImageSource && style.borderImageSource !== "none") {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_BORDER_IMAGE", message: "CSS border-image cannot yet be reproduced as editable Penpot borders; the border image was omitted and the ordinary CSS border fallback was preserved.", viewportId: viewport.id, source });
+    }
+  };
   const unsupportedModernColor = (value) => /(?:^|[\\s,(])(?:color|color-mix|lab|lch|oklab|oklch)\\(/i.test(String(value || ""));
   const reportUnsupportedColor = (field, value, source, message) => {
     if (!unsupportedModernColor(value)) return;
@@ -432,7 +456,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // fidelity by reporting CSS Color 4 values it cannot translate instead
     // of silently replacing a fill, shadow, or gradient stop.
     if (!transparent(paint.backgroundColor)) reportUnsupportedColor("background color", paint.backgroundColor, source, "The background color uses a CSS Color 4 format that this importer cannot represent; the affected fill was omitted rather than approximated.");
-    if (paint.borderWidth > 0 && paint.borderStyle !== "none") reportUnsupportedColor("border color", paint.borderColor, source, "The border color uses a CSS Color 4 format that this importer cannot represent; the affected border was omitted rather than approximated.");
+    for (const [side, border] of borderEntries(paint)) {
+      if (!activeBorder(border)) continue;
+      const field = (side ? side + " " : "") + "border color";
+      reportUnsupportedColor(field, border.color, source, "The " + field + " uses a CSS Color 4 format that this importer cannot represent; the affected border was omitted rather than approximated.");
+    }
     if (paint.boxShadow && paint.boxShadow !== "none") reportUnsupportedColor("box shadow", paint.boxShadow, source, "The box shadow uses a CSS Color 4 format that this importer cannot represent; the affected shadow was omitted rather than approximated.");
     // Do not inspect arbitrary image URLs: data payloads can contain color(
     // without being a CSS gradient or a color value.
@@ -470,6 +498,8 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const paintOf = (style) => {
     const overflowX = axisOverflow(style, "X");
     const overflowY = axisOverflow(style, "Y");
+    const borders = Object.fromEntries(BORDER_SIDES.map((side) => [side, borderOf(style, side)]));
+    const uniformBorder = BORDER_SIDES.every((side) => borders[side].color === borders.top.color && borders[side].width === borders.top.width && borders[side].style === borders.top.style);
     return {
       backgroundColor: style.backgroundColor,
       // Penpot has one image/gradient fill per imported source surface. CSS
@@ -485,9 +515,10 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       backgroundPositionX: style.backgroundPositionX,
       backgroundPositionY: style.backgroundPositionY,
       color: style.color,
-      borderColor: style.borderTopColor,
-      borderWidth: number(style.borderTopWidth),
-      borderStyle: style.borderTopStyle,
+      borderColor: uniformBorder ? borders.top.color : undefined,
+      borderWidth: uniformBorder ? borders.top.width : undefined,
+      borderStyle: uniformBorder ? borders.top.style : undefined,
+      borders: uniformBorder ? undefined : borders,
       radius: [number(style.borderTopLeftRadius), number(style.borderTopRightRadius), number(style.borderBottomRightRadius), number(style.borderBottomLeftRadius)],
       opacity: number(style.opacity || "1"),
       boxShadow: style.boxShadow,
@@ -836,6 +867,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // a transparent body inherits the html element's visible page background.
     const paint = paintOfElement(element, style);
     reportUnsupportedPaintColors(paint, source);
+    reportUnsupportedBorders(paint, style, source);
     reportPartialOverflowClip(paint, source);
     const rawBackgroundImage = element === document.body && transparent(style.backgroundColor) && style.backgroundImage === "none"
       ? styleOf(document.documentElement).backgroundImage
@@ -846,7 +878,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // A text-only node cannot carry fills, borders, or radii, so any element
     // with direct text and visible decoration keeps those surfaces by becoming
     // a container with the text as a child layer.
-    const decorated = !transparent(style.backgroundColor) || style.backgroundImage !== "none" || (style.borderTopStyle !== "none" && number(style.borderTopWidth) > 0) || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
+    const decorated = !transparent(style.backgroundColor) || style.backgroundImage !== "none" || borderEntries(paint).some(([, border]) => activeBorder(border)) || (style.borderImageSource && style.borderImageSource !== "none") || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
     const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
     // Preserve z-index: auto separately from numeric zero instead of
     // substituting traversal sequence for either. Automatic stacking paints

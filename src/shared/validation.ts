@@ -117,6 +117,18 @@ function validatePaint(value: unknown, index: number): void {
   optionalString(paint.borderColor, `nodes[${index}].paint.borderColor`, 200);
   optionalNumber(paint.borderWidth, `nodes[${index}].paint.borderWidth`, 0, SCENE_LIMITS.maxDimension);
   optionalString(paint.borderStyle, `nodes[${index}].paint.borderStyle`, 50);
+  if (paint.borders !== undefined) {
+    const label = `nodes[${index}].paint.borders`;
+    const borders = record(paint.borders, label);
+    for (const side of ["top", "right", "bottom", "left"] as const) {
+      const sideLabel = `${label}.${side}`;
+      const border = record(borders[side], sideLabel);
+      string(border.color, `${sideLabel}.color`, 200);
+      const width = number(border.width, `${sideLabel}.width`, 0);
+      if (width > SCENE_LIMITS.maxDimension) fail(`${sideLabel}.width must be no greater than ${SCENE_LIMITS.maxDimension}.`);
+      string(border.style, `${sideLabel}.style`, 50);
+    }
+  }
   if (paint.radius !== undefined) tuple(paint.radius, `nodes[${index}].paint.radius`, 0);
   optionalNumber(paint.opacity, `nodes[${index}].paint.opacity`, 0, 1);
   optionalString(paint.boxShadow, `nodes[${index}].paint.boxShadow`, 2_000);

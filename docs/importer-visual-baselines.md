@@ -1,10 +1,13 @@
 # Importer fixture baselines
 
-This is Phase 1 regression evidence. Browser reference screenshots and direct
-extractor scene captures are checked in, and the user has confirmed that the
-fixture imports look correct in Penpot. The exact host/version/font metadata
-and undo observations were not supplied, so those fields remain open for a
-formal test record.
+This records the original Phase 1 fixtures and later CSS fidelity changes.
+Browser reference screenshots and direct extractor scene captures are checked
+in. The user confirmed the original fixture imports look correct in Penpot;
+their exact host/version/font metadata and undo observations remain open for
+a formal test record. Later fixtures have separate validation records:
+[Transformed geometry](importer-transforms.md) includes a live pass.
+[Per-side borders](importer-borders.md) records all three live viewport geometry
+checks, a representative desktop visual pass, and mobile undo/redo.
 
 ## Regenerate the browser evidence
 
@@ -34,10 +37,12 @@ HTTP-import-proxy end-to-end test; the focused Vitest command covers those
 separate paths and imports the checked-in generated scenes into a mocked host.
 
 The focused command runs exactly `src/capture/extractor.test.ts`,
-`src/capture/extractor.transforms.test.ts`, `src/capture/prepareDocument.test.ts`,
-`src/capture/source.test.ts`, and `src/importer/penpot.test.ts`; the last includes
+`src/capture/extractor.transforms.test.ts`, `src/capture/extractor.borders.test.ts`,
+`src/capture/prepareDocument.test.ts`,
+`src/capture/source.test.ts`, `src/importer/penpot.test.ts`, and
+`src/importer/penpot.borders.test.ts`; the importer tests include
 the generated-scene importer regressions for clipping ancestry/bounds,
-compositing opacity, failed-asset placeholders, and transformed layers across
+compositing opacity, failed-asset placeholders, transformed layers, and per-side borders across
 all three boards.
 
 The command rewrites these checked-in artifacts:
@@ -65,7 +70,11 @@ the single-axis warning, alpha/opacity samples, negative/auto/zero/positive
 stacking values with their positioned flags, a surviving `display: contents`
 child, whitespace sample, the local shared failed-asset response, transformed
 layers with their own size and rotation, no node for a collapsed element, or
-the `UNSUPPORTED_TRANSFORM` warnings on the skewed and mirrored samples. It does
+the `UNSUPPORTED_TRANSFORM` warnings on the skewed and mirrored samples. The
+border fixture also requires all four computed side values, scaled widths,
+decorated text parenting, clipping ancestry, its bundled image asset, uniform
+legacy fields without a per-side payload, and the expected unsupported style,
+radius, image, and color diagnostics. It does
 not run source preparation or the HTTP import proxy: the fixture pages are
 already local, static HTML. That boundary is intentional and is covered by the
 existing source/preparation tests rather than pretending this direct capture
@@ -81,6 +90,7 @@ is an end-to-end remote-page test.
 | `stacking-contents-whitespace.html` | Negative/auto/zero/positive stacking, omitted wrapper, pre-wrap/inline spaces, NBSP, `<br>`, a comment, mixed formatting, centered/padded text, tab-indented code, and a font-stack sample | Stacking layers import in browser paint order even though the fixture DOM order differs; child of `display: contents` survives; whitespace imports with per-`white-space` spacing, NBSP, and tab stops preserved as content. |
 | `asset-failures.html` | Explicitly separated repeated 404 image/background URL | One local failed URL is captured as one scene asset; import tests require a named placeholder for every affected image, while upload work is deduplicated. |
 | `transforms.html` | Rotated box and card, corner `transform-origin`, translate, uniform scale, the individual `rotate`/`scale`/`translate` properties with a percentage translate, nested rotations, a rotated clip, a −90° label, a rotated image, skew, mirror, a collapsed element, and an inline span | Each rotated layer keeps its own size and has a clockwise `rotation` about its top-left corner; skew and mirror stay unrotated with `UNSUPPORTED_TRANSFORM`; the collapsed element creates no nodes. See [Transformed geometry](importer-transforms.md). |
+| `per-side-borders.html` | Root borders, bottom-only decorated text, a left accent, four widths/colors with alpha and opacity, clipped child, rotation/scale, image borders, transparent/hidden/none sides, uniform/borderless controls, and unsupported radius/style/color/border-image cases | Differing sides retain all four computed border records; widths scale with the frame; uniform borders keep legacy paint fields. Unsupported border styles, asymmetric rounded corners, border images, and CSS Color 4 paints report explicit diagnostics. Border geometry is verified in all three live viewport imports, with a representative desktop visual pass and mobile undo/redo. See [Per-side borders](importer-borders.md). |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
 `DejaVuSans-Bold.ttf` under `src/capture/fixtures/assets/`, with their hashes
@@ -122,6 +132,10 @@ dependencies.
    no wrapper layer but does have the surviving child; failed images show a
    separately named placeholder at every use. Background/image assets may be
    represented as fills or editable SVG groups according to the host API.
+   Per-side solid borders add separately editable paths below ordinary
+   descendants; square asymmetric clipping containers add an inner transparent
+   padding-box clip while retaining their original outer border box. Compare
+   the clipped child's edges and the diagonal joins as well as the layer tree.
 6. Verify undo without assuming a single global transaction: the importer
    currently completes one undo block per responsive board. Undo until every
    newly imported board is removed, redo the same number of steps, and verify

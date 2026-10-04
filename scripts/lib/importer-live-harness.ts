@@ -199,6 +199,9 @@ penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: 
           const boundsWidth = Math.abs(shape.width * cos) + Math.abs(shape.height * sin), boundsHeight = Math.abs(shape.width * sin) + Math.abs(shape.height * cos);
           const centerX = shape.x + boundsWidth / 2, centerY = shape.y + boundsHeight / 2;
           return { id: shape.id, name: shape.name, type: shape.type, parentId: shape.parent?.id, x: shape.x, y: shape.y, width: shape.width, height: shape.height, rotation: shape.rotation,
+            source: shape.getPluginData("source"), borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), opacity: shape.opacity,
+            fills: "fills" in shape ? shape.fills.map((fill) => ({ color: fill.fillColor, opacity: fill.fillOpacity, imageId: fill.fillImage?.id })) : [],
+            strokes: shape.strokes, d: shape.type === "path" ? shape.d : undefined,
             corner: { x: centerX + (-shape.width / 2) * cos - (-shape.height / 2) * sin, y: centerY + (-shape.width / 2) * sin + (-shape.height / 2) * cos } };
         }) });
     } else if (message.action === "focus") {

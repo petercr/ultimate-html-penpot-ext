@@ -22,7 +22,7 @@
     "baseline:importer": "node scripts/importer-visual-baselines.mjs",
     "benchmark:importer": "node scripts/importer-benchmark.mjs",
     "serve:importer-fixtures": "node scripts/serve-importer-fixtures.mjs",
-    "test:importer-fixtures": "vitest run src/capture/extractor.test.ts src/capture/extractor.transforms.test.ts src/capture/prepareDocument.test.ts src/capture/source.test.ts src/importer/penpot.test.ts",
+    "test:importer-fixtures": "vitest run src/capture/extractor.test.ts src/capture/extractor.transforms.test.ts src/capture/extractor.borders.test.ts src/capture/prepareDocument.test.ts src/capture/source.test.ts src/importer/penpot.test.ts src/importer/penpot.borders.test.ts",
     "deploy:worker": "wrangler deploy --config cloudflare/wrangler.jsonc"
   },
   "dependencies": {
