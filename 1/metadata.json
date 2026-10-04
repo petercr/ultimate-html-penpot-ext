@@ -1,0 +1,88 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M448Q1MYJEYWEFJXJ4F4MQZJ",
+  "session_id": "b2ec2cfa-18e5-4212-bfd7-af18aaa59d48",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:12:10.030494476Z",
+  "branch": "phase5-transformed-geometry",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/importer-transforms.md",
+    "docs/importer-visual-baselines.md",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.transforms.test.ts",
+    "src/capture/fixtures/transforms.html"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "3c1c5db1c9d1",
+  "checkpoint_transcript_start": 617,
+  "transcript_lines_at_start": 617,
+  "compact_transcript_start": 59,
+  "token_usage": {
+    "input_tokens": 584,
+    "cache_creation_tokens": 684842,
+    "cache_read_tokens": 55134561,
+    "output_tokens": 361992,
+    "api_call_count": 292
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:12:09.576282146Z",
+    "agent_lines": 0,
+    "agent_removed": 7,
+    "human_added": 0,
+    "human_modified": 25,
+    "human_removed": 670,
+    "total_committed": 55,
+    "total_lines_changed": 1399,
+    "agent_percentage": 0.5003573981415297,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 12875,
+      "user_lines_removed": 695,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269,
+        "docs/importer-transforms.md": 115,
+        "scripts/importer-live-harness.mjs": 17,
+        "scripts/importer-live-orca.mjs": 15,
+        "scripts/importer-visual-baselines.mjs": 8,
+        "scripts/lib/importer-live-harness.ts": 157,
+        "scripts/lib/importer-workloads.ts": 14,
+        "src/capture/extractor.transforms.test.ts": 239,
+        "src/capture/extractor.ts": 153,
+        "src/capture/fixtures/baselines/metadata.json": 190,
+        "src/capture/fixtures/baselines/scene-evidence.json": 11133,
+        "src/capture/fixtures/transforms.html": 88,
+        "src/importer/penpot.test.ts": 207,
+        "src/importer/penpot.ts": 73,
+        "src/shared/contracts.ts": 6,
+        "src/shared/validation.test.ts": 9,
+        "src/shared/validation.ts": 1
+      },
+      "user_removed_per_file": {
+        "scripts/importer-live-harness.mjs": 3,
+        "scripts/importer-live-orca.mjs": 1,
+        "scripts/importer-visual-baselines.mjs": 5,
+        "scripts/lib/importer-live-harness.ts": 8,
+        "src/capture/extractor.ts": 9,
+        "src/capture/fixtures/baselines/metadata.json": 1,
+        "src/capture/fixtures/baselines/scene-evidence.json": 641,
+        "src/importer/penpot.test.ts": 2,
+        "src/importer/penpot.ts": 23,
+        "src/shared/contracts.ts": 1,
+        "src/shared/validation.ts": 1
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   "checkpoint_id": "01M448Q1MYJEYWEFJXJ4F4MQZJ",
   "strategy": "manual-commit",
   "branch": "phase5-transformed-geometry",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     "IMPORTER-UPGRADE-PLAN.md",
     "README.md",
@@ -38,6 +38,20 @@
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/1/metadata.json",
+      "transcript": "/1/full.jsonl",
+      "compact_transcript": "/1/transcript.jsonl",
+      "content_hash": "/1/content_hash.txt",
+      "prompt": "/1/prompt.txt"
     }
-  ]
+  ],
+  "token_usage": {
+    "input_tokens": 584,
+    "cache_creation_tokens": 684842,
+    "cache_read_tokens": 55134561,
+    "output_tokens": 361992,
+    "api_call_count": 292
+  }
 }
