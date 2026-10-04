@@ -1,0 +1,353 @@
+{
+  "schemaVersion": 1,
+  "mode": "single-board",
+  "command": "npm run benchmark:importer -- /tmp/importer-board-final.json --single-board",
+  "commit": "a41e3c4b2fae5af51218a3a0c47c313dff0b3705",
+  "recordedAt": "2026-10-04T17:03:09.833Z",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/153.0.8010.52",
+    "revision": "@78e5e45d4bb41035e17ea4da2cc257f496416ac9",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "jsVersion": "15.3.76.13"
+  },
+  "environment": {
+    "node": "v24.21.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i5-8400 CPU @ 2.80GHz"
+  },
+  "host": "mock Penpot API in real Chrome; excludes host rendering, real network uploads and persistence",
+  "repetitions": 3,
+  "inputs": [
+    {
+      "path": "src/capture/source.ts",
+      "sha256": "4fb7ff9f8d099ac98b419f72012fa7cd80097f7d4f2af0033f3b45bd9846bb3d"
+    },
+    {
+      "path": "src/capture/fonts.ts",
+      "sha256": "ccc14c7a8a406ab37632b6638be7b4da16e6dcdede76f0639b500474aa2827d9"
+    },
+    {
+      "path": "src/capture/sandbox.ts",
+      "sha256": "c812158afdf7f669eebdc853ba5986570d9cbedf8890017b57b9e44540500c2a"
+    },
+    {
+      "path": "src/capture/prepareDocument.ts",
+      "sha256": "8347450bd585d9dd3484faa92a5c2e76f8b92403e3ce4aa39e662f9007c6aa04"
+    },
+    {
+      "path": "src/capture/extractor.ts",
+      "sha256": "1fdfd196b5daaabb1922a6fa35bd862a7af06dd4534401b4ceb1cf1043ad852f"
+    },
+    {
+      "path": "src/importer/penpot.ts",
+      "sha256": "a46e518e918627e44241e6b356e4626d1368a11cf94ba7293a5c318b5b58a30c"
+    },
+    {
+      "path": "src/importer/assets.ts",
+      "sha256": "66249284f0d4704be3894212f8ab28a2dd633c50844f30d0f3533f49a95ec927"
+    },
+    {
+      "path": "src/importer/persistence.ts",
+      "sha256": "c297ac4c70c7c52947f6d368063417757395433f438d17d2322f029572151ec7"
+    },
+    {
+      "path": "src/importer/scheduler.ts",
+      "sha256": "d3be145a8523906b6aeafb59c461b87195ae04b913077e965b3c4bccab3c8f93"
+    },
+    {
+      "path": "src/shared/contracts.ts",
+      "sha256": "72b9ca2fe0e177944df0117d1b3bffe7b55c20b8eadc551d78f4beb4f7d636aa"
+    },
+    {
+      "path": "src/shared/validation.ts",
+      "sha256": "d784dcaddd2539ccd2ce8eb312b4345f1145cf1497b894fd341d383307111ee7"
+    },
+    {
+      "path": "src/shared/performance.ts",
+      "sha256": "de67cffd419b1021b659d58998d68946d4f82f637db2ed80bb457f940b38e054"
+    },
+    {
+      "path": "scripts/importer-benchmark.mjs",
+      "sha256": "a5e9199b68119ed8b31c5aa17723f5004958bae78cd073629cf87c24e3368e45"
+    },
+    {
+      "path": "scripts/lib/importer-benchmark-harness.ts",
+      "sha256": "bb86c98db021c5b767ee33fa245119c691633d8376db9c4bbde51fe6087bd7ed"
+    },
+    {
+      "path": "scripts/lib/importer-workloads.ts",
+      "sha256": "4458c07dcf6267bbe487fb7907f0c884bc2794c81ce29358c070113700ed7bc9"
+    },
+    {
+      "path": "scripts/lib/chrome.mjs",
+      "sha256": "0f0d9b615f5ce2af331e104c8404b09627be602ef60aa63a027a76a18e0e3a09"
+    }
+  ],
+  "bundleSha256": "5f7a69da0af7945d78d67587b65d26e9b1fb73353e473c128965acfa4b32aecf",
+  "fontSha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+  "samples": [
+    {
+      "case": "1000",
+      "size": 1000,
+      "iteration": 1,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 1000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 1000,
+        "boardCount": 1,
+        "durationMs": 277.29999999981374,
+        "renderMs": 26.200000000186265,
+        "textFitMs": 0,
+        "commitWaitMs": 251,
+        "yieldMs": 18.100000001490116,
+        "yieldCount": 10
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "af7da89d31b21c8eeaa1711ceca775011faff6ec41af3cb5513ad62147dec28f",
+      "sceneBytes": 253513
+    },
+    {
+      "case": "1000",
+      "size": 1000,
+      "iteration": 2,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 1000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 1000,
+        "boardCount": 1,
+        "durationMs": 271.5,
+        "renderMs": 20.600000000558794,
+        "textFitMs": 0,
+        "commitWaitMs": 250.79999999981374,
+        "yieldMs": 17.299999999813735,
+        "yieldCount": 10
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "af7da89d31b21c8eeaa1711ceca775011faff6ec41af3cb5513ad62147dec28f",
+      "sceneBytes": 253513
+    },
+    {
+      "case": "1000",
+      "size": 1000,
+      "iteration": 3,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 1000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 1000,
+        "boardCount": 1,
+        "durationMs": 274.70000000018626,
+        "renderMs": 23.90000000037253,
+        "textFitMs": 0,
+        "commitWaitMs": 250.70000000018626,
+        "yieldMs": 18.5,
+        "yieldCount": 10
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "af7da89d31b21c8eeaa1711ceca775011faff6ec41af3cb5513ad62147dec28f",
+      "sceneBytes": 253513
+    },
+    {
+      "case": "5000",
+      "size": 5000,
+      "iteration": 1,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 5000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 5000,
+        "boardCount": 1,
+        "durationMs": 460.70000000018626,
+        "renderMs": 208.80000000074506,
+        "textFitMs": 0,
+        "commitWaitMs": 251.8999999994412,
+        "yieldMs": 191.4999999962747,
+        "yieldCount": 50
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "90cb05c8180b93a1dab6332d0f993c0f805bf1cad0556a8129d7ac87e4a5ecff",
+      "sceneBytes": 1289130
+    },
+    {
+      "case": "5000",
+      "size": 5000,
+      "iteration": 2,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 5000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 5000,
+        "boardCount": 1,
+        "durationMs": 459.20000000018626,
+        "renderMs": 208.70000000018626,
+        "textFitMs": 0,
+        "commitWaitMs": 250.40000000037253,
+        "yieldMs": 192.30000000167638,
+        "yieldCount": 50
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "90cb05c8180b93a1dab6332d0f993c0f805bf1cad0556a8129d7ac87e4a5ecff",
+      "sceneBytes": 1289130
+    },
+    {
+      "case": "5000",
+      "size": 5000,
+      "iteration": 3,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 5000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 5000,
+        "boardCount": 1,
+        "durationMs": 464.3999999994412,
+        "renderMs": 214.09999999962747,
+        "textFitMs": 0,
+        "commitWaitMs": 250.29999999981374,
+        "yieldMs": 193.09999999776483,
+        "yieldCount": 50
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "90cb05c8180b93a1dab6332d0f993c0f805bf1cad0556a8129d7ac87e4a5ecff",
+      "sceneBytes": 1289130
+    },
+    {
+      "case": "20000",
+      "size": 20000,
+      "iteration": 1,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 20000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 20000,
+        "boardCount": 1,
+        "durationMs": 1177.2000000001863,
+        "renderMs": 925.3999999994412,
+        "textFitMs": 0,
+        "commitWaitMs": 251.80000000074506,
+        "yieldMs": 850.599999986589,
+        "yieldCount": 200
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "768ad61c6fbc2dbfc76431ac44a031b3cb8575a69ad039cdbb28747409a8d415",
+      "sceneBytes": 5218572
+    },
+    {
+      "case": "20000",
+      "size": 20000,
+      "iteration": 2,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 20000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 20000,
+        "boardCount": 1,
+        "durationMs": 1191.7000000001863,
+        "renderMs": 939.2000000001863,
+        "textFitMs": 0,
+        "commitWaitMs": 252.5,
+        "yieldMs": 852.699999996461,
+        "yieldCount": 200
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "768ad61c6fbc2dbfc76431ac44a031b3cb8575a69ad039cdbb28747409a8d415",
+      "sceneBytes": 5218572
+    },
+    {
+      "case": "20000",
+      "size": 20000,
+      "iteration": 3,
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 20000,
+        "assetCount": 0,
+        "uploadCount": 0,
+        "maxConcurrentUploads": 0,
+        "saveWaitCount": 0,
+        "saveWaitMs": 0,
+        "completedNodes": 20000,
+        "boardCount": 1,
+        "durationMs": 1204.6000000005588,
+        "renderMs": 952.4000000003725,
+        "textFitMs": 0,
+        "commitWaitMs": 252.20000000018626,
+        "yieldMs": 858.3999999985099,
+        "yieldCount": 201
+      },
+      "uploads": {
+        "count": 0,
+        "active": 0,
+        "peak": 0
+      },
+      "outputSha256": "768ad61c6fbc2dbfc76431ac44a031b3cb8575a69ad039cdbb28747409a8d415",
+      "sceneBytes": 5218572
+    }
+  ]
+}

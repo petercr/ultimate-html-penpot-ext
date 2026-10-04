@@ -75,6 +75,7 @@ export function prepareSandboxDocument(input: {
   token: string;
   viewport: ViewportSpec;
   settleDelayMs: number;
+  collectMetrics?: boolean;
 }): string {
   const parser = new DOMParser();
   const document = parser.parseFromString(input.html, "text/html");
@@ -125,7 +126,7 @@ export function prepareSandboxDocument(input: {
   head.append(freeze);
   const extractor = document.createElement("script");
   extractor.setAttribute("nonce", nonce);
-  extractor.textContent = buildExtractorScript(input.token, input.viewport, input.settleDelayMs);
+  extractor.textContent = buildExtractorScript(input.token, input.viewport, input.settleDelayMs, undefined, input.collectMetrics);
   document.body.append(extractor);
   return "<!doctype html>\n" + document.documentElement.outerHTML;
 }

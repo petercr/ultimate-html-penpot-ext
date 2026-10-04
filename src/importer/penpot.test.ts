@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PROTOCOL_VERSION, type SceneDocument } from "../shared/contracts";
+import { PROTOCOL_VERSION, type SceneDocument, type SceneNode } from "../shared/contracts";
 import { validateScenes } from "../shared/validation";
 import { ImportCancelledError, importScenes } from "./penpot";
 
 type FakeShape = Record<string, unknown> & { type: string; children?: FakeShape[]; removed?: boolean };
 
 function fakeShape(type: string): FakeShape {
-  return {
+  const shape: FakeShape = {
     type,
     name: "",
     x: 0,
@@ -24,6 +24,18 @@ function fakeShape(type: string): FakeShape {
     appendChild: vi.fn(function (this: FakeShape, child: FakeShape) { this.children?.push(child); }),
     remove: vi.fn(function (this: FakeShape) { this.removed = true; })
   };
+  let name = "";
+  Object.defineProperty(shape, "name", {
+    enumerable: true,
+    configurable: true,
+    get: () => name,
+    set: (value: string) => {
+      // Match the live host: NBSP is valid text but not a blank layer name.
+      if (typeof value !== "string" || !value.trim()) throw new Error(`[PENPOT PLUGIN] Value not valid: ${value}. Code: :name`);
+      name = value;
+    }
+  });
+  return shape;
 }
 
 type BaselineMetadata = {
@@ -253,6 +265,36 @@ describe("Penpot importer", () => {
     expect(progress).toHaveBeenLastCalledWith(2, 2, "Creating Desktop");
   });
 
+  it.each(["\u00a0", "\u00a0 \u00a0", "\u202f", "\t "])("imports whitespace text %j with a valid layer name and unchanged characters", async (characters) => {
+    const input = scene();
+    const node = input.nodes[1];
+    node.name = characters;
+    node.text = characters;
+    node.source = "div:nth-of-type(1) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(2) ::text";
+
+    const result = await importScenes(validateScenes([input]), { isCancelled: () => false, onProgress: vi.fn() });
+
+    const text = (result[0] as unknown as FakeShape).children?.[0];
+    expect(text).toMatchObject({ type: "text", name: "Text", characters, x: 120, y: 220, width: 80, height: 24 });
+    expect(text?.pluginData).toMatchObject({ source: node.source, viewport: "desktop" });
+    expect(undoFinish).toHaveBeenCalledOnce();
+    expect(boards[0].removed).toBeUndefined();
+  });
+
+  it("uses a fallback for an empty captured name without changing visible text", async () => {
+    const input = scene();
+    input.nodes[1].name = "";
+    const result = await importScenes([input], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ name: "Text", characters: "Hello" });
+  });
+
+  it("preserves meaningful layer names containing nonbreaking spaces", async () => {
+    const input = scene();
+    input.nodes[1].name = "Hello\u00a0world";
+    const result = await importScenes([input], { isCancelled: () => false, onProgress: vi.fn() });
+    expect((result[0] as unknown as FakeShape).children?.[0]).toMatchObject({ name: "Hello\u00a0world", characters: "Hello" });
+  });
+
   it("rejects an invalid scene before creating any Penpot objects", async () => {
     const invalid = scene();
     invalid.nodes[0].children = [];
@@ -407,11 +449,83 @@ describe("Penpot importer", () => {
     await importScenes([image("Desktop"), image("Mobile")], { isCancelled: () => false, onProgress: vi.fn() });
 
     const penpotApi = (globalThis as typeof globalThis & { penpot: { uploadMediaData: ReturnType<typeof vi.fn>; uploadMediaUrl: ReturnType<typeof vi.fn> } }).penpot;
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(penpotApi.uploadMediaData).toHaveBeenCalledOnce();
-    expect(penpotApi.uploadMediaData).toHaveBeenCalledWith("logo-asset", expect.any(Uint8Array), "image/png");
+    expect(penpotApi.uploadMediaData).toHaveBeenCalledWith("logo-asset", new Uint8Array([1, 2, 3]), "image/png");
     expect(penpotApi.uploadMediaUrl).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+
+  it("preserves paint order when media uploads finish out of order", async () => {
+    const images = scene();
+    const root = images.nodes[0];
+    images.nodes = [root, ...Array.from({ length: 6 }, (_, index): SceneNode => ({
+      id: `image-${index}`, parentId: root.id, children: [], kind: "image", name: `Image ${index}`, source: `#image-${index}`,
+      rect: { x: index * 20, y: 20, width: 16, height: 16 }, zIndex: 0, paint: {}, layout: { kind: "none" }, assetId: `asset-${index}`
+    }))];
+    root.children = images.nodes.slice(1).map((node) => node.id);
+    images.assets = Array.from({ length: 7 }, (_, index) => ({ id: `asset-${index}`, url: `https://example.test/${index}.png` }));
+    const upload = penpot.uploadMediaUrl as ReturnType<typeof vi.fn>;
+    const finish = new Map<string, (value: unknown) => void>();
+    upload.mockImplementation((name: string) => new Promise((resolve) => finish.set(name, resolve)));
+    const pending = importScenes([images], { isCancelled: () => false, onProgress: vi.fn() });
+    await vi.waitFor(() => expect(upload).toHaveBeenCalledTimes(3));
+    for (const index of [2, 1, 0, 3, 4, 5]) {
+      await vi.waitFor(() => expect(finish.has(`asset-${index}`)).toBe(true));
+      finish.get(`asset-${index}`)!({ id: `media-${index}` });
+    }
+    const [board] = await pending;
+    expect(upload).toHaveBeenCalledTimes(6); // The unused seventh asset stays unused.
+    expect((board as unknown as FakeShape).children?.map((shape) => shape.name)).toEqual(["Image 5", "Image 4", "Image 3", "Image 2", "Image 1", "Image 0"]);
+    for (const shape of (board as unknown as FakeShape).children || []) {
+      const index = Number((shape.name as string).replace("Image ", ""));
+      expect(shape.fills).toEqual([{ fillImage: { id: `media-${index}` }, fillOpacity: 1 }]);
+    }
+  });
+
+  it("cancels queued uploads, removes unattached layers, and drains active uploads before returning", async () => {
+    const images = scene();
+    const root = images.nodes[0];
+    images.nodes = [root, ...Array.from({ length: 6 }, (_, index): SceneNode => ({
+      id: `image-${index}`, parentId: root.id, children: [], kind: "image", name: `Image ${index}`, source: `#image-${index}`,
+      rect: { x: 20, y: 20, width: 16, height: 16 }, zIndex: 0, paint: {}, layout: { kind: "none" }, assetId: `asset-${index}`
+    }))];
+    root.children = images.nodes.slice(1).map((node) => node.id);
+    images.assets = Array.from({ length: 6 }, (_, index) => ({ id: `asset-${index}`, url: `https://example.test/${index}.png` }));
+    const upload = penpot.uploadMediaUrl as ReturnType<typeof vi.fn>;
+    const finish: Array<(value: unknown) => void> = [];
+    upload.mockImplementation(() => new Promise((resolve) => finish.push(resolve)));
+    let cancelled = false;
+    let returned = false;
+    const pending = importScenes([images], { isCancelled: () => cancelled, onProgress: vi.fn() }).catch((error) => { returned = true; throw error; });
+    const rejection = expect(pending).rejects.toBeInstanceOf(ImportCancelledError);
+    await vi.waitFor(() => expect(penpot.createRectangle).toHaveBeenCalled());
+    expect(upload).toHaveBeenCalledTimes(3);
+    cancelled = true;
+    finish[0]({});
+    await vi.waitFor(() => expect(boards[0].removed).toBe(true));
+    const loose = (penpot.createRectangle as ReturnType<typeof vi.fn>).mock.results.map((result) => result.value as FakeShape);
+    expect(loose.every((shape) => shape.removed)).toBe(true);
+    expect(returned).toBe(false);
+    finish[1]({});
+    finish[2]({});
+    await rejection;
+    expect(upload).toHaveBeenCalledTimes(3);
+    expect(undoFinish).toHaveBeenCalledOnce();
+  });
+
+  it("keeps editable SVG conversion serial and avoids uploading its unused raster fallback", async () => {
+    const svgScene = scene();
+    const root = svgScene.nodes[0];
+    root.children = ["logo"];
+    svgScene.nodes = [root, { id: "logo", parentId: root.id, children: [], kind: "svg", name: "Logo", source: "svg", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 0, paint: {}, layout: { kind: "none" }, assetId: "logo-asset" }];
+    svgScene.assets = [{ id: "logo-asset", dataUrl: "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2010%2010%22%3E%3C%2Fsvg%3E" }];
+    const group = fakeShape("group");
+    (penpot.createShapeFromSvgWithImages as ReturnType<typeof vi.fn>).mockResolvedValue(group);
+    await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect(penpot.uploadMediaData).not.toHaveBeenCalled();
+    expect(penpot.uploadMediaUrl).not.toHaveBeenCalled();
+    expect(group.name).toBe("Logo");
   });
 
   it("keeps color beneath a container background image", async () => {
@@ -752,6 +866,48 @@ describe("Penpot importer", () => {
     expect(undoFinish).toHaveBeenCalledTimes(2);
   });
 
+  it("saves large boards in bounded batches while keeping one board and one undo block", async () => {
+    const input = scene();
+    input.nodes = [input.nodes[0], ...Array.from({ length: 600 }, (_, index): SceneNode => ({
+      id: `box-${index}`, parentId: "root", children: [], kind: "box", name: `Box ${index}`, source: `#box-${index}`,
+      rect: { x: 0, y: 0, width: 10, height: 10 }, zIndex: 0, paint: {}, layout: { kind: "none" }
+    }))];
+    input.nodes[0].children = input.nodes.slice(1).map((node) => node.id);
+    let saved: () => void;
+    const off = vi.fn();
+    Object.assign(penpot, { on: vi.fn((_type: string, callback: () => void) => { saved = callback; return Symbol.for("save"); }), off });
+    const sizes: number[] = [];
+    const metrics = vi.fn();
+    const [board] = await importScenes([input], { isCancelled: () => false, onMetrics: metrics, onProgress: (_completed, _total, label) => {
+      if (label.startsWith("Saving")) {
+        sizes.push((penpot.createRectangle as ReturnType<typeof vi.fn>).mock.calls.length);
+        setTimeout(() => saved(), 0);
+      }
+    } });
+    expect(boards).toHaveLength(1);
+    expect((board as unknown as FakeShape).children).toHaveLength(600);
+    expect(sizes).toEqual([248, 498, 600]);
+    expect(undoFinish).toHaveBeenCalledOnce();
+    expect(off).toHaveBeenCalledWith(Symbol.for("save"));
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ outcome: "complete", saveWaitCount: 3 }));
+  });
+
+  it("rolls back a large board and removes its save listener when cancellation arrives during a save checkpoint", async () => {
+    const input = scene();
+    input.nodes = [input.nodes[0], ...Array.from({ length: 500 }, (_, index): SceneNode => ({
+      id: `box-${index}`, parentId: "root", children: [], kind: "box", name: `Box ${index}`, source: `#box-${index}`,
+      rect: { x: 0, y: 0, width: 10, height: 10 }, zIndex: 0, paint: {}, layout: { kind: "none" }
+    }))];
+    input.nodes[0].children = input.nodes.slice(1).map((node) => node.id);
+    const off = vi.fn();
+    Object.assign(penpot, { on: vi.fn(() => Symbol.for("save")), off });
+    let cancelled = false;
+    await expect(importScenes([input], { isCancelled: () => cancelled, onProgress: (_completed, _total, label) => { if (label.startsWith("Saving")) cancelled = true; } })).rejects.toBeInstanceOf(ImportCancelledError);
+    expect(boards[0].removed).toBe(true);
+    expect(undoFinish).toHaveBeenCalledOnce();
+    expect(off).toHaveBeenCalledWith(Symbol.for("save"));
+  });
+
   it("keeps marked inline text on one line", async () => {
     const noWrapScene = scene();
     const textNode = noWrapScene.nodes.find((node) => node.kind === "text");
@@ -909,5 +1065,47 @@ describe("Penpot importer", () => {
     await expect(importScenes([scene(), scene("Mobile")], { isCancelled: () => ++checks >= 3, onProgress: vi.fn() })).rejects.toBeInstanceOf(ImportCancelledError);
     expect(boards[0].removed).toBe(true);
     expect(undoFinish).toHaveBeenCalledOnce();
+  });
+
+  it("releases the event loop for cancellation while processing empty containers", async () => {
+    const input = scene();
+    const root = input.nodes[0];
+    const containers = Array.from({ length: 250 }, (_, index) => ({ ...root, id: `empty-${index}`, parentId: root.id, children: [], paint: {}, layout: { kind: "none" as const } }));
+    root.children = containers.map((node) => node.id);
+    input.nodes = [root, ...containers];
+    let cancelled = false;
+    const metrics = vi.fn();
+    const timer = setTimeout(() => { cancelled = true; }, 0);
+    try {
+      await expect(importScenes([input], { isCancelled: () => cancelled, onProgress: vi.fn(), onMetrics: metrics })).rejects.toBeInstanceOf(ImportCancelledError);
+      expect(boards[0].removed).toBe(true);
+      expect(undoFinish).toHaveBeenCalledOnce();
+      expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ outcome: "cancelled", boardCount: 0 }));
+      expect(metrics.mock.calls[0][0].completedNodes).toBeLessThan(input.nodes.length);
+    } finally { clearTimeout(timer); }
+  });
+
+  it("honors cancellation during the final board flush instead of reporting completion", async () => {
+    let cancelled = false;
+    const input = scene();
+    input.nodes = [input.nodes[0]];
+    input.nodes[0].children = [];
+    const timer = setTimeout(() => { cancelled = true; }, 20);
+    try {
+      await expect(importScenes([input], { isCancelled: () => cancelled, onProgress: vi.fn() })).rejects.toBeInstanceOf(ImportCancelledError);
+      expect(boards[0].removed).toBe(true);
+      expect(undoFinish).toHaveBeenCalledOnce();
+    } finally { clearTimeout(timer); }
+  });
+
+  it("runs in a host without the browser performance global and tolerates a broken profiling observer", async () => {
+    const input = scene();
+    input.nodes = [input.nodes[0]];
+    input.nodes[0].children = [];
+    vi.stubGlobal("performance", undefined);
+    try {
+      await expect(importScenes([input], { isCancelled: () => false, onProgress: vi.fn(), onMetrics: () => { throw new Error("Broken observer"); } })).resolves.toHaveLength(1);
+      expect(boards[0].removed).toBeUndefined();
+    } finally { vi.unstubAllGlobals(); }
   });
 });

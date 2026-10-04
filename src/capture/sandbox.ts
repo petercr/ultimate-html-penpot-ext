@@ -1,5 +1,6 @@
 import { prepareSandboxDocument } from "./prepareDocument";
 import type { CaptureRequest, SceneDocument, ViewportSpec } from "../shared/contracts";
+import type { CaptureMetrics } from "../shared/performance";
 
 const CAPTURE_TIMEOUT_MS = 15_000;
 
@@ -11,6 +12,7 @@ export interface CaptureOptions {
   signal?: AbortSignal;
   /** A page-wide deadline; each viewport receives only its remaining budget. */
   deadline?: number;
+  onMetrics?: (metrics: CaptureMetrics) => void;
 }
 
 function remainingTime(options: CaptureOptions): number {
@@ -19,6 +21,8 @@ function remainingTime(options: CaptureOptions): number {
 }
 
 export async function captureViewport(request: Omit<CaptureRequest, "viewports">, viewport: ViewportSpec, options: CaptureOptions = {}): Promise<SceneDocument> {
+  const started = performance.now();
+  let preparationMs = 0;
   if (options.signal?.aborted) throw new CaptureCancelledError();
   const timeoutMs = remainingTime(options);
   if (!timeoutMs) throw new Error("Analysis timed out before rendering every viewport.");
@@ -45,7 +49,13 @@ export async function captureViewport(request: Omit<CaptureRequest, "viewports">
     };
     const receive = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow || !event.data || event.data.token !== token) return;
-      if (event.data.type === "CAPTURE_RESULT") finish(() => resolve(event.data.scene as SceneDocument));
+      if (event.data.type === "CAPTURE_RESULT") finish(() => {
+        // Finish cleanup even if a developer's profiling observer throws.
+        try {
+          if (event.data.metrics && options.onMetrics) options.onMetrics({ ...event.data.metrics, preparationMs, durationMs: performance.now() - started });
+        } catch { /* Profiling must not prevent the scene from completing. */ }
+        resolve(event.data.scene as SceneDocument);
+      });
       if (event.data.type === "CAPTURE_ERROR") finish(() => reject(new Error(event.data.message || "Capture failed.")));
     };
     const abort = () => finish(() => reject(new CaptureCancelledError()));
@@ -53,7 +63,9 @@ export async function captureViewport(request: Omit<CaptureRequest, "viewports">
     window.addEventListener("message", receive);
     options.signal?.addEventListener("abort", abort, { once: true });
     try {
-      iframe.srcdoc = prepareSandboxDocument({ ...request, viewport, token });
+      const preparationStart = performance.now();
+      iframe.srcdoc = prepareSandboxDocument({ ...request, viewport, token, collectMetrics: Boolean(options.onMetrics) });
+      preparationMs = performance.now() - preparationStart;
     } catch (error) {
       finish(() => reject(error));
     }

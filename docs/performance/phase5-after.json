@@ -1,0 +1,736 @@
+{
+  "schemaVersion": 1,
+  "command": "npm run benchmark:importer -- /tmp/importer-phase5-after.json",
+  "commit": "a41e3c4b2fae5af51218a3a0c47c313dff0b3705",
+  "recordedAt": "2026-10-04T03:17:40.111Z",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/153.0.8010.52",
+    "revision": "@78e5e45d4bb41035e17ea4da2cc257f496416ac9",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "jsVersion": "15.3.76.13"
+  },
+  "environment": {
+    "node": "v24.21.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i5-8400 CPU @ 2.80GHz"
+  },
+  "host": "mock Penpot API in real Chrome; excludes host rendering, network uploads and persistence",
+  "repetitions": 3,
+  "inputs": [
+    {
+      "path": "src/capture/source.ts",
+      "sha256": "4fb7ff9f8d099ac98b419f72012fa7cd80097f7d4f2af0033f3b45bd9846bb3d"
+    },
+    {
+      "path": "src/capture/fonts.ts",
+      "sha256": "ccc14c7a8a406ab37632b6638be7b4da16e6dcdede76f0639b500474aa2827d9"
+    },
+    {
+      "path": "src/capture/sandbox.ts",
+      "sha256": "c812158afdf7f669eebdc853ba5986570d9cbedf8890017b57b9e44540500c2a"
+    },
+    {
+      "path": "src/capture/prepareDocument.ts",
+      "sha256": "8347450bd585d9dd3484faa92a5c2e76f8b92403e3ce4aa39e662f9007c6aa04"
+    },
+    {
+      "path": "src/capture/extractor.ts",
+      "sha256": "1fdfd196b5daaabb1922a6fa35bd862a7af06dd4534401b4ceb1cf1043ad852f"
+    },
+    {
+      "path": "src/importer/penpot.ts",
+      "sha256": "65c4306bd2a231ac7f2e5288d9c6c0c1bfa303bbf30ceee6f0692370106db4f3"
+    },
+    {
+      "path": "src/importer/scheduler.ts",
+      "sha256": "d3be145a8523906b6aeafb59c461b87195ae04b913077e965b3c4bccab3c8f93"
+    },
+    {
+      "path": "src/shared/contracts.ts",
+      "sha256": "72b9ca2fe0e177944df0117d1b3bffe7b55c20b8eadc551d78f4beb4f7d636aa"
+    },
+    {
+      "path": "src/shared/validation.ts",
+      "sha256": "d784dcaddd2539ccd2ce8eb312b4345f1145cf1497b894fd341d383307111ee7"
+    },
+    {
+      "path": "src/shared/performance.ts",
+      "sha256": "712d032988ab98df4ce0b188b846bc6d7893dbe2a4d1432a0f5e426771b33a47"
+    },
+    {
+      "path": "scripts/importer-benchmark.mjs",
+      "sha256": "fbbd2e26613d46bf906e6a95ad6411a11de6662368f63a15c06562789b71e098"
+    },
+    {
+      "path": "scripts/lib/importer-benchmark-harness.ts",
+      "sha256": "4bc8d37b6ba75eafeb046883c0adf49f97e79cacc5b8790d558f6cf40dc89f3e"
+    },
+    {
+      "path": "scripts/lib/chrome.mjs",
+      "sha256": "0f0d9b615f5ce2af331e104c8404b09627be602ef60aa63a027a76a18e0e3a09"
+    }
+  ],
+  "bundleSha256": "e3e807837ea74e16384a67a8407d71e378a25d4ac3b396a8bfaa8866e4ea0bfd",
+  "fontSha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280",
+  "samples": [
+    {
+      "case": "small",
+      "cards": 12,
+      "iteration": 1,
+      "inputSha256": "0f4b934cbd5120ba05dd0dcb57490a2330d35cb848328455009a9e850dcf5822",
+      "source": {
+        "durationMs": 70.39999999850988,
+        "fetchMs": 0,
+        "stylesheetsMs": 0.3999999985098839,
+        "imagesMs": 0.5,
+        "fontsMs": 55.69999999552965,
+        "svgMs": 13.800000004470348
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1326.1000000014901,
+          "extractionMs": 33.5,
+          "textMeasurementMs": 22.500000022351742,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 26.799999997019768,
+          "durationMs": 1450
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1864.7000000029802,
+          "extractionMs": 37.79999999701977,
+          "textMeasurementMs": 23.700000017881393,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 30,
+          "durationMs": 2003.5
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1837.6000000014901,
+          "extractionMs": 40.099999994039536,
+          "textMeasurementMs": 25.299999989569187,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 29.399999998509884,
+          "durationMs": 2002.0999999940395
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 294,
+        "assetCount": 1,
+        "completedNodes": 294,
+        "boardCount": 3,
+        "durationMs": 2464.2000000029802,
+        "renderMs": 10.399999998509884,
+        "textFitMs": 1698.5,
+        "commitWaitMs": 755.3000000044703,
+        "yieldMs": 4.299999997019768,
+        "yieldCount": 2
+      },
+      "sceneSha256": "982e07afbed95c1f1db471cb9f7dfb8ac7cf17783a3ee907c64bf4b26c7f1eca",
+      "sceneBytes": 255284,
+      "maxHeartbeatGapMs": 16.5,
+      "cancellationLatencyMs": 2.8000000044703484,
+      "durationMs": 8023.39999999851
+    },
+    {
+      "case": "small",
+      "cards": 12,
+      "iteration": 2,
+      "inputSha256": "0f4b934cbd5120ba05dd0dcb57490a2330d35cb848328455009a9e850dcf5822",
+      "source": {
+        "durationMs": 71.29999999701977,
+        "fetchMs": 0,
+        "stylesheetsMs": 0.29999999701976776,
+        "imagesMs": 0.30000000447034836,
+        "fontsMs": 57.5,
+        "svgMs": 13.099999994039536
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1298.8999999985099,
+          "extractionMs": 30.600000001490116,
+          "textMeasurementMs": 18.899999998509884,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 23.899999998509884,
+          "durationMs": 1420.8000000044703
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1876.1000000014901,
+          "extractionMs": 33.19999999552965,
+          "textMeasurementMs": 20.700000002980232,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 27.399999998509884,
+          "durationMs": 2002.7999999970198
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1866.3999999985099,
+          "extractionMs": 32.29999999701977,
+          "textMeasurementMs": 19.799999997019768,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 29.900000005960464,
+          "durationMs": 1998.1000000014901
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 294,
+        "assetCount": 1,
+        "completedNodes": 294,
+        "boardCount": 3,
+        "durationMs": 2465.5,
+        "renderMs": 8.799999997019768,
+        "textFitMs": 1695.8999999985099,
+        "commitWaitMs": 760.8000000044703,
+        "yieldMs": 4.100000001490116,
+        "yieldCount": 2
+      },
+      "sceneSha256": "982e07afbed95c1f1db471cb9f7dfb8ac7cf17783a3ee907c64bf4b26c7f1eca",
+      "sceneBytes": 255284,
+      "maxHeartbeatGapMs": 16.399999998509884,
+      "cancellationLatencyMs": 2.8000000044703484,
+      "durationMs": 7989.10000000149
+    },
+    {
+      "case": "small",
+      "cards": 12,
+      "iteration": 3,
+      "inputSha256": "0f4b934cbd5120ba05dd0dcb57490a2330d35cb848328455009a9e850dcf5822",
+      "source": {
+        "durationMs": 131.19999999552965,
+        "fetchMs": 0,
+        "stylesheetsMs": 0.3999999985098839,
+        "imagesMs": 0.29999999701976776,
+        "fontsMs": 107.89999999850988,
+        "svgMs": 22.5
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1181.5,
+          "extractionMs": 44.399999998509884,
+          "textMeasurementMs": 26.899999998509884,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 48.5,
+          "durationMs": 1387
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1846,
+          "extractionMs": 41.899999998509884,
+          "textMeasurementMs": 28.5,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 29.899999998509884,
+          "durationMs": 1994.1000000014901
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 98,
+          "assetCount": 1,
+          "settleMs": 1836.3000000044703,
+          "extractionMs": 33.29999999701977,
+          "textMeasurementMs": 20.899999976158142,
+          "styleReads": 187,
+          "geometryReads": 62,
+          "textRangeReads": 1524,
+          "preparationMs": 34.399999998509884,
+          "durationMs": 1991.6000000014901
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 294,
+        "assetCount": 1,
+        "completedNodes": 294,
+        "boardCount": 3,
+        "durationMs": 2465.8000000044703,
+        "renderMs": 8.99999999254942,
+        "textFitMs": 1693.7000000104308,
+        "commitWaitMs": 763,
+        "yieldMs": 4.100000001490116,
+        "yieldCount": 2
+      },
+      "sceneSha256": "982e07afbed95c1f1db471cb9f7dfb8ac7cf17783a3ee907c64bf4b26c7f1eca",
+      "sceneBytes": 255284,
+      "maxHeartbeatGapMs": 16.69999999552965,
+      "cancellationLatencyMs": 2.600000001490116,
+      "durationMs": 8006.89999999851
+    },
+    {
+      "case": "medium",
+      "cards": 80,
+      "iteration": 1,
+      "inputSha256": "bd478db9fda33d865ed4553a4db51eb3e980d1b64dac6ef1548dcf0a82a72e05",
+      "source": {
+        "durationMs": 73.59999999403954,
+        "fetchMs": 0,
+        "stylesheetsMs": 0.7999999970197678,
+        "imagesMs": 0.8999999985098839,
+        "fontsMs": 56.5,
+        "svgMs": 15.399999998509884
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1292.7000000029802,
+          "extractionMs": 130.60000000149012,
+          "textMeasurementMs": 75.99999999254942,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 25.19999999552965,
+          "durationMs": 1539.7000000029802
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1752.2999999970198,
+          "extractionMs": 134.30000000447035,
+          "textMeasurementMs": 76.80000001937151,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 25.600000001490116,
+          "durationMs": 2013.5
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1737.5,
+          "extractionMs": 130.89999999850988,
+          "textMeasurementMs": 74.40000000596046,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 24,
+          "durationMs": 1994.8999999985099
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 1926,
+        "assetCount": 1,
+        "completedNodes": 1926,
+        "boardCount": 3,
+        "durationMs": 2531.6999999955297,
+        "renderMs": 80.59999999403954,
+        "textFitMs": 1695.8000000044703,
+        "commitWaitMs": 755.2999999970198,
+        "yieldMs": 60.30000000447035,
+        "yieldCount": 20
+      },
+      "sceneSha256": "6b1ee89a92f5ef7cbace61d731ee4d5e53d72bb827d182dd53bedd8f99e632bf",
+      "sceneBytes": 1677259,
+      "maxHeartbeatGapMs": 17,
+      "cancellationLatencyMs": 2.9000000059604645,
+      "durationMs": 8227
+    },
+    {
+      "case": "medium",
+      "cards": 80,
+      "iteration": 2,
+      "inputSha256": "bd478db9fda33d865ed4553a4db51eb3e980d1b64dac6ef1548dcf0a82a72e05",
+      "source": {
+        "durationMs": 75.79999999701977,
+        "fetchMs": 0,
+        "stylesheetsMs": 0.6000000014901161,
+        "imagesMs": 1.0999999940395355,
+        "fontsMs": 58.900000005960464,
+        "svgMs": 15
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 2059.5,
+          "extractionMs": 132.5,
+          "textMeasurementMs": 73.80000000447035,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 25.5,
+          "durationMs": 2315.10000000149
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1742.1999999955297,
+          "extractionMs": 131.90000000596046,
+          "textMeasurementMs": 74.29999995976686,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 26.100000001490116,
+          "durationMs": 2002.6000000014901
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1740.7000000029802,
+          "extractionMs": 132.89999999850988,
+          "textMeasurementMs": 74.89999998360872,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 25.19999999552965,
+          "durationMs": 2002.1999999955297
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 1926,
+        "assetCount": 1,
+        "completedNodes": 1926,
+        "boardCount": 3,
+        "durationMs": 2532.39999999851,
+        "renderMs": 82.70000000298023,
+        "textFitMs": 1691.2999999895692,
+        "commitWaitMs": 758.4000000059605,
+        "yieldMs": 64.29999998956919,
+        "yieldCount": 21
+      },
+      "sceneSha256": "6b1ee89a92f5ef7cbace61d731ee4d5e53d72bb827d182dd53bedd8f99e632bf",
+      "sceneBytes": 1677259,
+      "maxHeartbeatGapMs": 16.299999997019768,
+      "cancellationLatencyMs": 1,
+      "durationMs": 8997.39999999851
+    },
+    {
+      "case": "medium",
+      "cards": 80,
+      "iteration": 3,
+      "inputSha256": "bd478db9fda33d865ed4553a4db51eb3e980d1b64dac6ef1548dcf0a82a72e05",
+      "source": {
+        "durationMs": 77,
+        "fetchMs": 0,
+        "stylesheetsMs": 0.7000000029802322,
+        "imagesMs": 1.0999999940395355,
+        "fontsMs": 60.100000001490116,
+        "svgMs": 15.100000001490116
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 2049.3000000044703,
+          "extractionMs": 139.5,
+          "textMeasurementMs": 75.59999994188547,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 25.899999998509884,
+          "durationMs": 2328.6999999955297
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1727.3000000044703,
+          "extractionMs": 134.19999999552965,
+          "textMeasurementMs": 75.2000000178814,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 26.30000000447035,
+          "durationMs": 1978.6000000014901
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 642,
+          "assetCount": 1,
+          "settleMs": 1696,
+          "extractionMs": 133,
+          "textMeasurementMs": 75.30000004172325,
+          "styleReads": 1207,
+          "geometryReads": 402,
+          "textRangeReads": 10160,
+          "preparationMs": 27.299999997019768,
+          "durationMs": 1998.1000000014901
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 1926,
+        "assetCount": 1,
+        "completedNodes": 1926,
+        "boardCount": 3,
+        "durationMs": 2528.1999999955297,
+        "renderMs": 76.29999999701977,
+        "textFitMs": 1693.6000000014901,
+        "commitWaitMs": 758.2999999970198,
+        "yieldMs": 60,
+        "yieldCount": 20
+      },
+      "sceneSha256": "6b1ee89a92f5ef7cbace61d731ee4d5e53d72bb827d182dd53bedd8f99e632bf",
+      "sceneBytes": 1677259,
+      "maxHeartbeatGapMs": 16.700000002980232,
+      "cancellationLatencyMs": 1.3999999985098839,
+      "durationMs": 8975.5
+    },
+    {
+      "case": "large",
+      "cards": 240,
+      "iteration": 1,
+      "inputSha256": "3a8643af2d97d75ee0f1fad925d7f1900ed869c549850fecc8a7183d64d12463",
+      "source": {
+        "durationMs": 82.39999999850988,
+        "fetchMs": 0,
+        "stylesheetsMs": 1.7000000029802322,
+        "imagesMs": 2.399999998509884,
+        "fontsMs": 62.100000001490116,
+        "svgMs": 16.099999994039536
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 2056.7000000029802,
+          "extractionMs": 381,
+          "textMeasurementMs": 194.2000000551343,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 27.700000002980232,
+          "durationMs": 2673.4000000059605
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1373.7999999970198,
+          "extractionMs": 449.30000000447035,
+          "textMeasurementMs": 214.69999998807907,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 30.400000005960464,
+          "durationMs": 2010.1999999955297
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1381.5,
+          "extractionMs": 392.59999999403954,
+          "textMeasurementMs": 190.40000002086163,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 26,
+          "durationMs": 1944.2000000029802
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 5766,
+        "assetCount": 1,
+        "completedNodes": 5766,
+        "boardCount": 3,
+        "durationMs": 2738,
+        "renderMs": 277.4999999925494,
+        "textFitMs": 1703.3999999985099,
+        "commitWaitMs": 757.1000000089407,
+        "yieldMs": 231.3999999910593,
+        "yieldCount": 60
+      },
+      "sceneSha256": "89fe26f8de93a6d4d18dc9487be5dc3ae78230b12c96e63ae848a7441185400d",
+      "sceneBytes": 5036534,
+      "maxHeartbeatGapMs": 32,
+      "cancellationLatencyMs": 3.5,
+      "durationMs": 9605
+    },
+    {
+      "case": "large",
+      "cards": 240,
+      "iteration": 2,
+      "inputSha256": "3a8643af2d97d75ee0f1fad925d7f1900ed869c549850fecc8a7183d64d12463",
+      "source": {
+        "durationMs": 79,
+        "fetchMs": 0,
+        "stylesheetsMs": 1.3999999985098839,
+        "imagesMs": 2,
+        "fontsMs": 59,
+        "svgMs": 16.5
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1407.6000000014901,
+          "extractionMs": 438.5,
+          "textMeasurementMs": 222.70000011473894,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 30.099999994039536,
+          "durationMs": 2088.5
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1347.4000000059605,
+          "extractionMs": 458.8999999985099,
+          "textMeasurementMs": 225.49999998509884,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 31.799999997019768,
+          "durationMs": 2039.3000000044703
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1318,
+          "extractionMs": 392.3999999985099,
+          "textMeasurementMs": 193,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 26.899999998509884,
+          "durationMs": 1919.1999999955297
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 5766,
+        "assetCount": 1,
+        "completedNodes": 5766,
+        "boardCount": 3,
+        "durationMs": 2723,
+        "renderMs": 273.40000000596046,
+        "textFitMs": 1698.2000000029802,
+        "commitWaitMs": 751.3999999910593,
+        "yieldMs": 233.89999996125698,
+        "yieldCount": 60
+      },
+      "sceneSha256": "89fe26f8de93a6d4d18dc9487be5dc3ae78230b12c96e63ae848a7441185400d",
+      "sceneBytes": 5036534,
+      "maxHeartbeatGapMs": 19,
+      "cancellationLatencyMs": 3.100000001490116,
+      "durationMs": 9004.60000000149
+    },
+    {
+      "case": "large",
+      "cards": 240,
+      "iteration": 3,
+      "inputSha256": "3a8643af2d97d75ee0f1fad925d7f1900ed869c549850fecc8a7183d64d12463",
+      "source": {
+        "durationMs": 84.30000000447035,
+        "fetchMs": 0,
+        "stylesheetsMs": 1.3999999985098839,
+        "imagesMs": 1.8000000044703484,
+        "fontsMs": 65.10000000149012,
+        "svgMs": 15.899999998509884
+      },
+      "capture": [
+        {
+          "viewportId": "desktop",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1438.7999999970198,
+          "extractionMs": 382.8999999985099,
+          "textMeasurementMs": 191.49999999254942,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 27.100000001490116,
+          "durationMs": 2003.6000000014901
+        },
+        {
+          "viewportId": "tablet",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1429.8999999985099,
+          "extractionMs": 397,
+          "textMeasurementMs": 199.60000005364418,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 28.400000005960464,
+          "durationMs": 2022.8999999985099
+        },
+        {
+          "viewportId": "mobile",
+          "nodeCount": 1922,
+          "assetCount": 1,
+          "settleMs": 1412.2000000029802,
+          "extractionMs": 371,
+          "textMeasurementMs": 185.7999999448657,
+          "styleReads": 3607,
+          "geometryReads": 1202,
+          "textRangeReads": 30480,
+          "preparationMs": 25.299999997019768,
+          "durationMs": 1958.1999999955297
+        }
+      ],
+      "importer": {
+        "outcome": "complete",
+        "nodeCount": 5766,
+        "assetCount": 1,
+        "completedNodes": 5766,
+        "boardCount": 3,
+        "durationMs": 2724.7000000029802,
+        "renderMs": 273.5,
+        "textFitMs": 1699.6000000014901,
+        "commitWaitMs": 751.6000000014901,
+        "yieldMs": 234.49999999254942,
+        "yieldCount": 60
+      },
+      "sceneSha256": "89fe26f8de93a6d4d18dc9487be5dc3ae78230b12c96e63ae848a7441185400d",
+      "sceneBytes": 5036534,
+      "maxHeartbeatGapMs": 17.5,
+      "cancellationLatencyMs": 3.2999999970197678,
+      "durationMs": 8951.10000000149
+    }
+  ]
+}
