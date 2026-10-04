@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M440CZ5FRVM8H7F4ECY1MMK0",
+  "strategy": "manual-commit",
+  "branch": "phase5-assets-persistence",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-assets-and-persistence.md",
+    "docs/importer-performance.md",
+    "docs/importer-visual-baselines.md",
+    "docs/performance/phase5-after.json",
+    "docs/performance/phase5-before.json",
+    "package.json",
+    "scripts/importer-benchmark.mjs",
+    "scripts/importer-live-harness.mjs",
+    "scripts/importer-live-orca.mjs",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/lib/chrome.mjs",
+    "scripts/lib/importer-benchmark-harness.ts",
+    "scripts/lib/importer-live-harness.ts",
+    "scripts/lib/importer-workloads.ts",
+    "src/capture/extractor.performance.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/prepareDocument.ts",
+    "src/capture/sandbox.test.ts",
+    "src/capture/sandbox.ts",
+    "src/capture/source.ts",
+    "src/importer/assets.test.ts",
+    "src/importer/assets.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts",
+    "src/importer/persistence.test.ts",
+    "src/importer/persistence.ts",
+    "src/importer/scheduler.test.ts",
+    "src/importer/scheduler.ts",
+    "src/shared/performance.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1113966,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 22480512,
+    "output_tokens": 160201,
+    "api_call_count": 190,
+    "subagent_tokens_complete": true
+  }
+}
