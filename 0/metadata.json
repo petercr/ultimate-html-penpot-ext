@@ -1,0 +1,126 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M469K7ZNQFGSG6ZSF96J7C4J",
+  "session_id": "f3716a49-275c-498e-a583-2617afaf47e1",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-05T15:05:58.59782444Z",
+  "branch": "phase5-pseudo-element-geometry",
+  "checkpoints_count": 4,
+  "save_step_count": 4,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-pseudo-elements.md",
+    "docs/importer-visual-baselines.md",
+    "package.json",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.pseudo.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/pseudo-elements-desktop-1440.png",
+    "src/capture/fixtures/baselines/pseudo-elements-mobile-390.png",
+    "src/capture/fixtures/baselines/pseudo-elements-tablet-768.png",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/pseudo-elements.html",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "dbf86aea02e2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 208,
+    "cache_creation_tokens": 274683,
+    "cache_read_tokens": 11645036,
+    "output_tokens": 102440,
+    "api_call_count": 104
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-05T15:05:58.454354815Z",
+    "agent_lines": 10962,
+    "agent_removed": 20,
+    "human_added": 54,
+    "human_modified": 26,
+    "human_removed": 0,
+    "total_committed": 11029,
+    "total_lines_changed": 11062,
+    "agent_percentage": 99.27680347134333,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 465,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".image-fit-pr-body.md": 15,
+        ".opencode/plugins/entire.ts": 269
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11008,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11008,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 450,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11008,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 490,
+      "user_lines_removed": 13,
+      "agent_lines_added": 11030,
+      "agent_lines_removed": 33,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269,
+        "docs/importer-pseudo-elements.md": 40
+      },
+      "user_removed_per_file": {
+        "docs/importer-pseudo-elements.md": 13
+      }
+    }
+  ]
+}

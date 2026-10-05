@@ -1,0 +1,13 @@
+ok lets work on the pseudo-element geometry in a separate, fixture-backed change of @IMPORTER-UPGRADE-PLAN.md
+
+---
+
+heres how the layout looks in penpot [Image #1]
+
+---
+
+step by step how to get that
+
+---
+
+ok the plugin is loaded in the orca tab ready to go

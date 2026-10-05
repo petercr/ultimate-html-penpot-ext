@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M469K7ZNQFGSG6ZSF96J7C4J",
+  "strategy": "manual-commit",
+  "branch": "phase5-pseudo-element-geometry",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-pseudo-elements.md",
+    "docs/importer-visual-baselines.md",
+    "package.json",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.pseudo.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/pseudo-elements-desktop-1440.png",
+    "src/capture/fixtures/baselines/pseudo-elements-mobile-390.png",
+    "src/capture/fixtures/baselines/pseudo-elements-tablet-768.png",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/pseudo-elements.html",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 208,
+    "cache_creation_tokens": 274683,
+    "cache_read_tokens": 11645036,
+    "output_tokens": 102440,
+    "api_call_count": 104
+  }
+}
