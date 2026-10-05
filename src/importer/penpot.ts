@@ -5,6 +5,8 @@ import { ImportScheduler } from "./scheduler";
 import { MediaUploads, mediaKey } from "./assets";
 import { BoardPersistence, LARGE_BOARD_NODES } from "./persistence";
 import { borderInsets, borderPolygons, borderWidth, hasBorder, uniformBorder } from "./borders";
+import { imageGeometry } from "../shared/images";
+import { svgImageGeometry } from "./svgImage";
 
 export class ImportCancelledError extends Error {
   constructor() { super("Import cancelled."); }
@@ -453,6 +455,27 @@ function svgTextOf(asset: AssetRef | undefined): string | undefined {
   } catch { return undefined; }
 }
 
+/** An SVG image renders its source into the CSS object viewport. In particular,
+ * object-fit:fill changes that viewport while the SVG's preserveAspectRatio
+ * still applies inside it. Uploading the original viewport and stretching the
+ * pixels would distort its contents. Keep that rule in a size-specific asset. */
+function fittedImageAsset(node: SceneNode, asset: AssetRef | undefined, rect: SceneNode["rect"]): AssetRef | undefined {
+  const svg = svgTextOf(asset);
+  if (!asset || !svg || !node.image) return asset;
+  const width = rect.width / (node.image.scale ?? 1);
+  const height = rect.height / (node.image.scale ?? 1);
+  if (Math.abs(width - node.image.intrinsicWidth) < 0.000001 && Math.abs(height - node.image.intrinsicHeight) < 0.000001) return asset;
+  const viewport = svg.replace(/<svg\b((?:"[^"]*"|'[^']*'|[^'">])*)>/i, (_tag, attributes: string) => {
+    let sized = attributes.replace(/\s(?:width|height)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    const sizingStyle = `width:${width}px!important;height:${height}px!important`;
+    if (/\sstyle\s*=/i.test(sized)) {
+      sized = sized.replace(/(\sstyle\s*=\s*)(["'])(.*?)\2/i, (_style, prefix: string, quote: string, value: string) => `${prefix}${quote}${value};${sizingStyle}${quote}`);
+    } else sized += ` style="${sizingStyle}"`;
+    return `<svg${sized} width="${width}" height="${height}">`;
+  });
+  return { id: asset.id, dataUrl: `data:image/svg+xml,${encodeURIComponent(viewport)}`, mimeType: "image/svg+xml" };
+}
+
 function needsContainerBackdrop(node: SceneNode): boolean {
   const paint = node.paint;
   return Boolean(
@@ -469,12 +492,13 @@ interface AssetFillResult {
   failure?: string;
 }
 
-async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaUploads): Promise<AssetFillResult> {
+async function applyAssetFill(shape: Shape, asset: AssetRef | undefined, media: MediaUploads, keepAspectRatio?: boolean): Promise<AssetFillResult> {
   if (!asset || shape.type === "group") return { applied: false, failure: "The source asset was unavailable to this Penpot layer." };
   const cached = await media.get(asset);
   if (!cached?.media) return { applied: false, failure: cached?.failure || "Penpot did not return uploaded media." };
   const fillTarget = shape as Shape & { fills: Fill[] };
-  fillTarget.fills = [...(fillTarget.fills || []), { fillImage: cached.media, fillOpacity: 1 }];
+  const image = keepAspectRatio === undefined ? cached.media : { ...cached.media, keepAspectRatio };
+  fillTarget.fills = [...(fillTarget.fills || []), { fillImage: image, fillOpacity: 1 }];
   return { applied: true };
 }
 
@@ -699,6 +723,8 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         media.prefetch(scene.nodes.flatMap((node) => {
           const asset = node.assetId ? assets.get(node.assetId) : undefined;
           if (!asset || node.kind === "text") return [];
+          const fitted = node.kind === "image" ? imageGeometry(node) : undefined;
+          if (fitted && (!fitted.object.width || !fitted.object.height)) return [];
           if (node.kind === "container") return [asset];
           if (svgTextOf(asset)) return [];
           return node.kind === "image" || node.kind === "svg" || node.paint.backgroundImage?.includes("url(") ? [asset] : [];
@@ -746,6 +772,122 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
 
         const render = async (node: SceneNode, parentShape: Board | Shape): Promise<Shape | undefined> => {
           await checkpoint();
+          const fitted = node.kind === "image" ? imageGeometry(node) : undefined;
+          if (fitted) {
+            // A fixed board keeps the element's border box independent of an
+            // oversized fitted image. Element opacity composites its background,
+            // border and image once; the inner board clips at the content box.
+            const frame = track(penpot.createBoard());
+            fixBoardSizing(frame);
+            frame.clipContent = true;
+            applyPaint(frame, node.paint);
+            append(parentShape, frame);
+            applyGeometry(frame, node, { x: board.x, y: board.y }, node.rect.width > 0 && node.rect.height > 0 ? 0 : 0.1);
+            frame.setPluginData("image-clip", "true");
+            metadata(frame, node, scene.viewport.id);
+            // Create side fills first: the host inserts the content board behind
+            // these siblings, keeping the border above the image.
+            createBorders(node, frame);
+            if (fitted.object.width > 0 && fitted.object.height > 0) {
+              const content = track(penpot.createBoard());
+              fixBoardSizing(content);
+              content.clipContent = true;
+              content.fills = [];
+              content.strokes = [];
+              content.opacity = 1;
+              if (node.paint.radius?.some((radius) => radius > 0)) {
+                const insets = [fitted.content.y, node.rect.width - fitted.content.x - fitted.content.width,
+                  node.rect.height - fitted.content.y - fitted.content.height, fitted.content.x];
+                if (insets.every((inset) => Math.abs(inset - insets[0]) < 0.000001)) {
+                  const radius = node.paint.radius.map((value) => Math.max(0, value - insets[0]));
+                  applyPaint(content, { radius: radius as [number, number, number, number], opacity: 1 });
+                } else {
+                  options.onDiagnostic?.({ severity: "warning", code: "UNSUPPORTED_IMAGE_RADIUS",
+                    message: "Rounded image content with unequal border/padding insets needs elliptical inner corners; the imported image retains its outer rounded clip and a square content clip.",
+                    viewportId: scene.viewport.id, source: node.source });
+                }
+              }
+              append(frame, content);
+              applyGeometry(content, localFrame(node, fitted.content), { x: board.x, y: board.y }, 0);
+              metadata(content, node, scene.viewport.id);
+              content.name = `${content.name.slice(0, 175)} content clip`;
+              content.setPluginData("image-content-clip", "true");
+              const asset = node.assetId ? assets.get(node.assetId) : undefined;
+              const svg = svgTextOf(asset);
+              const svgFrame = svg ? svgImageGeometry(svg, fitted.object, node.image?.scale) : undefined;
+              let image: Shape | undefined;
+              if (svg && svgFrame) {
+                let vector: Shape | null | undefined;
+                try { vector = await penpot.createShapeFromSvgWithImages(svg); } catch { /* Try the synchronous converter. */ }
+                if (!vector) {
+                  try { vector = penpot.createShapeFromSvg(svg); } catch { /* Use an image fill below. */ }
+                }
+                if (vector) {
+                  track(vector);
+                  if (vector.width > 0 && vector.height > 0 && Math.abs(vector.width - svgFrame.viewBox.width) < 0.01 && Math.abs(vector.height - svgFrame.viewBox.height) < 0.01) {
+                    const viewport = track(penpot.createBoard());
+                    fixBoardSizing(viewport);
+                    viewport.clipContent = true;
+                    viewport.fills = [];
+                    viewport.strokes = [];
+                    append(content, viewport);
+                    applyGeometry(viewport, localFrame(node, fitted.object), { x: board.x, y: board.y }, 0);
+                    metadata(viewport, node, scene.viewport.id);
+                    viewport.name = `${viewport.name.slice(0, 175)} SVG viewport`;
+                    viewport.setPluginData("image-svg-viewport", "true");
+                    image = vector;
+                    append(viewport, image);
+                    applyGeometry(image, localFrame(node, svgFrame.rect), { x: board.x, y: board.y }, 0);
+                    image.setPluginData("image-svg-vector", "true");
+                  } else {
+                    // Tight bounds that differ from the source viewBox cannot
+                    // be resized without moving its crop. Discard this attempt.
+                    vector.remove();
+                    unattached.delete(vector);
+                    persistence?.markDirty();
+                  }
+                }
+                throwIfCancelled();
+              }
+              if (!image) {
+                const raster = track(penpot.createRectangle());
+                raster.fills = [];
+                raster.strokes = [];
+                raster.opacity = 1;
+                append(content, raster);
+                applyGeometry(raster, localFrame(node, fitted.object), { x: board.x, y: board.y }, 0);
+                // Geometry already resolved fit. Disable the native aspect
+                // rule in the initial fill write so it cannot crop again.
+                const applied = await applyAssetFill(raster, fittedImageAsset(node, asset, fitted.object), media, false);
+                throwIfCancelled();
+                let reason: string | undefined;
+                if (!applied.applied) {
+                  reason = `Image could not be loaded; ${applied.failure || "the upload failed"}.`;
+                  content.fills = [{ fillColor: "#e5e7eb", fillOpacity: 1 }];
+                } else {
+                  if (svg) reason = "SVG vector conversion could not retain the source viewport; the uploaded SVG image fallback is shown.";
+                  else if (asset?.mimeType?.includes("svg") || /\.svg(?:[?#]|$)/i.test(asset?.url || "")) {
+                    options.onDiagnostic?.({ severity: "warning", code: "UNSUPPORTED_SVG_VIEWPORT",
+                      message: "The SVG source was not inlined; its internal viewport/aspect rule could not be resolved. The uploaded image uses the captured object frame.",
+                      viewportId: scene.viewport.id, source: node.source });
+                  }
+                }
+                if (reason) {
+                  markAssetFallback(raster, reason);
+                  frame.setPluginData("asset-fallback", reason);
+                  metadata(frame, node, scene.viewport.id);
+                  reportAssetFallback(frame, node, asset, scene.viewport.id, options);
+                }
+                image = raster;
+              }
+              metadata(image, node, scene.viewport.id);
+              image.name = `${image.name.slice(0, 180)} image`;
+              image.setPluginData("image-content", "true");
+            }
+            shapes.set(node.id, frame);
+            reportProgress();
+            return frame;
+          }
           if (node.kind === "container" && clipsContent(node.paint)) {
             // A Penpot board is the clipping-capable container. Unlike a
             // group, its bounds stay at the captured element's box instead of

@@ -1,0 +1,238 @@
+{
+  "verifiedAt": "2026-10-04",
+  "acceptance": {
+    "status": "complete",
+    "scope": "Defined image fit/position subset; live geometry and saved reload at all three viewports, representative desktop visual comparison, and one mobile undo/redo."
+  },
+  "host": {
+    "url": "https://design.penpot.app",
+    "penpotVersion": "2.18.1",
+    "browser": "Windows Chromium 150.0.7871.250 through Orca",
+    "fixtureFont": {
+      "family": "DejaVu Sans",
+      "available": false,
+      "observedFallbackFamily": "Inter",
+      "scope": "Image geometry and representative image appearance; typography and complete pixel equality are not established."
+    }
+  },
+  "fixture": "image-fit-position.html",
+  "inputs": {
+    "src/capture/fixtures/image-fit-position.html": "76756922dcf9d56644f94a9961847b0a3919298b68361a6bd433a4a1d7197f36",
+    "src/capture/extractor.ts": "a0c096d59a1bf6d9e5b3e26188745d712e78189450a7d41d56791a4f720f69a4",
+    "src/importer/penpot.ts": "8ff74595bd7bcbccda0588b6cd1e25ce18a75a5a37bd9eed9f73f1a1a9c06653",
+    "src/shared/contracts.ts": "9de89d09d9101d3e995c97ae86b5f0015656e3b2f01cb0d06e40c82aa8e3acec",
+    "src/shared/validation.ts": "a47fdecb752f4026a688aada41250e3d057648fdcc683a6b19eb7d79db18b134",
+    "src/shared/images.ts": "2aa2399155f3772f948ec458b15d1e6a24fe25354ee0ca6e27b9cfbcae5c664d",
+    "src/importer/svgImage.ts": "de2c473d5c3fc02faebf2724d11551d9b95e74b908742be459d2d20e12e921ca",
+    "scripts/importer-image-fit-verify.mjs": "a56ac9a629519c59c4da521a7b3198b313219bbcca4360c042aa94b0169842fb",
+    "src/capture/fixtures/assets/image-fit-grid.png": "e95887d81972d43b2d924530e776da4659b248ed2a9aa4ec80e9239a94e003ce",
+    "src/capture/fixtures/assets/fixture-illustration.svg": "fa42c6064fc5b5e91e2b2a5873929212a1d50b5a98cbbb6a961339eb50b32062"
+  },
+  "inputsNote": "Hashes identify the final source state. The desktop and mobile imports preceded consolidation of identical raster fill writes; their saved geometry was verified again against the final pure helpers after reload.",
+  "browserReferences": {
+    "fixtures": 8,
+    "references": 24,
+    "addedImageReferences": 3,
+    "previousReferencesByteUnchanged": 21
+  },
+  "verification": {
+    "script": "scripts/importer-image-fit-verify.mjs",
+    "positionTolerancePx": 0.005,
+    "sizeTolerancePx": 0.005,
+    "rotationToleranceDeg": 0.001,
+    "checks": [
+      "All 16 image border/content/object frames with composed rotation and page-board origin",
+      "Image parent relationships and clipContent on all 35 image clipping boards",
+      "Three fitted SVG viewport boards with editable vector groups",
+      "Thirteen raster rectangles with keepAspectRatio false",
+      "Element opacity applied once and default host opacity interpreted as 1",
+      "Four rounded content radii of 16 px",
+      "One deduplicated PNG upload and no diagnostics"
+    ],
+    "fits": [
+      "fill",
+      "contain",
+      "cover",
+      "none",
+      "scale-down"
+    ],
+    "positions": [
+      "percentage",
+      "pixel",
+      "edge keyword offsets"
+    ],
+    "assets": [
+      {
+        "file": "image-fit-grid.png",
+        "intrinsicWidth": 240,
+        "intrinsicHeight": 120
+      },
+      {
+        "file": "fixture-illustration.svg",
+        "intrinsicWidth": 160,
+        "intrinsicHeight": 112
+      }
+    ]
+  },
+  "viewports": [
+    {
+      "viewport": "desktop",
+      "sizeIndex": 0,
+      "sceneNodes": 75,
+      "hostShapesIncludingPageRoot": 140,
+      "borderFrames": 16,
+      "contentFrames": 16,
+      "objectFrames": 16,
+      "svgViewportBoards": 3,
+      "editableSvgGroups": 3,
+      "rasterRectangles": 13,
+      "checkedFrames": 51,
+      "clippingBoardsChecked": 35,
+      "allImageClippingBoardsClipContent": true,
+      "maxCornerErrorPx": 0.0001375,
+      "maxSizeErrorPx": 2.76e-05,
+      "maxRotationErrorDeg": 0,
+      "pngUploads": 1,
+      "diagnostics": [],
+      "importMs": 11402,
+      "savedReload": {
+        "verified": true,
+        "hostShapesIncludingPageRoot": 140,
+        "geometryPassed": true
+      }
+    },
+    {
+      "viewport": "tablet",
+      "sizeIndex": 1,
+      "sceneNodes": 75,
+      "hostShapesIncludingPageRoot": 140,
+      "borderFrames": 16,
+      "contentFrames": 16,
+      "objectFrames": 16,
+      "svgViewportBoards": 3,
+      "editableSvgGroups": 3,
+      "rasterRectangles": 13,
+      "checkedFrames": 51,
+      "clippingBoardsChecked": 35,
+      "allImageClippingBoardsClipContent": true,
+      "maxCornerErrorPx": 0.0001388,
+      "maxSizeErrorPx": 5.374e-05,
+      "maxRotationErrorDeg": 0,
+      "pngUploads": 1,
+      "diagnostics": [],
+      "importMs": 13540,
+      "savedReload": {
+        "verified": true,
+        "hostShapesIncludingPageRoot": 140,
+        "geometryPassed": true
+      }
+    },
+    {
+      "viewport": "mobile",
+      "sizeIndex": 2,
+      "sceneNodes": 75,
+      "hostShapesIncludingPageRoot": 140,
+      "borderFrames": 16,
+      "contentFrames": 16,
+      "objectFrames": 16,
+      "svgViewportBoards": 3,
+      "editableSvgGroups": 3,
+      "rasterRectangles": 13,
+      "checkedFrames": 51,
+      "clippingBoardsChecked": 35,
+      "allImageClippingBoardsClipContent": true,
+      "maxCornerErrorPx": 0.00024419,
+      "maxSizeErrorPx": 0.00011901,
+      "maxRotationErrorDeg": 0,
+      "pngUploads": 1,
+      "diagnostics": [],
+      "importMs": 15835,
+      "savedReload": {
+        "verified": true,
+        "hostShapesIncludingPageRoot": 140,
+        "geometryPassed": true
+      }
+    }
+  ],
+  "visualComparison": {
+    "viewport": "desktop",
+    "result": "representative pass",
+    "cases": [
+      "All five raster fits and both scale-down branches",
+      "Percentage, pixel, and edge-offset placement",
+      "SVG fill/contain/cover with native editable vectors",
+      "Borders, padding, background, and opacity",
+      "Rotation, rounded content, and uniform scale"
+    ],
+    "notes": "Representative images were compared with the browser references. Fallback typography and a complete pixel comparison at every viewport are outside this visual record."
+  },
+  "undoRedo": {
+    "viewport": "mobile",
+    "undoSteps": 1,
+    "redoSteps": 1,
+    "beforeShapes": 140,
+    "afterUndoShapes": 1,
+    "afterRedoShapes": 140,
+    "afterRedoGeometryPassed": true,
+    "savedReloadShapes": 140
+  },
+  "persistence": {
+    "attempts": [
+      {
+        "operation": "desktop import",
+        "requestBytes": 1978819,
+        "httpStatus": 200,
+        "responseObserved": true
+      },
+      {
+        "operation": "tablet first import",
+        "requestBytes": 1977712,
+        "httpStatus": null,
+        "responseObserved": false
+      },
+      {
+        "operation": "tablet second import",
+        "requestBytes": 1977712,
+        "httpStatus": null,
+        "responseObserved": false
+      },
+      {
+        "operation": "mobile import",
+        "requestBytes": 1977344,
+        "httpStatus": 200,
+        "responseObserved": true
+      },
+      {
+        "operation": "undo/redo save",
+        "requestBytes": 1170767,
+        "httpStatus": null,
+        "responseObserved": false
+      },
+      {
+        "operation": "tablet fresh retry",
+        "requestBytes": 1972564,
+        "httpStatus": 200,
+        "responseObserved": true
+      }
+    ],
+    "finalSavedReload": {
+      "desktop": true,
+      "tablet": true,
+      "mobile": true
+    },
+    "notes": "Two tablet autosaves reported Failed to fetch and have no recorded response. A later undo/redo save also has no recorded response. A fresh tablet import subsequently returned HTTP 200; desktop, tablet, and mobile each retained 140 shapes and passed geometry verification after reload. The cause of the earlier failures is unknown. The consolidation of identical fill writes is not evidence of causation, and these requests do not establish a fixed payload ceiling or a live upper persistence limit."
+  },
+  "regressions": {
+    "fullSuiteTestsPassed": 390,
+    "focusedFixtureTestsPassed": 272,
+    "focusedFixtureFiles": 12,
+    "appTypecheckPassed": true,
+    "apiTypecheckPassed": true,
+    "workerTypecheckPassed": true,
+    "productionBuildPassed": true,
+    "distCheckPassed": true
+  },
+  "redaction": "Private file, page, board, layer, and media UUIDs and raw request bodies are omitted.",
+  "productionPluginRestored": true,
+  "productionPluginRestoredNote": "The normal Ultimate HTML to Penpot plugin reopened at its Analyze page after the temporary live harness."
+}

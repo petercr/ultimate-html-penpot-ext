@@ -163,6 +163,7 @@ penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: 
       });
       result = { size: message.size, pageId: page.id, boardId: boards[0].id, boardChildren: boards[0].children.length,
         boards: boards.map((board) => ({ children: board.children.length, imageIds: board.children.flatMap((shape) => "fills" in shape ? ((shape as import("@penpot/plugin-types").Rectangle).fills || []).flatMap((fill) => fill.fillImage ? [fill.fillImage.id] : []) : []) })),
+        fontAvailability: (() => { const font = penpot.fonts.findByName("DejaVu Sans"); return { family: "DejaVu Sans", available: Boolean(font), variants: font?.variants.map((variant) => ({ weight: variant.fontWeight, style: variant.fontStyle })) ?? [] }; })(),
         shapes: page.findShapes().length, durationMs: profileNow() - started, saves,
         saveAcknowledged: (metrics?.saveWaitCount || 0) > 0, metrics, diagnostics };
       send({ type: "import-complete", result });
@@ -199,8 +200,10 @@ penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: 
           const boundsWidth = Math.abs(shape.width * cos) + Math.abs(shape.height * sin), boundsHeight = Math.abs(shape.width * sin) + Math.abs(shape.height * cos);
           const centerX = shape.x + boundsWidth / 2, centerY = shape.y + boundsHeight / 2;
           return { id: shape.id, name: shape.name, type: shape.type, parentId: shape.parent?.id, x: shape.x, y: shape.y, width: shape.width, height: shape.height, rotation: shape.rotation,
-            source: shape.getPluginData("source"), borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), opacity: shape.opacity,
-            fills: "fills" in shape ? shape.fills.map((fill) => ({ color: fill.fillColor, opacity: fill.fillOpacity, imageId: fill.fillImage?.id })) : [],
+            clipContent: shape.type === "board" ? (shape as import("@penpot/plugin-types").Board).clipContent : undefined,
+            source: shape.getPluginData("source"), borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), imageClip: shape.getPluginData("image-clip"), imageContentClip: shape.getPluginData("image-content-clip"), imageContent: shape.getPluginData("image-content"), imageSvgViewport: shape.getPluginData("image-svg-viewport"), imageSvgVector: shape.getPluginData("image-svg-vector"), opacity: shape.opacity,
+            fills: "fills" in shape ? shape.fills.map((fill) => ({ color: fill.fillColor, opacity: fill.fillOpacity, imageId: fill.fillImage?.id, keepAspectRatio: fill.fillImage?.keepAspectRatio })) : [],
+            radii: "borderRadiusTopLeft" in shape ? [shape.borderRadiusTopLeft, shape.borderRadiusTopRight, shape.borderRadiusBottomRight, shape.borderRadiusBottomLeft] : undefined,
             strokes: shape.strokes, d: shape.type === "path" ? shape.d : undefined,
             corner: { x: centerX + (-shape.width / 2) * cos - (-shape.height / 2) * sin, y: centerY + (-shape.width / 2) * sin + (-shape.height / 2) * cos } };
         }) });

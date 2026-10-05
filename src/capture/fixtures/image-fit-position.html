@@ -1,0 +1,126 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer image fit and position fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body { margin: 0; padding: 18px; background: #f8fafc; color: #182230; font: 14px/1.4 "DejaVu Sans", sans-serif; }
+  main { max-width: 660px; }
+  h1 { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
+  .intro { margin: 0 0 16px; font-size: 12px; color: #475467; }
+  .samples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .sample { margin: 0; padding: 12px; background: #fff; border: 1px solid #cbd5e1; }
+  h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
+  .note { margin: 8px 0 0; font-size: 11px; line-height: 16px; color: #475467; }
+  .image { display: block; width: 220px; height: 124px; max-width: 100%; background: #fef3c7; object-position: 50% 50%; }
+  #raster-fill, #svg-fill { object-fit: fill; }
+  #raster-contain, #svg-contain { object-fit: contain; }
+  #raster-cover, #svg-cover { object-fit: cover; }
+  #raster-none { object-fit: none; }
+  #raster-scale-down-small, #raster-scale-down-large { object-fit: scale-down; }
+  #raster-scale-down-large { width: 280px; height: 160px; }
+  #raster-percent { object-fit: cover; object-position: 25% 75%; }
+  #raster-pixels { object-fit: contain; object-position: 12px 8px; }
+  #raster-edges { object-fit: none; object-position: right 12px bottom 8px; }
+  /* The image fills the content box; the background still paints padding and gaps. */
+  #decorated-image { width: 240px; height: 152px; padding: 12px 20px; border: 4px solid #7c3aed; background: #e9d5ff; object-fit: contain; object-position: left top; opacity: 0.7; }
+  /* Rotation must carry the crop frame, border, and object position together. */
+  .rotation-stage { height: 142px; padding: 9px 12px; }
+  #rotated-image { width: 220px; height: 116px; padding: 6px; border: 3px solid #0f766e; object-fit: cover; object-position: 75% 35%; transform: rotate(8deg); transform-origin: center; }
+  #rounded-image { padding: 8px; border: 4px solid #be123c; border-radius: 28px; object-fit: cover; }
+  .scale-stage { height: 150px; padding: 12px; }
+  #scaled-image { width: 210px; height: 110px; object-fit: none; object-position: right 7px bottom 9px; transform: scale(1.1); transform-origin: left top; }
+  @media (max-width: 600px) {
+    .samples { grid-template-columns: minmax(0, 1fr); }
+    .image { width: 100%; }
+    #raster-scale-down-large, #decorated-image { width: 100%; }
+    #rotated-image { width: calc(100% - 12px); }
+  }
+</style>
+<main>
+  <h1>Image fit and position</h1>
+  <p class="intro">Raster source: 240 × 120. SVG source: 160 × 112. Amber shows the image element background.</p>
+  <div class="samples">
+    <section class="sample">
+      <h2>Raster — fill</h2>
+      <img class="image" id="raster-fill" src="./assets/image-fit-grid.png" alt="Raster fill">
+      <p class="note">The center circle stretches with the element.</p>
+    </section>
+    <section class="sample">
+      <h2>Raster — contain</h2>
+      <img class="image" id="raster-contain" src="./assets/image-fit-grid.png" alt="Raster contain">
+      <p class="note">The entire source fits; gaps show amber.</p>
+    </section>
+    <section class="sample">
+      <h2>Raster — cover</h2>
+      <img class="image" id="raster-cover" src="./assets/image-fit-grid.png" alt="Raster cover">
+      <p class="note">The frame crops both horizontal source edges.</p>
+    </section>
+    <section class="sample">
+      <h2>Raster — none</h2>
+      <img class="image" id="raster-none" src="./assets/image-fit-grid.png" alt="Raster none">
+      <p class="note">Intrinsic size: centered crop and vertical gaps.</p>
+    </section>
+    <section class="sample">
+      <h2>Raster — scale-down, smaller frame</h2>
+      <img class="image" id="raster-scale-down-small" src="./assets/image-fit-grid.png" alt="Raster scale down small">
+      <p class="note">Shrinks when the frame is smaller than the source.</p>
+    </section>
+    <section class="sample">
+      <h2>Raster — scale-down, larger frame</h2>
+      <img class="image" id="raster-scale-down-large" src="./assets/image-fit-grid.png" alt="Raster scale down large">
+      <p class="note">Keeps 240 × 120 with empty space on every side.</p>
+    </section>
+    <section class="sample">
+      <h2>Cover — position 25% 75%</h2>
+      <img class="image" id="raster-percent" src="./assets/image-fit-grid.png" alt="Raster percentage position">
+      <p class="note">Percentages position the source in leftover space.</p>
+    </section>
+    <section class="sample">
+      <h2>Contain — position 12px 8px</h2>
+      <img class="image" id="raster-pixels" src="./assets/image-fit-grid.png" alt="Raster pixel position">
+      <p class="note">Fixed offsets from the top-left; right edge crops.</p>
+    </section>
+    <section class="sample">
+      <h2>None — right 12px bottom 8px</h2>
+      <img class="image" id="raster-edges" src="./assets/image-fit-grid.png" alt="Raster edge offset position">
+      <p class="note">Offsets from the right and bottom frame edges.</p>
+    </section>
+    <section class="sample">
+      <h2>SVG — fill</h2>
+      <img class="image" id="svg-fill" src="./assets/fixture-illustration.svg" alt="SVG fill">
+      <p class="note">The SVG viewport retains its own aspect rule.</p>
+    </section>
+    <section class="sample">
+      <h2>SVG — contain</h2>
+      <img class="image" id="svg-contain" src="./assets/fixture-illustration.svg" alt="SVG contain">
+      <p class="note">The entire vector illustration stays visible.</p>
+    </section>
+    <section class="sample">
+      <h2>SVG — cover</h2>
+      <img class="image" id="svg-cover" src="./assets/fixture-illustration.svg" alt="SVG cover">
+      <p class="note">The crop clips source content outside the frame.</p>
+    </section>
+    <section class="sample">
+      <h2>Contain — border, padding, opacity</h2>
+      <img class="image" id="decorated-image" src="./assets/image-fit-grid.png" alt="Decorated raster contain">
+      <p class="note">Purple padding and border; left/top; opacity 0.7.</p>
+    </section>
+    <section class="sample">
+      <h2>Cover — rotated frame</h2>
+      <div class="rotation-stage"><img class="image" id="rotated-image" src="./assets/image-fit-grid.png" alt="Rotated raster cover"></div>
+      <p class="note">8° rotation with 75% 35% position and padding.</p>
+    </section>
+    <section class="sample">
+      <h2>Cover — rounded content</h2>
+      <img class="image" id="rounded-image" src="./assets/image-fit-grid.png" alt="Rounded raster cover">
+      <p class="note">28px outer radius; 16px inner radius after border and padding.</p>
+    </section>
+    <section class="sample">
+      <h2>None — uniform scale</h2>
+      <div class="scale-stage"><img class="image" id="scaled-image" src="./assets/image-fit-grid.png" alt="Scaled raster none"></div>
+      <p class="note">1.1× natural size; right 7px bottom 9px offsets scale too.</p>
+    </section>
+  </div>
+</main>

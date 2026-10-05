@@ -15,6 +15,13 @@ for (const field of ["code", "icon"]) {
   await access(resolve(dist, value));
 }
 
+// Penpot evaluates the plugin in SES, which rejects literal HTML comment
+// delimiters even inside regular expressions or strings in JavaScript source.
+const pluginSource = await readFile(resolve(dist, manifest.code), "utf8");
+if (/<\x21--|--\x3e/.test(pluginSource)) {
+  throw new Error("Plugin code contains an HTML comment delimiter rejected by Penpot SES.");
+}
+
 const headers = await readFile(resolve(dist, "_headers"), "utf8");
 if (!headers.includes("Access-Control-Allow-Origin: *")) throw new Error("Production CORS header is missing.");
 const headerLines = headers.split("\n").map((line) => line.trim());
