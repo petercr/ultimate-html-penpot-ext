@@ -27,7 +27,7 @@ async function inlineFixtureAsset(asset) {
   const name = asset.url && new URL(asset.url).pathname.split("/").pop();
   const type = name && mediaTypes[extname(name)];
   if (!type) return asset;
-  try { return { id: asset.id, dataUrl: `data:${type};base64,${(await readFile(resolve("src/capture/fixtures/assets", name))).toString("base64")}`, mimeType: type }; }
+  try { return { ...asset, url: undefined, dataUrl: `data:${type};base64,${(await readFile(resolve("src/capture/fixtures/assets", name))).toString("base64")}`, mimeType: type }; }
   catch { return asset; }
 }
 const fixtureScenes = await Promise.all((evidence.fixtures.find((fixture) => fixture.file === fixtureFile)?.viewports ?? [])

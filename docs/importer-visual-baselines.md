@@ -8,6 +8,9 @@ a formal test record. Later fixtures have separate validation records:
 [Transformed geometry](importer-transforms.md) includes a live pass.
 [Per-side borders](importer-borders.md) records all three live viewport geometry
 checks, a representative desktop visual pass, and mobile undo/redo.
+[Image fitting](importer-image-fit.md) records all three saved-reload geometry
+checks, a representative desktop visual comparison, mobile undo/redo, and
+the host fallback-font and recovered save-failure observations.
 
 ## Regenerate the browser evidence
 
@@ -38,12 +41,16 @@ separate paths and imports the checked-in generated scenes into a mocked host.
 
 The focused command runs exactly `src/capture/extractor.test.ts`,
 `src/capture/extractor.transforms.test.ts`, `src/capture/extractor.borders.test.ts`,
-`src/capture/prepareDocument.test.ts`,
-`src/capture/source.test.ts`, `src/importer/penpot.test.ts`, and
-`src/importer/penpot.borders.test.ts`; the importer tests include
+`src/capture/extractor.images.test.ts`, `src/capture/prepareDocument.test.ts`,
+`src/capture/source.test.ts`, `src/importer/penpot.test.ts`,
+`src/importer/penpot.borders.test.ts`, `src/importer/images.test.ts`,
+`src/importer/penpot.images.test.ts`, `src/importer/svgImage.test.ts`, and
+`src/shared/validation.images.test.ts`; the importer tests include
 the generated-scene importer regressions for clipping ancestry/bounds,
 compositing opacity, failed-asset placeholders, transformed layers, and per-side borders across
-all three boards.
+all three boards, plus image fit/position, content clips, raster aspect
+settings, and editable SVG viewport geometry. SVG root geometry and image
+metadata validation tests cover unsupported sources and malformed payloads.
 
 The command rewrites these checked-in artifacts:
 
@@ -53,8 +60,8 @@ The command rewrites these checked-in artifacts:
 - `src/capture/fixtures/baselines/metadata.json`
 - `src/capture/fixtures/baselines/scene-evidence.json`
 
-`metadata.json` records the Chrome product/revision; HTML, extractor, font, and
-SVG input hashes; exact `innerWidth`, `innerHeight`, `devicePixelRatio`; and
+`metadata.json` records the Chrome product/revision; HTML, extractor, font,
+SVG, and PNG input hashes; exact `innerWidth`, `innerHeight`, `devicePixelRatio`; and
 regular/bold loaded `DejaVu Sans` faces. It also records the CSS layout metrics,
 an explicit full-page screenshot clip, and the decoded PNG dimensions. The
 filenames retain their established `desktop-1440`, `tablet-768`, and
@@ -80,6 +87,13 @@ already local, static HTML. That boundary is intentional and is covered by the
 existing source/preparation tests rather than pretending this direct capture
 is an end-to-end remote-page test.
 
+The image fixture requires all 16 images' fit and natural dimensions,
+percentage/pixel/edge positions, border/padding and compositing opacity,
+rotation and uniform scale metadata, two reused successful source assets,
+and no diagnostics. The current suite contains eight fixtures and 24
+references. Image fitting added three references; the previous 21 screenshots
+are byte-for-byte unchanged.
+
 ## Fixture map
 
 | Fixture | Reference purpose | Import assertion / expected result |
@@ -91,12 +105,14 @@ is an end-to-end remote-page test.
 | `asset-failures.html` | Explicitly separated repeated 404 image/background URL | One local failed URL is captured as one scene asset; import tests require a named placeholder for every affected image, while upload work is deduplicated. |
 | `transforms.html` | Rotated box and card, corner `transform-origin`, translate, uniform scale, the individual `rotate`/`scale`/`translate` properties with a percentage translate, nested rotations, a rotated clip, a −90° label, a rotated image, skew, mirror, a collapsed element, and an inline span | Each rotated layer keeps its own size and has a clockwise `rotation` about its top-left corner; skew and mirror stay unrotated with `UNSUPPORTED_TRANSFORM`; the collapsed element creates no nodes. See [Transformed geometry](importer-transforms.md). |
 | `per-side-borders.html` | Root borders, bottom-only decorated text, a left accent, four widths/colors with alpha and opacity, clipped child, rotation/scale, image borders, transparent/hidden/none sides, uniform/borderless controls, and unsupported radius/style/color/border-image cases | Differing sides retain all four computed border records; widths scale with the frame; uniform borders keep legacy paint fields. Unsupported border styles, asymmetric rounded corners, border images, and CSS Color 4 paints report explicit diagnostics. Border geometry is verified in all three live viewport imports, with a representative desktop visual pass and mobile undo/redo. See [Per-side borders](importer-borders.md). |
+| `image-fit-position.html` | All five fits, both scale-down branches, percentages/pixels/edge offsets, raster and SVG sources, decoration/opacity, rotation, rounded content, uniform scale, and responsive widths | All 16 images retain intrinsic dimensions and normalized fit/position metadata. Import uses content clips, 13 raster rectangles, and three editable SVG viewport/group compositions. All three live viewports retain verified geometry after reload, with a representative desktop visual comparison and mobile undo/redo. See [Image fitting](importer-image-fit.md). |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
 `DejaVuSans-Bold.ttf` under `src/capture/fixtures/assets/`, with their hashes
 and Bitstream Vera/DejaVu license notice in `DEJAVU-LICENSE.txt`. SVG assets
-are bundled beside them. There are no CDN, webfont-provider, or external-image
-dependencies.
+and the generated 240 × 120 px `image-fit-grid.png` are bundled beside them.
+The raster's labeled corners and edges make crops visible. There are no CDN,
+webfont-provider, or external-image dependencies.
 
 ## Live Penpot comparison procedure
 
@@ -136,6 +152,11 @@ dependencies.
    descendants; square asymmetric clipping containers add an inner transparent
    padding-box clip while retaining their original outer border box. Compare
    the clipped child's edges and the diagonal joins as well as the layer tree.
+   Fitted images keep an outer border-box board, an inner content-box clip,
+   and a separately sized/positioned image object. Supported SVG images add
+   their own clipped viewport and editable vector group. Check content radii,
+   crop edges, background through empty space, and opacity once on the outer
+   board; [Image fitting](importer-image-fit.md) includes a live geometry verifier.
 6. Verify undo without assuming a single global transaction: the importer
    currently completes one undo block per responsive board. Undo until every
    newly imported board is removed, redo the same number of steps, and verify

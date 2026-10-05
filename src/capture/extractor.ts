@@ -182,6 +182,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const degrees = Math.atan2(b, a) * 180 / Math.PI;
     node.rect = rectOf({ x: a * box.x + c * box.y + e, y: b * box.x + d * box.y + f, width: box.width * scale, height: box.height * scale });
     if (Math.abs(degrees) > 0.005) node.rotation = Math.round(degrees * 1000) / 1000;
+    if (node.image && scale !== 1) {
+      node.image.scale = (node.image.scale || 1) * scale;
+      node.image.position.x.offset *= scale;
+      node.image.position.y.offset *= scale;
+    }
     if (Math.abs(scale - 1) <= 1e-4) return;
     const scaled = (value) => Math.round(value * scale * 100) / 100;
     if (node.paint.borderWidth) node.paint.borderWidth = scaled(node.paint.borderWidth);
@@ -209,6 +214,105 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     return parts.join(" > ") || "body";
   };
   const nameOf = (element) => compact(element.getAttribute("aria-label")) || compact(element.id) || compact(element.className && typeof element.className === "string" ? element.className.split(/\\s+/)[0] : "") || element.tagName.toLowerCase();
+  // Computed positions retain percentages and calc(% +/- px). Store each axis
+  // as a fraction of the remaining space plus a fixed offset, so cover and
+  // contain use the same positioning rule even when that space is negative.
+  const imagePositionLength = (token) => {
+    const numeric = "[+-]?(?:\\\\d+\\\\.?\\\\d*|\\\\.\\\\d+)(?:e[+-]?\\\\d+)?";
+    const single = new RegExp("^(" + numeric + ")(px|%)?$", "i").exec(token);
+    if (single) {
+      const amount = Number(single[1]);
+      if (!Number.isFinite(amount) || (!single[2] && amount !== 0)) return undefined;
+      return { percentage: single[2] === "%" ? amount / 100 : 0, offset: single[2] === "%" ? 0 : amount };
+    }
+    const calc = /^calc\\(([^()]*)\\)$/i.exec(token);
+    if (!calc) return undefined;
+    const expression = calc[1].replace(/\\s+/g, "");
+    const terms = expression.match(new RegExp(numeric + "(?:px|%)", "gi"));
+    if (!terms || terms.join("") !== expression || terms.slice(1).some((term) => !/^[+-]/.test(term))) return undefined;
+    let percentage = 0;
+    let offset = 0;
+    for (const term of terms) {
+      const amount = parseFloat(term);
+      if (term.endsWith("%")) percentage += amount / 100;
+      else offset += amount;
+    }
+    return Number.isFinite(percentage) && Number.isFinite(offset) ? { percentage, offset } : undefined;
+  };
+  const imagePosition = (value) => {
+    // Split outside parentheses, preserving the spaces in a calc expression.
+    const tokens = [];
+    let depth = 0;
+    let token = "";
+    for (const character of String(value || "50% 50%").trim().toLowerCase()) {
+      if (character === "(") depth += 1;
+      if (character === ")") depth -= 1;
+      if (depth < 0) return undefined;
+      if (/\\s/.test(character) && depth === 0) {
+        if (token) tokens.push(token);
+        token = "";
+      } else token += character;
+    }
+    if (depth !== 0) return undefined;
+    if (token) tokens.push(token);
+    const center = () => ({ percentage: 0.5, offset: 0 });
+    const axisValue = (part, axis) => {
+      if (part === "center") return center();
+      if (part === (axis === "x" ? "left" : "top")) return { percentage: 0, offset: 0 };
+      if (part === (axis === "x" ? "right" : "bottom")) return { percentage: 1, offset: 0 };
+      return imagePositionLength(part);
+    };
+    let result;
+    if (tokens.length === 1) {
+      result = ["top", "bottom"].includes(tokens[0])
+        ? { x: center(), y: axisValue(tokens[0], "y") }
+        : { x: axisValue(tokens[0], "x"), y: center() };
+    } else if (tokens.length === 2) {
+      const keywords = tokens.every((part) => ["left", "right", "top", "bottom", "center"].includes(part));
+      const swapped = keywords && (["top", "bottom"].includes(tokens[0]) || ["left", "right"].includes(tokens[1]));
+      result = { x: axisValue(tokens[swapped ? 1 : 0], "x"), y: axisValue(tokens[swapped ? 0 : 1], "y") };
+    } else if (tokens.length === 3 || tokens.length === 4) {
+      result = {};
+      let centers = 0;
+      for (let index = 0; index < tokens.length; index += 1) {
+        const edge = tokens[index];
+        if (edge === "center") { centers += 1; continue; }
+        const axis = ["left", "right"].includes(edge) ? "x" : ["top", "bottom"].includes(edge) ? "y" : undefined;
+        if (!axis || result[axis]) return undefined;
+        const offset = imagePositionLength(tokens[index + 1] || "");
+        if (offset) index += 1;
+        const fromEnd = edge === "right" || edge === "bottom";
+        result[axis] = {
+          percentage: (fromEnd ? 1 : 0) + (fromEnd ? -1 : 1) * (offset?.percentage || 0),
+          offset: (fromEnd ? -1 : 1) * (offset?.offset || 0)
+        };
+      }
+      for (const axis of ["x", "y"]) if (!result[axis] && centers > 0) { result[axis] = center(); centers -= 1; }
+      if (centers) return undefined;
+    }
+    if (!result?.x || !result?.y) return undefined;
+    if ([result.x.percentage, result.x.offset, result.y.percentage, result.y.offset].some((amount) => !Number.isFinite(amount) || Math.abs(amount) > ${SCENE_LIMITS.maxDimension})) return undefined;
+    return result;
+  };
+  const imageOf = (element, style, source) => {
+    const intrinsicWidth = element.naturalWidth;
+    const intrinsicHeight = element.naturalHeight;
+    if (!(intrinsicWidth > 0) || !(intrinsicHeight > 0) || intrinsicWidth > ${SCENE_LIMITS.maxDimension} || intrinsicHeight > ${SCENE_LIMITS.maxDimension}) {
+      diagnostics.push({ severity: "warning", code: "IMAGE_DIMENSIONS_UNAVAILABLE", message: "The image has no usable natural dimensions; its captured element bounds are retained and object-fit/object-position cannot be reproduced.", viewportId: viewport.id, source });
+      return undefined;
+    }
+    const fit = String(style.objectFit || "fill").trim().toLowerCase();
+    if (!["fill", "contain", "cover", "none", "scale-down"].includes(fit)) {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_OBJECT_FIT", message: "The image uses an unsupported object-fit value; its captured element bounds are retained.", viewportId: viewport.id, source });
+      return undefined;
+    }
+    let position = imagePosition(style.objectPosition);
+    if (!position) {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_OBJECT_POSITION", message: "The image object-position cannot be represented as percentages and pixel offsets; the imported image is centered while preserving object-fit.", viewportId: viewport.id, source });
+      position = { x: { percentage: 0.5, offset: 0 }, y: { percentage: 0.5, offset: 0 } };
+    }
+    return { fit, position, intrinsicWidth, intrinsicHeight };
+  };
   const asset = (url, hint) => {
     if (!url || url === "none" || url.startsWith("linear-gradient") || url.startsWith("radial-gradient")) return undefined;
     const existing = assets.get(url);
@@ -886,7 +990,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // flag; an explicit zero keeps its value without the flag.
     const parsedZIndex = Number.parseInt(style.zIndex, 10);
     const zIndexAuto = !Number.isFinite(parsedZIndex);
-    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: zIndexAuto ? 0 : parsedZIndex, zIndexAuto, paint, layout: layoutOf(style), assetId: imageAsset, fallbackReason: reason, textNoWrap };
+    const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: zIndexAuto ? 0 : parsedZIndex, zIndexAuto, paint, layout: layoutOf(style), assetId: imageAsset, image: kind === "image" && imageAsset ? imageOf(element, style, source) : undefined, fallbackReason: reason, textNoWrap };
     let directTextNodes = [];
     let directTextLayout;
     let expandedDirectText = false;

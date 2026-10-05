@@ -1,4 +1,5 @@
 import { PROTOCOL_VERSION, SCENE_LIMITS, type AssetRef, type SceneDocument, type SceneNode } from "./contracts";
+import { imageGeometry } from "./images";
 
 function fail(message: string): never {
   throw new Error(`Invalid import scene: ${message}`);
@@ -100,7 +101,57 @@ function validateNode(value: unknown, index: number): asserts value is SceneNode
   if (node.textMaxWidth !== undefined) number(node.textMaxWidth, `nodes[${index}].textMaxWidth`, 0.1);
   if (node.textStyle !== undefined) validateTextStyle(node.textStyle, index);
   if (node.assetId !== undefined) string(node.assetId, `nodes[${index}].assetId`, 200);
+  if (node.image !== undefined) {
+    if (node.kind !== "image" || node.assetId === undefined) fail(`nodes[${index}].image requires an image node with an assetId.`);
+    validateImage(node.image, index);
+    const geometry = imageGeometry(node as unknown as SceneNode)!;
+    for (const [label, dimensions] of [
+      ["element", [width, height]],
+      ["content", [geometry.content.width, geometry.content.height]]
+    ] as const) {
+      for (const dimension of dimensions) {
+        if (dimension > 0 && dimension < 0.000001) fail(`nodes[${index}].image ${label} dimensions must be at least 0.000001px.`);
+      }
+    }
+    const radians = (Number(node.rotation) || 0) * Math.PI / 180;
+    const object = geometry.object;
+    const position = {
+      x: x + object.x * Math.cos(radians) - object.y * Math.sin(radians),
+      y: y + object.x * Math.sin(radians) + object.y * Math.cos(radians)
+    };
+    for (const amount of [position.x, position.y, object.width, object.height]) {
+      if (!Number.isFinite(amount) || Math.abs(amount) > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].image fitted geometry must be within ±${SCENE_LIMITS.maxDimension}px.`);
+    }
+    for (const dimension of [object.width, object.height]) {
+      if (dimension > 0 && dimension < 0.000001) fail(`nodes[${index}].image fitted dimensions must be at least 0.000001px.`);
+    }
+    const scale = (node.image as Record<string, unknown>).scale as number | undefined;
+    for (const dimension of [object.width, object.height]) {
+      const normalized = dimension / (scale ?? 1);
+      if (!Number.isFinite(normalized) || normalized > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].image source viewport must be no greater than ${SCENE_LIMITS.maxDimension}px.`);
+    }
+  }
   if (node.fallbackReason !== undefined) string(node.fallbackReason, `nodes[${index}].fallbackReason`, 1_000);
+}
+
+function validateImage(value: unknown, index: number): void {
+  const label = `nodes[${index}].image`;
+  const image = record(value, label);
+  enumValue(string(image.fit, `${label}.fit`, 30), `${label}.fit`, ["fill", "contain", "cover", "none", "scale-down"]);
+  for (const field of ["intrinsicWidth", "intrinsicHeight"] as const) {
+    const dimension = number(image[field], `${label}.${field}`, Number.MIN_VALUE);
+    if (dimension > SCENE_LIMITS.maxDimension) fail(`${label}.${field} must be no greater than ${SCENE_LIMITS.maxDimension}.`);
+  }
+  optionalNumber(image.scale, `${label}.scale`, Number.MIN_VALUE, SCENE_LIMITS.maxDimension);
+  const position = record(image.position, `${label}.position`);
+  for (const axis of ["x", "y"] as const) {
+    const axisLabel = `${label}.position.${axis}`;
+    const coordinate = record(position[axis], axisLabel);
+    for (const field of ["percentage", "offset"] as const) {
+      const amount = number(coordinate[field], `${axisLabel}.${field}`);
+      if (Math.abs(amount) > SCENE_LIMITS.maxDimension) fail(`${axisLabel}.${field} must be within ±${SCENE_LIMITS.maxDimension}.`);
+    }
+  }
 }
 
 function validatePaint(value: unknown, index: number): void {

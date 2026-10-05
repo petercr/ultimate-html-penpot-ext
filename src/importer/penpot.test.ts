@@ -151,13 +151,29 @@ describe("Penpot importer", () => {
     }
   });
 
+  it("imports generated image scenes with one content clip and fitted image per source across all viewports", async () => {
+    const scenes = validateScenes(baselineEvidence().scenes.fixtures.find((fixture) => fixture.file === "image-fit-position.html")!.viewports.map((viewport) => viewport.scene));
+    const imported = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(imported).toHaveLength(3);
+    for (const board of imported) {
+      const all = shapesBelow(board as unknown as FakeShape);
+      const tagged = (key: string) => all.filter((shape) => (shape.pluginData as Record<string, string>)[key] === "true");
+      expect(tagged("image-clip")).toHaveLength(16);
+      expect(tagged("image-content-clip")).toHaveLength(16);
+      expect(tagged("image-content")).toHaveLength(16);
+      const decorated = tagged("image-clip").find((shape) => (shape.pluginData as Record<string, string>).source === "#decorated-image");
+      expect(decorated).toMatchObject({ opacity: 0.7, height: 152 });
+      expect(tagged("image-content").every((shape) => shape.opacity === 1)).toBe(true);
+    }
+  });
+
   it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {
     const { metadata, scenes } = baselineEvidence();
     expect(metadata.inputs.extractor.path).toBe("src/capture/extractor.ts");
     expect(metadata.inputs.extractor.sha256).toBe(sha256File(resolve(process.cwd(), "src", "capture", "extractor.ts")));
 
     const expectedAssetPaths = readdirSync(fixturePath("assets"))
-      .filter((file) => [".svg", ".ttf", ".otf", ".woff", ".woff2"].some((extension) => file.endsWith(extension)))
+      .filter((file) => [".svg", ".png", ".ttf", ".otf", ".woff", ".woff2"].some((extension) => file.endsWith(extension)))
       .sort()
       .map((file) => `src/capture/fixtures/assets/${file}`);
     expect(metadata.inputs.assets.map((asset) => asset.path)).toEqual(expectedAssetPaths);

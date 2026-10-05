@@ -31,7 +31,8 @@ const fixtureFiles = [
   "stacking-contents-whitespace.html",
   "asset-failures.html",
   "transforms.html",
-  "per-side-borders.html"
+  "per-side-borders.html",
+  "image-fit-position.html"
 ];
 const fixtureAssetDirectory = join(fixtureDirectory, "assets");
 const viewports = [
@@ -47,6 +48,7 @@ const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
   ".ttf": "font/ttf",
   ".woff": "font/woff",
   ".woff2": "font/woff2"
@@ -139,7 +141,7 @@ async function extractorScript() {
 
 async function fixtureInputHashes() {
   const assetFiles = (await readdir(fixtureAssetDirectory))
-    .filter((file) => [".svg", ".ttf", ".otf", ".woff", ".woff2"].includes(extname(file).toLowerCase()))
+    .filter((file) => [".svg", ".png", ".ttf", ".otf", ".woff", ".woff2"].includes(extname(file).toLowerCase()))
     .sort();
   return Promise.all(assetFiles.map(async (file) => {
     const path = join(fixtureAssetDirectory, file);
@@ -162,6 +164,32 @@ function sceneNode(scene, source) {
 }
 
 function assertSceneEvidence(file, scene, failedAssetUrls) {
+  if (file === "image-fit-position.html") {
+    const expected = {
+      "raster-fill": "fill", "raster-contain": "contain", "raster-cover": "cover", "raster-none": "none",
+      "raster-scale-down-small": "scale-down", "raster-scale-down-large": "scale-down", "raster-percent": "cover",
+      "raster-pixels": "contain", "raster-edges": "none", "svg-fill": "fill", "svg-contain": "contain",
+      "svg-cover": "cover", "decorated-image": "contain", "rotated-image": "cover",
+      "rounded-image": "cover", "scaled-image": "none"
+    };
+    for (const [id, fit] of Object.entries(expected)) {
+      const node = sceneNode(scene, `#${id}`);
+      const dimensions = id.startsWith("svg-") ? [160, 112] : [240, 120];
+      if (node.kind !== "image" || node.image?.fit !== fit || node.image.intrinsicWidth !== dimensions[0] || node.image.intrinsicHeight !== dimensions[1]) throw new Error(`${id} lost its image sizing metadata.`);
+    }
+    const assertPosition = (id, expectedPosition) => {
+      if (JSON.stringify(sceneNode(scene, `#${id}`).image.position) !== JSON.stringify(expectedPosition)) throw new Error(`${id} lost its object-position.`);
+    };
+    assertPosition("raster-percent", { x: { percentage: 0.25, offset: 0 }, y: { percentage: 0.75, offset: 0 } });
+    assertPosition("raster-pixels", { x: { percentage: 0, offset: 12 }, y: { percentage: 0, offset: 8 } });
+    assertPosition("raster-edges", { x: { percentage: 1, offset: -12 }, y: { percentage: 1, offset: -8 } });
+    const decorated = sceneNode(scene, "#decorated-image");
+    if (decorated.paint.borderWidth !== 4 || decorated.paint.opacity !== 0.7 || JSON.stringify(decorated.layout.padding) !== "[12,20,12,20]") throw new Error("Decorated image lost its content-box insets or compositing opacity.");
+    if (sceneNode(scene, "#rotated-image").rotation !== 8) throw new Error("Rotated image lost its composed rotation.");
+    const scaled = sceneNode(scene, "#scaled-image");
+    if (Math.abs(scaled.image.scale - 1.1) > 0.000001 || Math.abs(scaled.image.position.x.offset + 7.7) > 0.000001 || Math.abs(scaled.image.position.y.offset + 9.9) > 0.000001) throw new Error("Scaled image lost its natural rendering scale or scaled offsets.");
+    if (scene.assets.length !== 2 || scene.diagnostics.length) throw new Error("Image fixture should reuse two successful sources without diagnostics.");
+  }
   if (file === "background-images.html") {
     const root = sceneNode(scene, "body");
     const container = sceneNode(scene, "#container-image");

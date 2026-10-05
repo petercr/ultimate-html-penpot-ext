@@ -19,7 +19,7 @@ compared with the browser reference.
 | `none`, `hidden`, zero width, or transparent paint | The affected side produces no visible border path. A transparent solid side still retains its measured width in the scene. |
 | Side color alpha and element `opacity` | Alpha stays on the side fill; element opacity applies once to the complete element composition. |
 | Rotation and uniform scale | Paths follow the captured layer frame; capture scales every side width with the element. |
-| Root body, clipping container, and image | Their borders use the same side data and editable decoration representation. Image object-fit/object-position remains a separate Phase 5 change. |
+| Root body, clipping container, and image | Their borders use the same side data and editable decoration representation. Fitted image content uses the separate [image fit/position composition](importer-image-fit.md). |
 
 This subset uses the fixed snapshot geometry described in
 [Transformed geometry](importer-transforms.md). The imported borders do not
@@ -75,8 +75,10 @@ and descendants retain their captured geometry, while the element's opacity
 belongs to their combined composition.
 
 For ordinary containers, the background and border paths sit below the
-descendants in one compositing group. Box and image leaves group their base
-surface with the border paths. The paths are named `<element name> <side>
+descendants in one compositing group. Box leaves and legacy image nodes group
+their base surface with the border paths. Newly captured fitted images use a
+fixed outer board with a separate content clip; see
+[Image fitting](importer-image-fit.md). The paths are named `<element name> <side>
 border` and retain the importer, viewport, and source metadata plus a
 `border-side` value so the added decoration can be traced to its source.
 
@@ -167,10 +169,12 @@ times are observations from this fixture, not a performance comparison.
 
 The desktop visual pass covered bottom-only and accent borders, unequal
 corner joins, alpha, clipped content, rotation, uniform scale, and image border
-geometry. Image content still uses the importer's existing asset sizing and
-can stretch underneath its border; content sizing and object-fit/object-position
-remain a separate Phase 5 change. Typography, a complete pixel comparison at
-every viewport, and persistence after reload were not established by this pass.
+geometry. At the time of this border pass, image content used the existing
+asset sizing and could stretch underneath its border. The later
+[image fit/position implementation](importer-image-fit.md) addresses that
+content geometry and tracks its own verification. Typography, a complete pixel
+comparison at every viewport, and persistence after reload were not established
+by this border pass.
 
 On the mobile validation page, one Edit > Undo removed the entire import,
 leaving only the page root. One Edit > Redo restored all 112 host shapes,

@@ -7,7 +7,7 @@ import { dirname, extname, resolve, sep } from "node:path";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "src", "capture", "fixtures");
 const port = Number(process.env.IMPORTER_FIXTURE_PORT || 4174);
-const mimeTypes = { ".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".ttf": "font/ttf", ".woff": "font/woff", ".woff2": "font/woff2" };
+const mimeTypes = { ".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ttf": "font/ttf", ".woff": "font/woff", ".woff2": "font/woff2" };
 
 const server = createServer(async (request, response) => {
   let pathname;

@@ -112,6 +112,25 @@ export interface AssetRef {
   height?: number;
 }
 
+export interface SceneImagePositionAxis {
+  /** Fraction of the space remaining after sizing the image; 0.5 centers it.
+   * CSS positions outside the 0..1 interval are valid. */
+  percentage: number;
+  /** Additional offset in captured page pixels, after any uniform transform. */
+  offset: number;
+}
+
+export interface SceneImageFit {
+  fit: "fill" | "contain" | "cover" | "none" | "scale-down";
+  position: { x: SceneImagePositionAxis; y: SceneImagePositionAxis };
+  /** Browser natural dimensions in CSS pixels, including srcset density
+   * correction. These remain unchanged by CSS transforms. */
+  intrinsicWidth: number;
+  intrinsicHeight: number;
+  /** Uniform CSS transform scale. Defaults to 1 for older scene producers. */
+  scale?: number;
+}
+
 export interface SceneNode {
   id: string;
   parentId?: string;
@@ -143,6 +162,9 @@ export interface SceneNode {
   textMaxWidth?: number;
   textStyle?: TextStyle;
   assetId?: string;
+  /** Replaced image sizing inside the content box (border and padding excluded).
+   * Absent for legacy scenes or images without usable natural dimensions. */
+  image?: SceneImageFit;
   fallbackReason?: string;
 }
 
