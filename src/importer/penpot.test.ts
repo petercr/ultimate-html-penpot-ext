@@ -197,6 +197,21 @@ describe("Penpot importer", () => {
     expect(order?.indexOf("#overlay ::before")).toBeGreaterThan(order?.indexOf("#overlay ::text") ?? Infinity);
   });
 
+  it("imports diagnosed CSS as ordinary layers with its text intact across all viewports", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "unsupported-css.html");
+    validateScenes(scenes);
+    const imported = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(imported).toHaveLength(3);
+    for (const [index, board] of imported.entries()) {
+      const all = shapesBelow(board as unknown as FakeShape);
+      const texts = all.filter((shape) => shape.type === "text").map((shape) => shape.characters);
+      expect(texts).toEqual(expect.arrayContaining(["Gradient text", "Shadowed heading", "Decorated text", "A long sentence that cannot fit on one line"]));
+      // Diagnosed CSS stays editable: none of it becomes a raster fallback.
+      expect(all.some((shape) => String(shape.name).startsWith("Unsupported:"))).toBe(false);
+      expect(scenes[index].diagnostics.map((diagnostic) => diagnostic.code)).toContain("UNSUPPORTED_TEXT_SHADOW");
+    }
+  });
+
   it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {
     const { metadata, scenes } = baselineEvidence();
     expect(metadata.inputs.extractor.path).toBe("src/capture/extractor.ts");

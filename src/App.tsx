@@ -5,6 +5,7 @@ import { SourceCancelledError, resolveSource } from "./capture/source";
 import { isStandaloneHost } from "./host";
 import { DEFAULT_VIEWPORTS, PROTOCOL_VERSION, type CaptureRequest, type Diagnostic, type PluginToUiMessage, type SceneDocument, type ScriptPolicy, type ViewportSpec } from "./shared/contracts";
 import { sceneWarnings } from "./shared/validation";
+import { DiagnosticItems, uniqueDiagnostics } from "./DiagnosticList";
 
 type Phase = "idle" | "capturing" | "ready" | "importing" | "complete" | "error";
 
@@ -76,7 +77,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   }, []);
 
   const warnings = useMemo(() => sceneWarnings(scenes), [scenes]);
-  const diagnostics = useMemo(() => [...scenes.flatMap((scene) => scene.diagnostics), ...importDiagnostics], [scenes, importDiagnostics]);
+  const diagnostics = useMemo(() => uniqueDiagnostics([...scenes.flatMap((scene) => scene.diagnostics), ...importDiagnostics]), [scenes, importDiagnostics]);
   const resetCapture = () => {
     captureController.current?.abort();
     captureController.current = undefined;
@@ -239,8 +240,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
       <div className="summary"><strong>{warnings.layers.toLocaleString()}</strong> editable layers across {scenes.length} boards · {diagnostics.length} diagnostics</div>
       <ul>
         {scenes.map((scene) => <li key={scene.viewport.id}>{viewportLabel(scene.viewport)} — {scene.documentSize.width}×{Math.round(scene.documentSize.height)}px, {scene.nodes.length} layers</li>)}
-        {diagnostics.slice(0, 4).map((diagnostic, index) => <li className="warning" key={`${diagnostic.code}-${index}`}>{diagnostic.message} {diagnostic.source ? `(${diagnostic.source})` : ""}</li>)}
-        {diagnostics.length > 4 && <li className="warning">+ {diagnostics.length - 4} more diagnostics</li>}
+        <DiagnosticItems diagnostics={diagnostics} />
       </ul>
     </section>}
 

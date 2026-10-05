@@ -599,6 +599,62 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (style.mixBlendMode && style.mixBlendMode !== "normal") return "CSS blend mode needs a raster fallback";
     return undefined;
   };
+  // Visible CSS that a snapshot import has no equivalent for. The same gap on
+  // many elements (every list item, every shadowed heading) is one diagnostic
+  // with a count, so a page cannot bury its other diagnostics.
+  const cssGaps = new Map();
+  const reportCssGap = (code, message, source) => {
+    const gap = cssGaps.get(code);
+    if (!gap) cssGaps.set(code, { message, count: 1, sources: [source] });
+    else {
+      gap.count += 1;
+      if (gap.sources.length < 3) gap.sources.push(source);
+    }
+  };
+  const flushCssGaps = () => {
+    for (const [code, gap] of cssGaps) {
+      const where = gap.count > 1 ? " Affects " + gap.count + " elements, including " + gap.sources.join(", ") + "." : "";
+      diagnostics.push({ severity: "warning", code, message: gap.message + where, viewportId: viewport.id, source: gap.sources[0] });
+    }
+  };
+  const FORM_CONTROLS = ["INPUT", "SELECT", "PROGRESS", "METER"];
+  const reportUnsupportedStyle = (element, style, source, hasText) => {
+    const none = (value) => !value || value === "none" || value === "normal";
+    if (number(style.outlineWidth) > 0 && !["none", "hidden", ""].includes(String(style.outlineStyle || "")) && !transparent(style.outlineColor)) {
+      reportCssGap("UNSUPPORTED_OUTLINE", "A CSS outline is not imported, so the layer shows no outline ring.", source);
+    }
+    if (backgroundLayers(style.boxShadow).filter((layer) => layer !== "none").length > 1) {
+      reportCssGap("MULTIPLE_BOX_SHADOWS", "Only the first box-shadow layer was imported; the others were omitted.", source);
+    }
+    if (!none(style.clipPath)) reportCssGap("UNSUPPORTED_CLIP_PATH", "A CSS clip-path is not imported, so the layer is not clipped to that shape.", source);
+    if (String(style.backgroundClip || style.webkitBackgroundClip || "").split(",").some((value) => value.trim() === "text")) {
+      reportCssGap("UNSUPPORTED_BACKGROUND_CLIP", "background-clip: text paints the background through the glyphs. The import fills the whole box instead and keeps the text separate.", source);
+    }
+    if (String(style.backgroundBlendMode || "").split(",").some((value) => value.trim() !== "normal" && value.trim() !== "")) {
+      reportCssGap("UNSUPPORTED_BACKGROUND_BLEND_MODE", "background-blend-mode is not imported; background layers are not blended.", source);
+    }
+    if (element && FORM_CONTROLS.includes(element.tagName) && element.getAttribute("type") !== "hidden") {
+      reportCssGap("UNSUPPORTED_FORM_CONTROL", "A form control's value, placeholder, and native appearance are not imported; only its box and CSS decoration are.", source);
+    }
+    if (element && style.display === "list-item" && !none(style.listStyleType)) {
+      reportCssGap("UNSUPPORTED_LIST_MARKER", "List markers (bullets and numbers) are not imported.", source);
+    }
+    if (!hasText) return;
+    if (!none(style.textShadow)) reportCssGap("UNSUPPORTED_TEXT_SHADOW", "A CSS text-shadow is not imported.", source);
+    const line = String(style.textDecorationLine || "");
+    if (line && line !== "none" && (line.includes("overline") || (style.textDecorationStyle && style.textDecorationStyle !== "solid") || (style.textDecorationColor && style.color && style.textDecorationColor !== style.color))) {
+      reportCssGap("UNSUPPORTED_TEXT_DECORATION", "Only a solid underline or line-through in the text color is imported; overlines and decoration styles or colors are not.", source);
+    }
+    const mode = String(style.writingMode || "horizontal-tb");
+    if (!mode.startsWith("horizontal") || style.direction === "rtl") {
+      reportCssGap("UNSUPPORTED_WRITING_MODE", "Vertical writing modes and right-to-left direction are not imported; the text is placed left to right.", source);
+    }
+    if (element) {
+      const clampsLines = !none(style.webkitLineClamp) && element.scrollHeight > element.clientHeight + 1;
+      const ellipsis = String(style.textOverflow || "").includes("ellipsis") && element.scrollWidth > element.clientWidth + 1;
+      if (clampsLines || ellipsis) reportCssGap("UNSUPPORTED_TEXT_TRUNCATION", "Text truncated by text-overflow: ellipsis or line-clamp is imported in full, without the ellipsis.", source);
+    }
+  };
   const paintOf = (style) => {
     const overflowX = axisOverflow(style, "X");
     const overflowY = axisOverflow(style, "Y");
@@ -1072,6 +1128,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // Plain generated text with no box of its own is one text layer, like an
     // undecorated element's text. Anything else keeps its box as a container
     // so its fill, border, and clip stay behind the text lines.
+    if (!reason) reportUnsupportedStyle(undefined, style, source, Boolean(plan.text));
     if (!plan.decorated && !reason && lines.length === 1) {
       reportUnsupportedTextColor(style.color, source);
       const line = lines[0];
@@ -1165,6 +1222,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     reportUnsupportedPaintColors(paint, source);
     reportUnsupportedBorders(paint, style, source);
     reportPartialOverflowClip(paint, source);
+    if (!reason) reportUnsupportedStyle(element, style, source, directText);
     const rawBackgroundImage = element === document.body && transparent(style.backgroundColor) && style.backgroundImage === "none"
       ? styleOf(document.documentElement).backgroundImage
       : style.backgroundImage;
@@ -1325,6 +1383,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
           source: "body"
         });
       }
+      flushCssGaps();
       if (collectMetrics) {
         metrics.nodeCount = nodes.length;
         metrics.assetCount = assets.size;

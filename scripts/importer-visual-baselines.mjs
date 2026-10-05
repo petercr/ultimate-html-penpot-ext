@@ -33,7 +33,8 @@ const fixtureFiles = [
   "transforms.html",
   "per-side-borders.html",
   "image-fit-position.html",
-  "pseudo-elements.html"
+  "pseudo-elements.html",
+  "unsupported-css.html"
 ];
 const fixtureAssetDirectory = join(fixtureDirectory, "assets");
 const viewports = [
@@ -358,6 +359,27 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
     if (scene.nodes.some((node) => node.source.startsWith("#hidden-controls ::before") || node.source.startsWith("#hidden-controls ::after"))) throw new Error("Hidden or empty generated content must not create layers.");
     if (scene.nodes.some((node) => node.source.includes("data-html-to-penpot"))) throw new Error("A measurement stand-in leaked into the scene.");
     for (const source of ["#badge", "#overlay", "#diamond", "#chip"]) sceneNode(scene, source);
+  }
+  if (file === "unsupported-css.html") {
+    // Each unsupported feature is reported once per code, with its first
+    // source; repeats are counted rather than listed.
+    const expected = [
+      ["UNSUPPORTED_OUTLINE", "#outline"], ["MULTIPLE_BOX_SHADOWS", "#shadows"], ["UNSUPPORTED_CLIP_PATH", "#clip"],
+      ["UNSUPPORTED_BACKGROUND_CLIP", "#gradient-text"], ["UNSUPPORTED_BACKGROUND_BLEND_MODE", "#blend"],
+      ["UNSUPPORTED_TEXT_SHADOW", "#text-shadow"], ["UNSUPPORTED_TEXT_DECORATION", "#decoration"],
+      ["UNSUPPORTED_WRITING_MODE", "#vertical"], ["UNSUPPORTED_TEXT_TRUNCATION", "#truncate"],
+      ["UNSUPPORTED_LIST_MARKER", "#first-item"], ["UNSUPPORTED_FORM_CONTROL", "#typed"]
+    ];
+    for (const [code, prefix] of expected) {
+      const found = scene.diagnostics.filter((diagnostic) => diagnostic.code === code);
+      if (found.length !== 1) throw new Error(`${code} should be reported once, found ${found.length}.`);
+      if (!found[0].source.startsWith(prefix)) throw new Error(`${code} should start at ${prefix}, got ${found[0].source}.`);
+    }
+    const marker = scene.diagnostics.find((diagnostic) => diagnostic.code === "UNSUPPORTED_LIST_MARKER");
+    if (!marker.message.includes("Affects 3 elements")) throw new Error("Repeated list markers should be counted in one diagnostic.");
+    const shadow = scene.diagnostics.find((diagnostic) => diagnostic.code === "UNSUPPORTED_TEXT_SHADOW");
+    if (!shadow || scene.diagnostics.some((diagnostic) => diagnostic.source.startsWith("#supported"))) throw new Error("Supported CSS must not be diagnosed.");
+    if (scene.nodes.some((node) => node.kind === "fallback")) throw new Error("Diagnosed CSS must not turn layers into fallbacks.");
   }
 }
 
