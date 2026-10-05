@@ -679,6 +679,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       positioned: ["relative", "absolute", "fixed", "sticky"].includes(style.position)
     };
   };
+  const isDecorated = (style, paint) => !transparent(style.backgroundColor) || style.backgroundImage !== "none" || borderEntries(paint).some(([, border]) => activeBorder(border)) || Boolean(style.borderImageSource && style.borderImageSource !== "none") || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
   const lineHeightOf = (style, measuredLineHeight) => {
     const fontSize = Math.max(1, number(style.fontSize));
     // Penpot stores line height as a multiplier. The browser exposes a
@@ -917,6 +918,186 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       parent.children.push(id);
     }
   };
+  // Generated content has no DOM box to measure, so it is measured by
+  // briefly standing a real element with the pseudo-element's computed style
+  // in its place. The generated box is hidden, the stand-in is inserted where
+  // the pseudo-element generates (first or last child), it is read like any
+  // other element, and every trace is removed before traversal continues.
+  const PSEUDO_ATTRIBUTE = "data-html-to-penpot-pseudo";
+  const PSEUDO_HOST_ATTRIBUTE = "data-html-to-penpot-pseudo-host";
+  const NO_PSEUDO_TAGS = ["img", "input", "select", "textarea", "br", "hr", "video", "canvas", "iframe", "embed", "object", "audio", "svg"];
+  // Computed content is a list of strings and keywords or functions. Strings
+  // become text; anything else (counters, images, quotes) is reported.
+  const pseudoContent = (value) => {
+    const source = String(value || "").trim();
+    let text = "";
+    let unsupportedToken = "";
+    let index = 0;
+    while (index < source.length) {
+      const character = source[index];
+      if (/\\s/.test(character)) { index += 1; continue; }
+      // Anything after "/" is alternative text for assistive technology.
+      if (character === "/") break;
+      if (character === '"' || character === "'") {
+        index += 1;
+        while (index < source.length && source[index] !== character) {
+          if (source[index] === "\\\\" && index + 1 < source.length) {
+            const hex = /^[0-9a-fA-F]{1,6}/.exec(source.slice(index + 1, index + 7));
+            if (hex) {
+              const codePoint = parseInt(hex[0], 16);
+              text += codePoint > 0 && codePoint <= 0x10FFFF ? String.fromCodePoint(codePoint) : "\\uFFFD";
+              index += 1 + hex[0].length;
+              if (/\\s/.test(source[index] || "")) index += 1;
+              continue;
+            }
+            index += 1;
+          }
+          text += source[index];
+          index += 1;
+        }
+        index += 1;
+        continue;
+      }
+      let end = index;
+      let depth = 0;
+      let quote = "";
+      for (; end < source.length; end += 1) {
+        const next = source[end];
+        if (quote) {
+          if (next === "\\\\") end += 1;
+          else if (next === quote) quote = "";
+          continue;
+        }
+        if (next === '"' || next === "'") quote = next;
+        else if (next === "(") depth += 1;
+        else if (next === ")") depth -= 1;
+        else if (depth <= 0 && /\\s/.test(next)) break;
+      }
+      unsupportedToken ||= source.slice(index, end);
+      index = end;
+    }
+    return { text, unsupportedToken };
+  };
+  // Decide, without touching the DOM, whether a pseudo-element paints anything
+  // this importer can place: generated text, or a decorated box.
+  const planPseudo = (element, pseudo) => {
+    if (NO_PSEUDO_TAGS.includes(element.tagName.toLowerCase())) return undefined;
+    const style = styleOf(element, pseudo);
+    const raw = String(style.content || "").trim();
+    if (!raw || raw === "none" || raw === "normal" || style.display === "none" || style.visibility === "hidden" || number(style.opacity) === 0) return undefined;
+    const content = pseudoContent(raw);
+    const whiteSpace = whiteSpaceOf(style);
+    const tabSize = tabSizeOf(style);
+    const text = processSingleLine(content.text, whiteSpace, tabSize) ? content.text : "";
+    const paint = paintOf(style);
+    const decorated = isDecorated(style, paint);
+    if (!text && !decorated && !content.unsupportedToken) return undefined;
+    return { pseudo, style, content, text, whiteSpace, tabSize, paint, decorated, paints: Boolean(text) || decorated };
+  };
+  const measurePseudo = (element, plan, neutralized) => {
+    const marker = document.createElement("span");
+    marker.setAttribute(PSEUDO_ATTRIBUTE, plan.pseudo);
+    // Computed styles list longhand properties by index; their cssText is
+    // empty in Chrome, so each value is copied across individually.
+    for (let index = 0; index < plan.style.length; index += 1) {
+      const property = plan.style[index];
+      marker.style.setProperty(property, plan.style.getPropertyValue(property), plan.style.getPropertyPriority(property));
+    }
+    // The generated text is the stand-in's own child, and a stand-in must not
+    // animate or recurse into generated content of its own.
+    for (const [property, value] of [["content", "normal"], ["animation", "none"], ["transition", "none"]]) marker.style.setProperty(property, value, "important");
+    if (neutralized) neutralize(marker);
+    const textNode = plan.text ? document.createTextNode(plan.content.text) : undefined;
+    if (textNode) marker.appendChild(textNode);
+    // Repeating the attribute raises specificity above any author rule that
+    // generates the real pseudo-element.
+    const hide = document.createElement("style");
+    hide.textContent = ("[" + PSEUDO_HOST_ATTRIBUTE + "]").repeat(4) + plan.pseudo + "{content:none!important}";
+    try {
+      element.setAttribute(PSEUDO_HOST_ATTRIBUTE, "");
+      (document.head || document.documentElement).appendChild(hide);
+      if (plan.pseudo === "::before") element.insertBefore(marker, element.firstChild);
+      else element.appendChild(marker);
+      const rect = boundsOf(marker);
+      const layout = textNode ? textLayout([textNode], plan.whiteSpace, plan.tabSize) : undefined;
+      return { rect, layout, hostRect: boundsOf(element) };
+    } finally {
+      marker.remove();
+      hide.remove();
+      element.removeAttribute(PSEUDO_HOST_ATTRIBUTE);
+    }
+  };
+  // Planned content is reported even when nothing else about the pseudo-element
+  // paints, so a dropped counter or image is never silent.
+  const planPseudos = (element, hostSource) => {
+    const plans = ["::before", "::after"].map((pseudo) => planPseudo(element, pseudo)).filter(Boolean);
+    for (const plan of plans) {
+      if (plan.content.unsupportedToken) diagnostics.push({ severity: "warning", code: "UNSUPPORTED_PSEUDO_CONTENT", message: "The " + plan.pseudo + " content " + plan.content.unsupportedToken + " (counters, images, quotes and similar) cannot be imported as text; only its string content and box were imported.", viewportId: viewport.id, source: hostSource + " " + plan.pseudo });
+    }
+    return plans.filter((plan) => plan.paints);
+  };
+  const capturePseudo = (element, plan, host, hostSource, hostRect, hostMatrix) => {
+    const { pseudo, style } = plan;
+    const source = hostSource + " " + pseudo;
+    const transform = transformable(element, style) ? readTransform(style) : undefined;
+    // A transform that collapses the box to a line or point hides it entirely.
+    if (transform?.flat && isDegenerate(transform.matrix)) return;
+    const exact = Boolean(transform?.flat) && isSimilarity(transform.matrix);
+    const measured = measurePseudo(element, plan, exact);
+    const box = measured.rect;
+    const lines = (measured.layout?.lines || []).filter((line) => line.text && line.rect);
+    const drawsBox = plan.decorated && box.width > 0 && box.height > 0;
+    if (!lines.length && !drawsBox) return;
+    // The stand-in replaces the real pseudo-element for one measurement. If
+    // that moved its host, selectors such as :empty or :first-child reacted to
+    // it, and the measured geometry may differ from the browser's.
+    if (["x", "y", "width", "height"].some((key) => Math.abs(measured.hostRect[key] - hostRect[key]) > 1)) {
+      diagnostics.push({ severity: "warning", code: "PSEUDO_ELEMENT_GEOMETRY_UNVERIFIED", message: "Measuring the " + pseudo + " box moved its host element, so the pseudo-element's position may not match the browser exactly.", viewportId: viewport.id, source });
+    }
+    if (transform && !exact) {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_TRANSFORM", message: "This pseudo-element's transform (skew, flip, non-uniform scale, or 3D) cannot be imported as a Penpot rotation, so it keeps the bounds of the transformed box without rotation.", viewportId: viewport.id, source });
+    }
+    let matrix = hostMatrix;
+    if (exact) {
+      if (transform.percent) transform.matrix = compose([1, 0, 0, 1, box.width * transform.percent[0] / 100, box.height * transform.percent[1] / 100], transform.matrix);
+      matrix = compose(hostMatrix, aboutOrigin(transform, box));
+    }
+    const parsedZIndex = Number.parseInt(style.zIndex, 10);
+    const zIndexAuto = !Number.isFinite(parsedZIndex);
+    const stacking = { zIndex: zIndexAuto ? 0 : parsedZIndex, zIndexAuto };
+    const reason = unsupported(element, style);
+    reserveNode();
+    const id = "node-" + (++sequence);
+    if (matrix !== IDENTITY) matrices.set(id, matrix);
+    // Plain generated text with no box of its own is one text layer, like an
+    // undecorated element's text. Anything else keeps its box as a container
+    // so its fill, border, and clip stay behind the text lines.
+    if (!plan.decorated && !reason && lines.length === 1) {
+      reportUnsupportedTextColor(style.color, source);
+      const line = lines[0];
+      const node = { id, parentId: host.id, children: [], kind: "text", name: pseudo, source, rect: line.rect, ...stacking, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: layoutOf(style), text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(box, line.rect), textMaxWidth: textMaxWidthOf(box, line.rect), textStyle: { ...textStyleOf(style, measured.layout.measuredLineHeight), textAlign: "left" } };
+      nodes.push(node);
+      nodeById.set(id, node);
+      host.children.push(id);
+      return;
+    }
+    reportUnsupportedPaintColors(plan.paint, source);
+    reportUnsupportedBorders(plan.paint, style, source);
+    reportPartialOverflowClip(plan.paint, source);
+    const backgroundLayerCount = backgroundLayers(style.backgroundImage).filter((layer) => layer !== "none").length;
+    if (backgroundLayerCount > 1) {
+      diagnostics.push({ severity: "warning", code: "MULTIPLE_BACKGROUND_LAYERS", message: "Only the topmost of " + backgroundLayerCount + " CSS background layers was imported; lower layers were omitted.", viewportId: viewport.id, source });
+    }
+    const node = { id, parentId: host.id, children: [], kind: reason ? "fallback" : lines.length ? "container" : "box", name: pseudo, source, rect: rectOf(box), ...stacking, paint: plan.paint, layout: layoutOf(style), assetId: asset(materializeSvgBackground(plan.paint, box)), fallbackReason: reason };
+    nodes.push(node);
+    nodeById.set(id, node);
+    host.children.push(id);
+    if (reason) {
+      diagnostics.push({ severity: "warning", code: "UNSUPPORTED_SUBTREE", message: reason, viewportId: viewport.id, source });
+      return;
+    }
+    if (lines.length) appendText(node, undefined, style, source, measured.layout, matrix);
+  };
   const visit = (element, parentId, inlineControlAncestor = false, parentMatrix = IDENTITY) => {
     const tag = element.tagName.toLowerCase();
     // A line break is represented by the source line coordinates above, not
@@ -944,11 +1125,22 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     }
     if (!visible(element, style, rect)) {
       const survivingParent = parentId ? nodeById.get(parentId) : undefined;
-      const textSource = sourceOf(element) + " ::text";
+      const wrapperSource = sourceOf(element);
+      const textSource = wrapperSource + " ::text";
+      // An omitted wrapper can still generate content (an empty icon element
+      // whose ::before is positioned, for example); it joins the surviving
+      // ancestor in source order around the wrapper's own children.
+      const wrapperPlans = survivingParent ? planPseudos(element, wrapperSource) : [];
+      const generated = (pseudo) => {
+        const plan = wrapperPlans.find((candidate) => candidate.pseudo === pseudo);
+        if (plan) capturePseudo(element, plan, survivingParent, wrapperSource, rect, matrix);
+      };
+      generated("::before");
       for (const child of element.childNodes) {
         if (child.nodeType === Node.TEXT_NODE && style.visibility !== "hidden" && survivingParent) appendText(survivingParent, child, style, textSource, undefined, matrix);
         if (child.nodeType === Node.ELEMENT_NODE) visit(child, parentId, inlineControlAncestor, matrix);
       }
+      generated("::after");
       return parentId;
     }
     const source = sourceOf(element);
@@ -982,8 +1174,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // A text-only node cannot carry fills, borders, or radii, so any element
     // with direct text and visible decoration keeps those surfaces by becoming
     // a container with the text as a child layer.
-    const decorated = !transparent(style.backgroundColor) || style.backgroundImage !== "none" || borderEntries(paint).some(([, border]) => activeBorder(border)) || (style.borderImageSource && style.borderImageSource !== "none") || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
-    const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText ? "container" : "box");
+    const decorated = isDecorated(style, paint);
+    // Generated content becomes child layers, so a host that has any must be a
+    // container even when it would otherwise be a text layer or an empty box.
+    const pseudoPlans = reason ? [] : planPseudos(element, source);
+    const kind = reason ? "fallback" : tag === "img" ? "image" : tag === "svg" ? "svg" : directText && childElements.length === 0 && !decorated && !pseudoPlans.length ? "text" : (style.display === "flex" || style.display === "grid" || childElements.length > 0 || directText || pseudoPlans.length ? "container" : "box");
     // Preserve z-index: auto separately from numeric zero instead of
     // substituting traversal sequence for either. Automatic stacking paints
     // at the zero position for positioned elements, so store 0 with the auto
@@ -1042,23 +1237,15 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     // can visibly distort the imported vector when the host conversion also
     // succeeds.
     if (tag === "svg") return id;
+    const beforePlan = pseudoPlans.find((plan) => plan.pseudo === "::before");
+    if (beforePlan) capturePseudo(element, beforePlan, scene, source, rect, matrix);
     if (expandedDirectText) appendText(scene, directTextNodes, style, source + " ::text", directTextLayout, matrix);
     for (const child of element.childNodes) {
       if (child.nodeType === Node.TEXT_NODE && kind !== "text") appendText(scene, child, style, source + " ::text", undefined, matrix);
       if (child.nodeType === Node.ELEMENT_NODE) visit(child, id, inlineControl, matrix);
     }
-    for (const pseudo of ["::before", "::after"]) {
-      const pseudoStyle = styleOf(element, pseudo);
-      const content = compact(pseudoStyle.content).replace(/^("|')|("|')$/g, "");
-      if (content && content !== "none" && content !== "normal" && pseudoStyle.display !== "none" && pseudoStyle.visibility !== "hidden" && number(pseudoStyle.opacity) !== 0) {
-        reportUnsupportedTextColor(pseudoStyle.color, source + " " + pseudo);
-        reserveNode();
-        const pseudoId = "node-" + (++sequence);
-        if (matrix !== IDENTITY) matrices.set(pseudoId, matrix);
-        nodes.push({ id: pseudoId, parentId: id, children: [], kind: "text", name: pseudo, source: source + " " + pseudo, rect: rectOf(rect), zIndex: scene.zIndex, zIndexAuto: scene.zIndexAuto, paint: { color: pseudoStyle.color, opacity: number(pseudoStyle.opacity || "1") }, layout: { kind: "none", absolute: true }, text: content, textNoWrap: true, textStyle: textStyleOf(pseudoStyle) });
-        scene.children.push(pseudoId);
-      }
-    }
+    const afterPlan = pseudoPlans.find((plan) => plan.pseudo === "::after");
+    if (afterPlan) capturePseudo(element, afterPlan, scene, source, rect, matrix);
     return id;
   };
   const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));

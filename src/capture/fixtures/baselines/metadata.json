@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "command": "npm run baseline:importer",
   "browser": {
-    "product": "Chrome/153.0.8010.52",
-    "revision": "@78e5e45d4bb41035e17ea4da2cc257f496416ac9",
-    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36"
+    "product": "Chrome/154.0.8037.97",
+    "revision": "@b510e9d7cd3a2fbd78d0ddc42234103206c5f78d",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
   },
   "fixtureServer": "loopback only; all external http(s) requests are failed through CDP Fetch interception",
   "externalRequestsRejected": [],
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "a0c096d59a1bf6d9e5b3e26188745d712e78189450a7d41d56791a4f720f69a4"
+      "sha256": "5fd9182bdf337b7932919a806ab0ac3ce9cedad9fcfed7cc1b70b2c2cabea2a9"
     },
     "assets": [
       {
@@ -1557,6 +1557,195 @@
           "png": {
             "width": 375,
             "height": 3640
+          }
+        }
+      ]
+    },
+    {
+      "file": "pseudo-elements.html",
+      "sha256": "984080d7ae9c2e61e207c6828b5d3f902aec70a030be3b56431960d4e7f73e95",
+      "viewports": [
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "width": 1440,
+          "height": 900,
+          "screenshot": "pseudo-elements-desktop-1440.png",
+          "innerWidth": 1440,
+          "innerHeight": 900,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 1425,
+              "clientHeight": 900
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 1425,
+              "height": 1441
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 1425,
+              "height": 1441,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 1425,
+            "height": 1441
+          }
+        },
+        {
+          "id": "tablet",
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "pseudo-elements-tablet-768.png",
+          "innerWidth": 768,
+          "innerHeight": 1024,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 753,
+              "clientHeight": 1024
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 753,
+              "height": 1441
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 753,
+              "height": 1441,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 753,
+            "height": 1441
+          }
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "width": 390,
+          "height": 844,
+          "screenshot": "pseudo-elements-mobile-390.png",
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "fontStatus": "loaded",
+          "fixtureFontRegularReady": true,
+          "fixtureFontBoldReady": true,
+          "fontFaces": [
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "400",
+              "style": "normal"
+            },
+            {
+              "family": "DejaVu Sans",
+              "status": "loaded",
+              "weight": "700",
+              "style": "normal"
+            }
+          ],
+          "failedAssetUrls": [],
+          "requestFailures": {
+            "responseFailures": [],
+            "networkFailures": [],
+            "blockedRequests": []
+          },
+          "layout": {
+            "cssLayoutViewport": {
+              "pageX": 0,
+              "pageY": 0,
+              "clientWidth": 375,
+              "clientHeight": 844
+            },
+            "cssContentSize": {
+              "x": 0,
+              "y": 0,
+              "width": 375,
+              "height": 1441
+            }
+          },
+          "capture": {
+            "mode": "full-page",
+            "clip": {
+              "x": 0,
+              "y": 0,
+              "width": 375,
+              "height": 1441,
+              "scale": 1
+            }
+          },
+          "png": {
+            "width": 375,
+            "height": 1441
           }
         }
       ]

@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer pseudo-element fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 "DejaVu Sans", sans-serif; }
+  main { max-width: 340px; }
+  h2 { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: #475467; }
+  .tile { position: relative; width: 300px; padding: 12px; background: #fff; border: 1px solid #cbd5e1; }
+  /* Positioned box with no content: a notification dot hanging off the corner. */
+  #badge::after { content: ""; position: absolute; top: -7px; right: -7px; width: 14px; height: 14px; border-radius: 50%; background: #dc2626; border: 2px solid #fff; }
+  /* Inline generated text sits before the host's own text on the same line. */
+  #inline-icon::before { content: "\2605  "; color: #d97706; }
+  /* A block-level pseudo-element after the text becomes a rule beneath it. */
+  #divider::after { content: ""; display: block; height: 4px; margin-top: 8px; background: #2563eb; }
+  /* Overlay covering the padding box, painted over the text it follows. */
+  #overlay { height: 90px; }
+  #overlay::before { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgb(37 99 235 / 20%); }
+  /* The centering transform is a similarity, so the diamond keeps its own size and rotation. */
+  #diamond { height: 80px; }
+  #diamond::after { content: ""; position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; background: #7c3aed; transform: translate(-50%, -50%) rotate(45deg); }
+  /* Generated text with its own box decoration is a decorated container with a text child. */
+  #chip::before { content: "NEW"; display: inline-block; margin-right: 8px; padding: 2px 6px; border-radius: 4px; background: #16a34a; color: #fff; font-size: 12px; font-weight: 700; }
+  /* attr() resolves in the computed value, so it arrives as ordinary text. */
+  #attribute::before { content: "\2192  " attr(data-label) ": "; font-weight: 700; color: #0369a1; }
+  /* White-space preserves the author's line break in generated text. */
+  #multiline { padding-left: 120px; }
+  #multiline::before { content: "first line\A second line"; position: absolute; left: 12px; top: 12px; white-space: pre; font-size: 13px; color: #475467; }
+  /* Counters, images and quotes cannot be reproduced as text, and are diagnosed. */
+  #numbered { counter-increment: item; }
+  #numbered::before { content: counter(item) ". "; font-weight: 700; }
+  /* The host is omitted from the scene, yet its generated content still paints. */
+  #contents-note { display: contents; }
+  #contents-note::before { content: "\25C6  "; color: #0f766e; }
+  .zero { position: relative; display: inline-block; width: 0; height: 0; }
+  #zero-host::before { content: ""; position: absolute; left: 6px; top: -14px; width: 16px; height: 16px; background: #0f766e; border-radius: 3px; }
+  /* A pseudo-element can carry an image background and its own opacity. */
+  #image-box::before { content: ""; display: block; width: 140px; height: 60px; background: url("./assets/fixture-illustration.svg") center / cover no-repeat; opacity: 0.6; }
+  /* Skew cannot become a Penpot rotation; the browser's bounds are kept and diagnosed. */
+  #skewed { height: 70px; }
+  #skewed::after { content: ""; position: absolute; left: 150px; top: 18px; width: 100px; height: 34px; background: #f59e0b; transform: skewX(20deg); }
+  /* Nothing here paints, so no layer is created. */
+  #hidden-controls::before { content: "display none"; display: none; }
+  #hidden-controls::after { content: ""; display: table; clear: both; }
+</style>
+<main>
+  <h2>Positioned dot on a corner</h2>
+  <div class="tile" id="badge">Inbox</div>
+
+  <h2>Inline generated text</h2>
+  <div class="tile" id="inline-icon">Starred item</div>
+
+  <h2>Block rule after text</h2>
+  <div class="tile" id="divider">Section title</div>
+
+  <h2>Overlay covering the host</h2>
+  <div class="tile" id="overlay">Overlay below</div>
+
+  <h2>Centered rotated diamond</h2>
+  <div class="tile" id="diamond">Diamond</div>
+
+  <h2>Decorated generated text</h2>
+  <div class="tile" id="chip">Release notes</div>
+
+  <h2>attr() content</h2>
+  <div class="tile" id="attribute" data-label="Status">Ready to ship</div>
+
+  <h2>Multi-line generated text</h2>
+  <div class="tile" id="multiline">Body copy beside</div>
+
+  <h2>Counter content (unsupported)</h2>
+  <div class="tile" id="numbered">Numbered row</div>
+
+  <h2>Display contents and zero-size hosts</h2>
+  <div class="tile" id="contents-row"><span id="contents-note">Noted</span> and <span class="zero" id="zero-host"></span><span> an icon</span></div>
+
+  <h2>Image background and opacity</h2>
+  <div class="tile" id="image-box"></div>
+
+  <h2>Skewed pseudo-element (unsupported)</h2>
+  <div class="tile" id="skewed">Skewed shape</div>
+
+  <h2>Hidden and empty generated content</h2>
+  <div class="tile" id="hidden-controls">Nothing extra</div>
+</main>
