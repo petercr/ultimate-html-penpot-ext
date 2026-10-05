@@ -167,6 +167,36 @@ describe("Penpot importer", () => {
     }
   });
 
+  it("imports generated pseudo-element boxes and text at their measured geometry across all viewports", async () => {
+    const scenes = scenesForFixture(baselineEvidence().scenes, "pseudo-elements.html");
+    validateScenes(scenes);
+    const penpotApi = (globalThis as typeof globalThis & { penpot: { group: ReturnType<typeof vi.fn> } }).penpot;
+    const imported = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn() });
+    expect(imported).toHaveLength(3);
+    for (const board of imported) {
+      const all = shapesBelow(board as unknown as FakeShape);
+      const withSource = (source: string) => all.filter((shape) => (shape.pluginData as Record<string, string>).source === source);
+      const surface = (source: string) => withSource(source).find((shape) => shape.type === "rectangle" || shape.type === "board");
+      // Each positioned box keeps its own measured size, not its host's.
+      expect(surface("#badge ::after")).toMatchObject({ width: 18, height: 18 });
+      expect(surface("#divider ::after")).toMatchObject({ width: 274, height: 4 });
+      expect(surface("#overlay ::before")).toMatchObject({ width: 298, height: 88 });
+      expect(surface("#diamond ::after")).toMatchObject({ width: 28, height: 28, rotation: 45 });
+      expect(surface("#zero-host ::before")).toMatchObject({ width: 16, height: 16 });
+      expect(surface("#image-box ::before")?.opacity).toBe(0.6);
+      expect(surface("#skewed ::after")?.rotation).toBeUndefined();
+      // Generated text lands as ordinary text layers, one per preserved line.
+      expect(withSource("#inline-icon ::before").some((shape) => shape.type === "text" && shape.characters === "\u2605")).toBe(true);
+      expect(withSource("#multiline ::before").filter((shape) => shape.type === "text").map((shape) => shape.characters)).toEqual(expect.arrayContaining(["first line", "second line"]));
+      expect(withSource("#chip ::before").some((shape) => shape.type === "board" || shape.type === "rectangle")).toBe(true);
+      expect(all.filter((shape) => /#hidden-controls ::(before|after)/.test(String((shape.pluginData as Record<string, string>).source)))).toHaveLength(0);
+    }
+    // A positioned overlay paints above the in-flow text it follows in source order.
+    const overlayGroup = penpotApi.group.mock.calls.map(([members]) => members as FakeShape[]).find((members) => members.some((shape) => (shape.pluginData as Record<string, string>).source === "#overlay ::before"));
+    const order = overlayGroup?.map((shape) => (shape.pluginData as Record<string, string>).source);
+    expect(order?.indexOf("#overlay ::before")).toBeGreaterThan(order?.indexOf("#overlay ::text") ?? Infinity);
+  });
+
   it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {
     const { metadata, scenes } = baselineEvidence();
     expect(metadata.inputs.extractor.path).toBe("src/capture/extractor.ts");
@@ -387,6 +417,19 @@ describe("Penpot importer", () => {
     const result = await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
     expect(createSvg).toHaveBeenCalledWith("<svg viewBox=\"0 0 10 10\"></svg>");
     expect((result[0] as unknown as FakeShape).children?.[0]).toBe(svgGroup);
+  });
+
+  it("applies element opacity to a converted SVG vector group", async () => {
+    const svgScene = scene();
+    svgScene.nodes[0].children = ["badge"];
+    svgScene.nodes = [svgScene.nodes[0], { id: "badge", parentId: "root", children: [], kind: "box", name: "::before", source: "#host ::before", rect: { x: 20, y: 20, width: 80, height: 50 }, zIndex: 2, paint: { opacity: 0.6 }, layout: { kind: "none" }, assetId: "badge-asset" }];
+    svgScene.assets = [{ id: "badge-asset", dataUrl: "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2010%2010%22%3E%3C%2Fsvg%3E", mimeType: "image/svg+xml" }];
+    const svgGroup = fakeShape("group");
+    const createSvg = (globalThis as typeof globalThis & { penpot: { createShapeFromSvgWithImages: ReturnType<typeof vi.fn> } }).penpot.createShapeFromSvgWithImages;
+    createSvg.mockResolvedValueOnce(svgGroup);
+
+    await importScenes([svgScene], { isCancelled: () => false, onProgress: vi.fn() });
+    expect(svgGroup.opacity).toBe(0.6);
   });
 
   it("keeps SVGs visible when vector conversion fails", async () => {

@@ -32,7 +32,8 @@ const fixtureFiles = [
   "asset-failures.html",
   "transforms.html",
   "per-side-borders.html",
-  "image-fit-position.html"
+  "image-fit-position.html",
+  "pseudo-elements.html"
 ];
 const fixtureAssetDirectory = join(fixtureDirectory, "assets");
 const viewports = [
@@ -300,6 +301,63 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
     for (const source of ["body", "#bottom-only-text", "#left-accent", "#four-sides", "#border-clip", "#rotated-border", "#scaled-border", "#image-border", "#invisible-sides", "#uniform-control", "#no-border-control"]) {
       if (scene.diagnostics.some((diagnostic) => diagnostic.source === source && diagnostic.code.startsWith("UNSUPPORTED_BORDER"))) throw new Error(`${source} unexpectedly diagnosed a supported border.`);
     }
+  }
+  if (file === "pseudo-elements.html") {
+    // Generated content is measured, not placed on its host's whole rect, and
+    // attaches to its host in source order.
+    const pseudo = (host, name) => {
+      const layers = scene.nodes.filter((node) => node.source === `${host} ${name}`);
+      if (!layers.length) throw new Error(`${host} ${name} was not captured.`);
+      return layers[0];
+    };
+    const near = (actual, expected, label) => {
+      if (Math.abs(actual - expected) > 0.5) throw new Error(`${label} expected ${expected}, got ${actual}.`);
+    };
+    const badge = pseudo("#badge", "::after");
+    const badgeHost = sceneNode(scene, "#badge");
+    if (badge.kind !== "box" || badge.parentId !== badgeHost.id || !badge.layout.positioned || badge.paint.backgroundColor !== "rgb(220, 38, 38)") throw new Error("The positioned dot did not become a painted box under its host.");
+    near(badge.rect.width, 18, "dot width");
+    near(badge.rect.height, 18, "dot height");
+    near(badge.rect.x, badgeHost.rect.x + badgeHost.rect.width - 12, "dot x");
+    near(badge.rect.y, badgeHost.rect.y - 6, "dot y");
+    const icon = pseudo("#inline-icon", "::before");
+    const iconText = scene.nodes.find((node) => node.source === "#inline-icon ::text");
+    if (icon.kind !== "text" || icon.text !== "\u2605" || icon.rect.x >= iconText.rect.x) throw new Error("Inline generated text did not land before the host text.");
+    const divider = pseudo("#divider", "::after");
+    const dividerHost = sceneNode(scene, "#divider");
+    near(divider.rect.height, 4, "rule height");
+    near(divider.rect.width, dividerHost.rect.width - 26, "rule width");
+    if (divider.rect.y <= scene.nodes.find((node) => node.source === "#divider ::text").rect.y) throw new Error("The block rule must sit beneath the host text.");
+    const overlay = pseudo("#overlay", "::before");
+    const overlayHost = sceneNode(scene, "#overlay");
+    near(overlay.rect.width, overlayHost.rect.width - 2, "overlay width");
+    near(overlay.rect.height, overlayHost.rect.height - 2, "overlay height");
+    if (overlayHost.children[0] !== overlay.id) throw new Error("A ::before layer must precede its host's other children.");
+    const diamond = pseudo("#diamond", "::after");
+    if (diamond.rotation !== 45 || Math.abs(diamond.rect.width - 28) > 0.01 || Math.abs(diamond.rect.height - 28) > 0.01) throw new Error("The centered diamond lost its own size or rotation.");
+    const chip = pseudo("#chip", "::before");
+    if (chip.kind !== "container" || !scene.nodes.some((node) => node.parentId === chip.id && node.text === "NEW")) throw new Error("Decorated generated text must be a container with a text child.");
+    near(chip.rect.height, 20.8, "chip height");
+    if (pseudo("#attribute", "::before").text !== "\u2192 Status:") throw new Error("attr() content was not resolved into the generated text.");
+    const multiline = pseudo("#multiline", "::before");
+    const multilineLines = scene.nodes.filter((node) => node.parentId === multiline.id).map((node) => node.text);
+    if (multiline.kind !== "container" || multilineLines.join("|") !== "first line|second line") throw new Error(`Multi-line generated text lost its line break (got ${multilineLines.join("|")}).`);
+    if (pseudo("#numbered", "::before").text !== ".") throw new Error("Counter content should keep only its string parts.");
+    const contents = pseudo("#contents-note", "::before");
+    if (contents.parentId !== sceneNode(scene, "#contents-row").id || contents.text !== "\u25C6") throw new Error("Generated content of an omitted wrapper did not attach to the surviving ancestor.");
+    const zero = pseudo("#zero-host", "::before");
+    if (zero.kind !== "box" || Math.abs(zero.rect.width - 16) > 0.01) throw new Error("A zero-size host lost its positioned generated box.");
+    const image = pseudo("#image-box", "::before");
+    if (!image.assetId || image.paint.opacity !== 0.6 || !scene.assets.some((asset) => asset.id === image.assetId && asset.url?.includes("fixture-illustration.svg"))) throw new Error("The image pseudo-element lost its asset or opacity.");
+    const skewed = pseudo("#skewed", "::after");
+    if (skewed.rotation !== undefined) throw new Error("A skewed pseudo-element must stay unrotated.");
+    for (const [source, code] of [["#numbered ::before", "UNSUPPORTED_PSEUDO_CONTENT"], ["#skewed ::after", "UNSUPPORTED_TRANSFORM"]]) {
+      if (!scene.diagnostics.some((diagnostic) => diagnostic.code === code && diagnostic.source === source)) throw new Error(`${source} ${code} diagnostic is missing.`);
+    }
+    if (scene.diagnostics.some((diagnostic) => diagnostic.code === "PSEUDO_ELEMENT_GEOMETRY_UNVERIFIED")) throw new Error("Measuring a pseudo-element must not move its host.");
+    if (scene.nodes.some((node) => node.source.startsWith("#hidden-controls ::before") || node.source.startsWith("#hidden-controls ::after"))) throw new Error("Hidden or empty generated content must not create layers.");
+    if (scene.nodes.some((node) => node.source.includes("data-html-to-penpot"))) throw new Error("A measurement stand-in leaked into the scene.");
+    for (const source of ["#badge", "#overlay", "#diamond", "#chip"]) sceneNode(scene, source);
   }
 }
 

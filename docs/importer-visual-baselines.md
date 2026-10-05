@@ -11,6 +11,8 @@ checks, a representative desktop visual pass, and mobile undo/redo.
 [Image fitting](importer-image-fit.md) records all three saved-reload geometry
 checks, a representative desktop visual comparison, mobile undo/redo, and
 the host fallback-font and recovered save-failure observations.
+[Pseudo-elements](importer-pseudo-elements.md) records the browser references
+and regressions for generated content, and states its live-host status.
 
 ## Regenerate the browser evidence
 
@@ -90,9 +92,9 @@ is an end-to-end remote-page test.
 The image fixture requires all 16 images' fit and natural dimensions,
 percentage/pixel/edge positions, border/padding and compositing opacity,
 rotation and uniform scale metadata, two reused successful source assets,
-and no diagnostics. The current suite contains eight fixtures and 24
-references. Image fitting added three references; the previous 21 screenshots
-are byte-for-byte unchanged.
+and no diagnostics. The current suite contains nine fixtures and 27
+references. Image fitting added three references and pseudo-elements three
+more; every earlier screenshot is byte-for-byte unchanged.
 
 ## Fixture map
 
@@ -106,6 +108,7 @@ are byte-for-byte unchanged.
 | `transforms.html` | Rotated box and card, corner `transform-origin`, translate, uniform scale, the individual `rotate`/`scale`/`translate` properties with a percentage translate, nested rotations, a rotated clip, a −90° label, a rotated image, skew, mirror, a collapsed element, and an inline span | Each rotated layer keeps its own size and has a clockwise `rotation` about its top-left corner; skew and mirror stay unrotated with `UNSUPPORTED_TRANSFORM`; the collapsed element creates no nodes. See [Transformed geometry](importer-transforms.md). |
 | `per-side-borders.html` | Root borders, bottom-only decorated text, a left accent, four widths/colors with alpha and opacity, clipped child, rotation/scale, image borders, transparent/hidden/none sides, uniform/borderless controls, and unsupported radius/style/color/border-image cases | Differing sides retain all four computed border records; widths scale with the frame; uniform borders keep legacy paint fields. Unsupported border styles, asymmetric rounded corners, border images, and CSS Color 4 paints report explicit diagnostics. Border geometry is verified in all three live viewport imports, with a representative desktop visual pass and mobile undo/redo. See [Per-side borders](importer-borders.md). |
 | `image-fit-position.html` | All five fits, both scale-down branches, percentages/pixels/edge offsets, raster and SVG sources, decoration/opacity, rotation, rounded content, uniform scale, and responsive widths | All 16 images retain intrinsic dimensions and normalized fit/position metadata. Import uses content clips, 13 raster rectangles, and three editable SVG viewport/group compositions. All three live viewports retain verified geometry after reload, with a representative desktop visual comparison and mobile undo/redo. See [Image fitting](importer-image-fit.md). |
+| `pseudo-elements.html` | A positioned corner dot, inline generated text, a block rule, an overlay, a centered rotated diamond, decorated generated text, `attr()` content, multi-line `white-space: pre` text, counter content, a `display: contents` host, a zero-size host, an image background with opacity, a skewed box, and hidden/empty generated content | Each generated box is its own layer at its browser-measured rect, ordered before or after its host's children; text lands at its measured lines. Counter content and the skewed box report `UNSUPPORTED_PSEUDO_CONTENT` and `UNSUPPORTED_TRANSFORM`; hidden and empty content creates nothing. See [Pseudo-elements](importer-pseudo-elements.md). |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
 `DejaVuSans-Bold.ttf` under `src/capture/fixtures/assets/`, with their hashes
@@ -184,8 +187,9 @@ Use this record template for a live pass:
   touching nonbreaking spaces. Comment-separated runs are combined as CSS
   renders them. The fixture covers mixed formatting, centered and padded
   text, a tab-indented code block, and a font-stack fallback sample.
-- Pseudo-element content keeps its old compacted form; only element text runs
-  follow the per-`white-space` policy above.
+- Generated (pseudo-element) text follows the same per-`white-space` policy:
+  it is measured as a real text run, so preserved line breaks and spacing
+  survive.
 - Local image/font URLs are correct only while the fixture server is running
   and supplied as the Base URL. A missing Base URL is a test setup failure,
   not a fixture regression.

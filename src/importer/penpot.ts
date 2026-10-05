@@ -550,6 +550,13 @@ function metadata(shape: Shape, node: SceneNode, viewportId: string): void {
   if (node.fallbackReason) shape.setPluginData("fallback", node.fallbackReason);
 }
 
+// The converted vector replaces applyPaint, so the element's own compositing
+// opacity (for example on an SVG background) must be applied to its group.
+function applyVectorOpacity(group: Shape, node: SceneNode): Shape {
+  if (node.paint.opacity !== undefined && node.paint.opacity !== 1) group.opacity = node.paint.opacity;
+  return group;
+}
+
 async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media: MediaUploads, track: TrackShape, place: PlaceShape): Promise<Shape> {
   if (node.kind === "text") return createText(node, track);
   const asset = node.assetId ? assets.get(node.assetId) : undefined;
@@ -558,13 +565,13 @@ async function createShape(node: SceneNode, assets: Map<string, AssetRef>, media
   if (svg) {
     try {
       const group = await penpot.createShapeFromSvgWithImages(svg);
-      if (group) return track(group);
+      if (group) return applyVectorOpacity(track(group), node);
     } catch {
       // Try the synchronous converter for SVGs without image dependencies.
     }
     try {
       const group = penpot.createShapeFromSvg(svg);
-      if (group) return track(group);
+      if (group) return applyVectorOpacity(track(group), node);
     } catch {
       // Keep an image-backed rectangle if the SVG uses features Penpot cannot
       // translate into editable vectors.
