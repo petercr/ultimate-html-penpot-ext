@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer unsupported CSS fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 16px/1.4 "DejaVu Sans", sans-serif; }
+  main { max-width: 340px; }
+  h2 { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: #475467; }
+  .tile { position: relative; width: 300px; padding: 12px; background: #fff; border: 1px solid #cbd5e1; }
+  /* Each tile below uses one CSS feature the snapshot import cannot reproduce. */
+  #outline { outline: 3px solid #2563eb; outline-offset: 2px; }
+  #shadows { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 25%), 0 2px 4px -2px rgb(37 99 235 / 60%); }
+  #clip { height: 80px; background: #7c3aed; clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; }
+  #gradient-text { font-size: 28px; font-weight: 700; color: transparent; background: linear-gradient(90deg, #2563eb, #dc2626); -webkit-background-clip: text; background-clip: text; border: 0; }
+  #blend { height: 60px; background: url("./assets/fixture-illustration.svg") center / cover, #f59e0b; background-blend-mode: multiply; }
+  #text-shadow { font-size: 24px; font-weight: 700; text-shadow: 3px 3px 0 #94a3b8; }
+  #decoration { text-decoration: underline wavy #dc2626; }
+  #vertical { writing-mode: vertical-rl; width: 60px; height: 120px; }
+  #rtl { direction: rtl; }
+  #truncate { width: 200px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #clamp { width: 200px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  #list { margin: 0; padding: 12px 12px 12px 32px; }
+  #controls input, #controls select, #controls progress { display: block; margin: 0 0 8px; width: 200px; }
+  /* Everything here is supported, so it must produce no diagnostic. */
+  #supported { box-shadow: 0 2px 6px rgb(0 0 0 / 20%); }
+  #supported a { color: #2563eb; text-decoration: underline; }
+  #supported ul { margin: 8px 0 0; padding: 0; list-style: none; }
+</style>
+<main>
+  <h2>Outline</h2>
+  <div class="tile" id="outline">Outlined card</div>
+
+  <h2>Two box shadows</h2>
+  <div class="tile" id="shadows">Layered shadow</div>
+
+  <h2>clip-path</h2>
+  <div class="tile" id="clip"></div>
+
+  <h2>background-clip: text</h2>
+  <div class="tile" id="gradient-text">Gradient text</div>
+
+  <h2>background-blend-mode</h2>
+  <div class="tile" id="blend"></div>
+
+  <h2>text-shadow</h2>
+  <div class="tile" id="text-shadow">Shadowed heading</div>
+
+  <h2>Wavy underline in a color</h2>
+  <div class="tile" id="decoration">Decorated text</div>
+
+  <h2>Vertical writing mode</h2>
+  <div class="tile" id="vertical">Vertical</div>
+
+  <h2>Right-to-left direction</h2>
+  <div class="tile" id="rtl">Right to left</div>
+
+  <h2>Ellipsis truncation</h2>
+  <div class="tile"><div id="truncate">A long sentence that cannot fit on one line</div></div>
+
+  <h2>Line clamp</h2>
+  <div class="tile"><div id="clamp">Several lines of copy that the browser cuts off after the second line with an ellipsis.</div></div>
+
+  <h2>List markers</h2>
+  <div class="tile" style="padding: 0"><ul id="list"><li id="first-item">First item</li><li>Second item</li><li>Third item</li></ul></div>
+
+  <h2>Form controls</h2>
+  <div class="tile" id="controls"><input id="typed" value="Typed value"><select><option>Chosen option</option></select><progress value="40" max="100"></progress></div>
+
+  <h2>Supported controls</h2>
+  <div class="tile" id="supported">One shadow and <a href="#">a solid underline</a><ul><li>Plain item</li></ul></div>
+</main>

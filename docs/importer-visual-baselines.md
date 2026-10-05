@@ -13,6 +13,8 @@ checks, a representative desktop visual comparison, mobile undo/redo, and
 the host fallback-font and recovered save-failure observations.
 [Pseudo-elements](importer-pseudo-elements.md) records the browser references
 and regressions for generated content, and states its live-host status.
+[Unsupported CSS](importer-unsupported-css.md) records the diagnosed features,
+the `unsupported-css.html` fixture, and what is deliberately not detected.
 
 ## Regenerate the browser evidence
 
@@ -92,9 +94,9 @@ is an end-to-end remote-page test.
 The image fixture requires all 16 images' fit and natural dimensions,
 percentage/pixel/edge positions, border/padding and compositing opacity,
 rotation and uniform scale metadata, two reused successful source assets,
-and no diagnostics. The current suite contains nine fixtures and 27
-references. Image fitting added three references and pseudo-elements three
-more; every earlier screenshot is byte-for-byte unchanged.
+and no diagnostics. The current suite contains ten fixtures and 30
+references. Image fitting added three references, pseudo-elements three, and
+unsupported CSS three; every earlier screenshot is byte-for-byte unchanged.
 
 ## Fixture map
 
@@ -109,6 +111,7 @@ more; every earlier screenshot is byte-for-byte unchanged.
 | `per-side-borders.html` | Root borders, bottom-only decorated text, a left accent, four widths/colors with alpha and opacity, clipped child, rotation/scale, image borders, transparent/hidden/none sides, uniform/borderless controls, and unsupported radius/style/color/border-image cases | Differing sides retain all four computed border records; widths scale with the frame; uniform borders keep legacy paint fields. Unsupported border styles, asymmetric rounded corners, border images, and CSS Color 4 paints report explicit diagnostics. Border geometry is verified in all three live viewport imports, with a representative desktop visual pass and mobile undo/redo. See [Per-side borders](importer-borders.md). |
 | `image-fit-position.html` | All five fits, both scale-down branches, percentages/pixels/edge offsets, raster and SVG sources, decoration/opacity, rotation, rounded content, uniform scale, and responsive widths | All 16 images retain intrinsic dimensions and normalized fit/position metadata. Import uses content clips, 13 raster rectangles, and three editable SVG viewport/group compositions. All three live viewports retain verified geometry after reload, with a representative desktop visual comparison and mobile undo/redo. See [Image fitting](importer-image-fit.md). |
 | `pseudo-elements.html` | A positioned corner dot, inline generated text, a block rule, an overlay, a centered rotated diamond, decorated generated text, `attr()` content, multi-line `white-space: pre` text, counter content, a `display: contents` host, a zero-size host, an image background with opacity, a skewed box, and hidden/empty generated content | Each generated box is its own layer at its browser-measured rect, ordered before or after its host's children; text lands at its measured lines. Counter content and the skewed box report `UNSUPPORTED_PSEUDO_CONTENT` and `UNSUPPORTED_TRANSFORM`; hidden and empty content creates nothing. See [Pseudo-elements](importer-pseudo-elements.md). |
+| `unsupported-css.html` | One tile each for an outline, two box shadows, `clip-path`, `background-clip: text`, `background-blend-mode`, `text-shadow`, a wavy colored underline, vertical writing mode, `direction: rtl`, ellipsis truncation, line clamp, list markers, and form controls, plus a fully supported control | One diagnostic per code at its first source, repeats counted in one message, no diagnostic for the supported tile, and no fallback layers. |
 
 The fixture font files are unmodified `DejaVuSans.ttf` and
 `DejaVuSans-Bold.ttf` under `src/capture/fixtures/assets/`, with their hashes
