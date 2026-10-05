@@ -22,7 +22,7 @@
     "baseline:importer": "node scripts/importer-visual-baselines.mjs",
     "benchmark:importer": "node scripts/importer-benchmark.mjs",
     "serve:importer-fixtures": "node scripts/serve-importer-fixtures.mjs",
-    "test:importer-fixtures": "vitest run src/capture/extractor.test.ts src/capture/extractor.transforms.test.ts src/capture/extractor.borders.test.ts src/capture/extractor.images.test.ts src/capture/extractor.pseudo.test.ts src/capture/extractor.unsupported.test.ts src/capture/prepareDocument.test.ts src/capture/source.test.ts src/importer/penpot.test.ts src/importer/penpot.borders.test.ts src/importer/images.test.ts src/importer/svgImage.test.ts src/importer/penpot.images.test.ts src/shared/validation.images.test.ts",
+    "test:importer-fixtures": "vitest run src/capture/extractor.test.ts src/capture/extractor.transforms.test.ts src/capture/extractor.borders.test.ts src/capture/extractor.images.test.ts src/capture/extractor.pseudo.test.ts src/capture/extractor.unsupported.test.ts src/capture/prepareDocument.test.ts src/capture/source.test.ts src/importer/penpot.test.ts src/importer/flexLayout.test.ts src/importer/flexLayout.fixture.test.ts src/importer/nativeLayout.test.ts src/importer/penpot.borders.test.ts src/importer/images.test.ts src/importer/svgImage.test.ts src/importer/penpot.images.test.ts src/shared/validation.images.test.ts",
     "deploy:worker": "wrangler deploy --config cloudflare/wrangler.jsonc"
   },
   "dependencies": {

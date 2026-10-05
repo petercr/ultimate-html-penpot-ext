@@ -186,7 +186,7 @@ export interface SceneDocument {
 }
 
 export type UiToPluginMessage =
-  | { type: "IMPORT"; protocolVersion: typeof PROTOCOL_VERSION; runId: string; scenes: SceneDocument[] }
+  | { type: "IMPORT"; protocolVersion: typeof PROTOCOL_VERSION; runId: string; scenes: SceneDocument[]; /** Opt in to native Penpot flex layouts; absent or false keeps the fixed snapshot. */ nativeLayout?: boolean }
   | { type: "CANCEL"; protocolVersion: typeof PROTOCOL_VERSION; runId: string };
 
 export type PluginToUiMessage =

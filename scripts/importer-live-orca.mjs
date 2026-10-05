@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 const [page, action, ...args] = process.argv.slice(2);
-if (!page || !action) throw new Error("Usage: node scripts/importer-live-orca.mjs <browserPageId> open|run <nodes>|fixture <viewportIndex>|rotated-image|status|inspect <pageId>|focus <pageId> <layerNames...>|rotation-probe|pivot-probe|late-rotation-probe|delay-probe|cleanup <originalPageId> <testPageIds...>|network <output.json>");
+if (!page || !action) throw new Error("Usage: node scripts/importer-live-orca.mjs <browserPageId> open|run <nodes>|fixture <viewportIndex> [native]|rotated-image|status|inspect <pageId>|focus <pageId> <layerNames...>|rotation-probe|flex-probe|flex-edit-probe <pageId>|pivot-probe|late-rotation-probe|delay-probe|cleanup <originalPageId> <testPageIds...>|network <output.json>");
 const executable = process.env.ORCA_CLI_COMMAND || (process.env.ORCA_DEV_REPO_ROOT ? "orca-dev" : process.platform === "linux" ? "orca-ide" : "orca");
 function call(command, options = []) {
   let output;
@@ -62,6 +62,10 @@ if (action === "open" || action === "connect") {
   console.log(send({ action: "inspect", pageId: args[0] }));
 } else if (action === "rotation-probe") {
   console.log(send({ action: "rotation-probe" }));
+} else if (action === "flex-probe") {
+  console.log(send({ action: "flex-probe" }));
+} else if (action === "flex-edit-probe") {
+  console.log(send({ action: "flex-edit-probe", pageId: args[0] }));
 } else if (action === "pivot-probe") {
   console.log(send({ action: "pivot-probe" }));
 } else if (action === "late-rotation-probe") {
@@ -71,7 +75,7 @@ if (action === "open" || action === "connect") {
 } else if (action === "rotated-image") {
   console.log(send({ action: "rotated-image", size: 0 }));
 } else if (action === "fixture") {
-  console.log(send({ action: "fixture", size: Number(args[0] || 0) }));
+  console.log(send({ action: "fixture", size: Number(args[0] || 0), native: args[1] === "native" }));
 } else if (action === "focus") {
   console.log(send({ action: "focus", pageId: args[0], names: args.slice(1) }));
 } else if (action === "list-pages") {

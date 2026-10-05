@@ -35,7 +35,8 @@ penpot.ui.onMessage<UiToPluginMessage>(async (message) => {
     const boards = await importScenes(scenes, {
       isCancelled: () => cancelledRunId === message.runId,
       onProgress: (completed, total, label) => send({ type: "PROGRESS", runId: message.runId, completed, total, label }),
-      onDiagnostic: (diagnostic) => send({ type: "DIAGNOSTIC", runId: message.runId, diagnostic })
+      onDiagnostic: (diagnostic) => send({ type: "DIAGNOSTIC", runId: message.runId, diagnostic }),
+      nativeLayout: message.nativeLayout === true
     });
     if (activeRunId === message.runId) send({ type: "COMPLETE", runId: message.runId, boards: boards.length });
   } catch (error) {
