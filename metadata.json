@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M44QQBRAHX3YVR9W0J9EYR5G",
+  "strategy": "manual-commit",
+  "branch": "phase5-image-fit-position",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-borders.md",
+    "docs/importer-image-fit.md",
+    "docs/importer-visual-baselines.md",
+    "scripts/importer-image-fit-verify.mjs",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/validate-build.mjs",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/image-fit-position.html",
+    "src/importer/images.test.ts",
+    "src/importer/penpot.images.test.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts",
+    "src/importer/svgImage.test.ts",
+    "src/importer/svgImage.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.images.test.ts",
+    "src/shared/validation.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 404776,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 14145792,
+    "output_tokens": 65499,
+    "api_call_count": 152,
+    "subagent_tokens_complete": false
+  }
+}

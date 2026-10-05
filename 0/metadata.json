@@ -1,0 +1,83 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M44QQBRAHX3YVR9W0J9EYR5G",
+  "session_id": "01a10897-19a8-7b42-975e-95de7cba9169",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-05T00:34:33.703666202Z",
+  "branch": "phase5-image-fit-position",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-borders.md",
+    "docs/importer-image-fit.md",
+    "docs/importer-visual-baselines.md",
+    "scripts/importer-image-fit-verify.mjs",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/validate-build.mjs",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/image-fit-position.html",
+    "src/importer/images.test.ts",
+    "src/importer/penpot.images.test.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts",
+    "src/importer/svgImage.test.ts",
+    "src/importer/svgImage.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.images.test.ts",
+    "src/shared/validation.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "e90e5cf8088c",
+  "checkpoint_transcript_start": 873,
+  "transcript_lines_at_start": 873,
+  "compact_transcript_start": 106,
+  "token_usage": {
+    "input_tokens": 404776,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 14145792,
+    "output_tokens": 65499,
+    "api_call_count": 152,
+    "subagent_tokens_complete": false
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-05T00:34:33.227755732Z",
+    "agent_lines": 1369,
+    "agent_removed": 24,
+    "human_added": 16169,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 17539,
+    "total_lines_changed": 17572,
+    "agent_percentage": 7.927384475301616,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 855,
+      "user_lines_removed": 1,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 90,
+        ".claude/settings.local.json": 3,
+        ".codex/hooks.json": 88,
+        ".opencode/plugins/entire.ts": 269,
+        "src/capture/extractor.ts": 105,
+        "src/capture/fixtures/image-fit-position.html": 113,
+        "src/importer/images.test.ts": 85,
+        "src/importer/images.ts": 56,
+        "src/shared/contracts.ts": 22,
+        "src/shared/validation.ts": 24
+      },
+      "user_removed_per_file": {
+        "src/capture/extractor.ts": 1
+      }
+    }
+  ]
+}
