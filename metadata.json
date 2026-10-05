@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.10.7-nightly.202609190623.ae303f31d",
+  "checkpoint_id": "01M46BFH9X84FJFD4C53RS8AHT",
+  "strategy": "manual-commit",
+  "branch": "phase5-unsupported-css-diagnostics",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-unsupported-css.md",
+    "docs/importer-visual-baselines.md",
+    "package.json",
+    "scripts/importer-visual-baselines.mjs",
+    "src/App.tsx",
+    "src/DiagnosticList.test.tsx",
+    "src/DiagnosticList.tsx",
+    "src/capture/extractor.ts",
+    "src/capture/extractor.unsupported.test.ts",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/baselines/unsupported-css-desktop-1440.png",
+    "src/capture/fixtures/baselines/unsupported-css-mobile-390.png",
+    "src/capture/fixtures/baselines/unsupported-css-tablet-768.png",
+    "src/capture/fixtures/unsupported-css.html",
+    "src/importer/penpot.test.ts",
+    "src/styles.css"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 92,
+    "cache_creation_tokens": 78594,
+    "cache_read_tokens": 7143931,
+    "output_tokens": 43727,
+    "api_call_count": 46
+  }
+}
