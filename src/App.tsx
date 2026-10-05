@@ -39,6 +39,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
   const [viewports, setViewports] = useState<ViewportSpec[]>(DEFAULT_VIEWPORTS);
   const [scriptPolicy, setScriptPolicy] = useState<ScriptPolicy>("off");
   const [settleDelayMs, setSettleDelayMs] = useState(300);
+const [nativeLayout, setNativeLayout] = useState(false);
   const [scenes, setScenes] = useState<SceneDocument[]>([]);
   const [importDiagnostics, setImportDiagnostics] = useState<Diagnostic[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -176,7 +177,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
     setPhase("importing");
     setError(undefined);
     setProgress("Preparing Penpot layers…");
-    postToPlugin({ type: "IMPORT", protocolVersion: PROTOCOL_VERSION, runId, scenes });
+    postToPlugin({ type: "IMPORT", protocolVersion: PROTOCOL_VERSION, runId, scenes, nativeLayout });
   };
 
   const cancel = () => {
@@ -231,6 +232,7 @@ export default function App({ standaloneHost = isStandaloneHost() }: AppProps) {
       <button className="advanced-toggle" onClick={() => setAdvanced(!advanced)} aria-expanded={advanced}>Advanced capture {advanced ? "−" : "+"}</button>
       {advanced && <div className="advanced-panel">
         <label className="checkbox"><input type="checkbox" checked={scriptPolicy === "trusted"} onChange={(event) => { setScriptPolicy(event.target.checked ? "trusted" : "off"); resetCapture(); }} /> Run trusted page scripts <span>Off by default. Never use for untrusted HTML.</span></label>
+        <label className="checkbox"><input type="checkbox" checked={nativeLayout} onChange={(event) => setNativeLayout(event.target.checked)} /> Native flex layouts (experimental) <span>Off: every board is a fixed snapshot of the viewport. On: simple flex containers become Penpot flex layouts that reflow when you edit or resize them; anything unsupported stays a fixed snapshot.</span></label>
         <label>Additional settle delay <output>{settleDelayMs}ms</output><input type="range" min="0" max="5000" step="100" value={settleDelayMs} onChange={(event) => { setSettleDelayMs(Number(event.target.value)); resetCapture(); }} /></label>
       </div>}
     </section>

@@ -34,7 +34,8 @@ const fixtureFiles = [
   "per-side-borders.html",
   "image-fit-position.html",
   "pseudo-elements.html",
-  "unsupported-css.html"
+  "unsupported-css.html",
+  "flex-layouts.html"
 ];
 const fixtureAssetDirectory = join(fixtureDirectory, "assets");
 const viewports = [
@@ -380,6 +381,28 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
     const shadow = scene.diagnostics.find((diagnostic) => diagnostic.code === "UNSUPPORTED_TEXT_SHADOW");
     if (!shadow || scene.diagnostics.some((diagnostic) => diagnostic.source.startsWith("#supported"))) throw new Error("Supported CSS must not be diagnosed.");
     if (scene.nodes.some((node) => node.kind === "fallback")) throw new Error("Diagnosed CSS must not turn layers into fallbacks.");
+  }
+  if (file === "flex-layouts.html") {
+    // The captured scene already carries the flex semantics the native layout
+    // conversion decides on; pin them so a capture change cannot go unnoticed.
+    const flex = (source) => {
+      const node = sceneNode(scene, source);
+      if (node.layout.kind !== "flex") throw new Error(`${source} should be captured as a flex container.`);
+      return node;
+    };
+    const expectations = {
+      "#basic": { direction: "row", columnGap: 12 }, "#between": { justifyContent: "space-between", alignItems: "center" },
+      "#column": { direction: "column", rowGap: 8 }, "#centered": { justifyContent: "center" }, "#card": { direction: "row", columnGap: 12 },
+      "#card-text": { direction: "column", rowGap: 2 }, "#with-badge": { direction: "row" }, "#wrapping": { wrap: "wrap" },
+      "#reversed": { direction: "row-reverse" }, "#baseline": { alignItems: "baseline" }
+    };
+    for (const [source, layout] of Object.entries(expectations)) {
+      const node = flex(source);
+      for (const [key, value] of Object.entries(layout)) if (node.layout[key] !== value) throw new Error(`${source} layout.${key} expected ${value}, got ${node.layout[key]}.`);
+    }
+    const badge = sceneNode(scene, "#badge");
+    if (!badge.layout.absolute) throw new Error("The badge must be captured as absolutely positioned.");
+    if (scene.diagnostics.length) throw new Error("The flex fixture should have no capture diagnostics.");
   }
 }
 

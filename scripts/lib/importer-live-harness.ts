@@ -49,6 +49,126 @@ function rotationProbe(): Probe {
   return out;
 }
 
+/** Records how the host lays out children of a native flex board so the layout conversion rests on observations. */
+async function flexProbe(): Promise<Probe> {
+  type Board = import("@penpot/plugin-types").Board;
+  const out: Probe = {};
+  const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  let top = 100;
+  const board = (width: number, height: number) => { const value = penpot.createBoard(); value.x = 100; value.y = top; value.resize(width, height); top += height + 60; return value; };
+  const rect = (parent: Board, x: number, y: number, width: number, height: number) => {
+    const value = penpot.createRectangle(); parent.appendChild(value); value.x = x; value.y = y; value.resize(width, height); return value;
+  };
+  const positions = (shapes: import("@penpot/plugin-types").Shape[]) => shapes.map((shape) => ({ x: round(shape.x), y: round(shape.y), width: round(shape.width), height: round(shape.height) }));
+  const sizes = [[50, 30], [60, 40], [70, 20]];
+  const make = (width: number, height: number) => {
+    const host = board(width, height);
+    const children = sizes.map(([w, h], index) => rect(host, 110 + index * 200, host.y + 10, w, h));
+    return { host, children };
+  };
+
+  // 1. Order and spacing for a plain row, with and without padding, read at several delays.
+  const variants: [string, (layout: import("@penpot/plugin-types").FlexLayout) => void][] = [
+    ["gapOnly", (layout) => { layout.dir = "row"; layout.columnGap = 10; }],
+    ["gapAndPadding", (layout) => { layout.dir = "row"; layout.columnGap = 10; layout.leftPadding = 8; layout.topPadding = 6; layout.rightPadding = 8; layout.bottomPadding = 6; }],
+    ["paddingOnly", (layout) => { layout.leftPadding = 8; layout.topPadding = 6; }],
+    ["nothingSet", () => undefined]
+  ];
+  for (const [name, configure] of variants) {
+    const a = make(400, 100);
+    const layout = a.host.addFlexLayout();
+    configure(layout);
+    const immediate = positions(a.children);
+    await pause(100); const at100 = positions(a.children);
+    await pause(900); const at1000 = positions(a.children);
+    out[name] = { immediate, at100, at1000, hostChildOrder: a.host.children.map((c) => a.children.findIndex((child) => child.id === c.id)) };
+  }
+
+  // 2. Alignment and justification.
+  const b = make(400, 100);
+  const bl = b.host.addFlexLayout(); bl.dir = "row"; bl.columnGap = 0; bl.alignItems = "center"; bl.justifyContent = "space-between";
+  await pause(300);
+  out.centerSpaceBetween = { children: positions(b.children) };
+  bl.alignItems = "end"; bl.justifyContent = "end"; await pause(300);
+  out.endEnd = { children: positions(b.children) };
+
+  // 3. Column direction.
+  const c = make(300, 200);
+  const cl = c.host.addFlexLayout(); cl.dir = "column"; cl.rowGap = 12; await pause(300);
+  out.column = { children: positions(c.children) };
+
+  // 4. Hug sizing resizes the board; fixed sizing keeps it.
+  const d = make(400, 100);
+  const dl = d.host.addFlexLayout(); dl.dir = "row"; dl.columnGap = 10; dl.horizontalSizing = "auto"; dl.verticalSizing = "auto"; await pause(300);
+  out.hug = { host: describe(d.host), children: positions(d.children), horizontalSizing: dl.horizontalSizing };
+
+  // 5. Child sizing: fill, and a margin.
+  const e = make(400, 100);
+  const el = e.host.addFlexLayout(); el.dir = "row"; el.columnGap = 10; await pause(100);
+  e.children[1].layoutChild!.horizontalSizing = "fill"; e.children[0].layoutChild!.rightMargin = 20; await pause(300);
+  out.fillAndMargin = { children: positions(e.children), childProps: e.children.map((child) => ({ h: child.layoutChild?.horizontalSizing, v: child.layoutChild?.verticalSizing, absolute: child.layoutChild?.absolute })) };
+
+  // 6. An absolutely positioned child keeps its place and is excluded from flow.
+  const f = make(400, 100);
+  const fl = f.host.addFlexLayout(); fl.dir = "row"; fl.columnGap = 10; await pause(100);
+  f.children[2].layoutChild!.absolute = true; f.children[2].x = f.host.x + 300; f.children[2].y = f.host.y + 60; await pause(300);
+  out.absoluteChild = { children: positions(f.children) };
+
+  // 7. Wrap.
+  const g = make(100, 160);
+  const gl = g.host.addFlexLayout(); gl.dir = "row"; gl.wrap = "wrap"; gl.columnGap = 6; gl.rowGap = 6; await pause(300);
+  out.wrap = { children: positions(g.children) };
+
+  // 8. Removing the layout leaves the children where the layout put them.
+  const h = make(400, 100);
+  const hl = h.host.addFlexLayout(); hl.dir = "row"; hl.columnGap = 10; await pause(300);
+  const before = positions(h.children); hl.remove(); await pause(300);
+  out.removedLayout = { before, after: positions(h.children), hasLayout: Boolean(h.host.flex) };
+  out.boardIds = [b, c, d, e, f, g, h].map((value) => value.host.id);
+  return out;
+}
+
+/** Edits an imported native-layout page the way a user would and records how the layout responds. */
+async function flexEditProbe(pageId: string): Promise<Probe> {
+  type Shape = import("@penpot/plugin-types").Shape;
+  type Board = import("@penpot/plugin-types").Board;
+  const page = penpot.currentFile?.pages.find((candidate) => candidate.id === pageId);
+  if (!page) throw new Error("Expected an existing page.");
+  const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  const find = (source: string, type?: string) => page.findShapes().find((shape) => shape.getPluginData("source") === source && (!type || shape.type === type));
+  const rel = (shape: Shape, board: Shape) => ({ x: round(shape.x - board.x), y: round(shape.y - board.y), w: round(shape.width), h: round(shape.height) });
+  const kids = (board: Board) => board.children.slice().reverse().map((child) => ({ source: child.getPluginData("source"), ...rel(child, board) }));
+  const out: Probe = {};
+
+  const between = find("#between", "board") as Board;
+  out.betweenBefore = kids(between);
+  between.resize(360, between.height); await pause(500);
+  out.betweenWidened = { width: round(between.width), children: kids(between) };
+
+  const basic = find("#basic", "board") as Board;
+  out.basicBefore = kids(basic);
+  const second = basic.children.slice().reverse()[1];
+  second.resize(100, second.height); await pause(500);
+  out.basicAfterChildResize = kids(basic);
+  const added = penpot.createRectangle(); added.resize(20, 20); basic.appendChild(added); await pause(500);
+  out.basicAfterAppend = { children: kids(basic), addedLayoutChild: added.layoutChild ? { absolute: added.layoutChild.absolute } : null };
+
+  const column = find("#column", "board") as Board;
+  out.columnBefore = kids(column);
+  const first = column.children.slice().reverse()[0];
+  first.resize(first.width, 60); await pause(500);
+  out.columnAfterChildResize = kids(column);
+
+  const text = page.findShapes().find((shape) => shape.type === "text" && (shape as import("@penpot/plugin-types").Text).characters === "Ada Lovelace") as import("@penpot/plugin-types").Text | undefined;
+  if (text) {
+    const card = find("#card", "board") as Board;
+    out.cardBefore = kids(card);
+    text.characters = "Ada Lovelace, Countess of Lovelace"; await pause(800);
+    out.cardAfterTextEdit = { text: { w: round(text.width), h: round(text.height), growType: text.growType }, children: kids(card) };
+  }
+  return out;
+}
+
 /** Second pass: the primitives a flat per-node transform model depends on. */
 async function pivotProbe(): Promise<Probe> {
   const out: Probe = {};
@@ -132,7 +252,7 @@ async function delaySweepProbe(): Promise<Probe> {
 
 penpot.ui.open("Importer host validation", "?phase5-validation", { width: 480, height: 380 });
 
-penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: string[]; boardIds?: string[]; names?: string[] }>(async (message) => {
+penpot.ui.onMessage<{ action: string; native?: boolean; size?: number; pageId?: string; pageIds?: string[]; boardIds?: string[]; names?: string[] }>(async (message) => {
   if (message.action === "cancel") { cancelled = true; return; }
   if (busy) return;
   busy = true;
@@ -156,7 +276,7 @@ penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: 
       const started = profileNow();
       let metrics: ImportMetrics | undefined;
       const diagnostics: unknown[] = [];
-      const boards = await importScenes(scenes, { isCancelled: () => cancelled,
+      const boards = await importScenes(scenes, { nativeLayout: message.native === true, isCancelled: () => cancelled,
         onProgress: (completed, total, label) => send({ type: "progress", completed, total, label }),
         onDiagnostic: (value) => diagnostics.push(value),
         onMetrics: (value) => { metrics = value; }
@@ -172,6 +292,13 @@ penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: 
       page.name = `${pagePrefix}rotation probe`;
       await openPage(page);
       send({ type: "rotation-probe", pageId: page.id, result: rotationProbe() });
+    } else if (message.action === "flex-probe") {
+      const page = penpot.createPage();
+      page.name = `${pagePrefix}flex probe`;
+      await openPage(page);
+      send({ type: "flex-probe", pageId: page.id, result: await flexProbe() });
+    } else if (message.action === "flex-edit-probe") {
+      send({ type: "flex-edit-probe", pageId: message.pageId, result: await flexEditProbe(message.pageId!) });
     } else if (message.action === "pivot-probe") {
       const page = penpot.createPage();
       page.name = `${pagePrefix}pivot probe`;
@@ -201,7 +328,9 @@ penpot.ui.onMessage<{ action: string; size?: number; pageId?: string; pageIds?: 
           const centerX = shape.x + boundsWidth / 2, centerY = shape.y + boundsHeight / 2;
           return { id: shape.id, name: shape.name, type: shape.type, parentId: shape.parent?.id, x: shape.x, y: shape.y, width: shape.width, height: shape.height, rotation: shape.rotation,
             clipContent: shape.type === "board" ? (shape as import("@penpot/plugin-types").Board).clipContent : undefined,
-            source: shape.getPluginData("source"), borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), imageClip: shape.getPluginData("image-clip"), imageContentClip: shape.getPluginData("image-content-clip"), imageContent: shape.getPluginData("image-content"), imageSvgViewport: shape.getPluginData("image-svg-viewport"), imageSvgVector: shape.getPluginData("image-svg-vector"), opacity: shape.opacity,
+            source: shape.getPluginData("source"), nativeLayout: shape.getPluginData("native-layout"),
+            flex: shape.type === "board" && (shape as import("@penpot/plugin-types").Board).flex ? (() => { const f = (shape as import("@penpot/plugin-types").Board).flex!; return { dir: f.dir, rowGap: f.rowGap, columnGap: f.columnGap, padding: [f.topPadding, f.rightPadding, f.bottomPadding, f.leftPadding], justifyContent: f.justifyContent, alignItems: f.alignItems, horizontalSizing: f.horizontalSizing, verticalSizing: f.verticalSizing }; })() : undefined,
+            layoutChild: shape.layoutChild ? { absolute: shape.layoutChild.absolute, horizontalSizing: shape.layoutChild.horizontalSizing, verticalSizing: shape.layoutChild.verticalSizing } : undefined, borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), imageClip: shape.getPluginData("image-clip"), imageContentClip: shape.getPluginData("image-content-clip"), imageContent: shape.getPluginData("image-content"), imageSvgViewport: shape.getPluginData("image-svg-viewport"), imageSvgVector: shape.getPluginData("image-svg-vector"), opacity: shape.opacity,
             fills: "fills" in shape ? shape.fills.map((fill) => ({ color: fill.fillColor, opacity: fill.fillOpacity, imageId: fill.fillImage?.id, keepAspectRatio: fill.fillImage?.keepAspectRatio })) : [],
             radii: "borderRadiusTopLeft" in shape ? [shape.borderRadiusTopLeft, shape.borderRadiusTopRight, shape.borderRadiusBottomRight, shape.borderRadiusBottomLeft] : undefined,
             strokes: shape.strokes, d: shape.type === "path" ? shape.d : undefined,

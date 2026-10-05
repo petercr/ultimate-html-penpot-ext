@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Importer flex layout fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans.ttf") format("truetype"); font-display: block; font-weight: 400; }
+  @font-face { font-family: "DejaVu Sans"; src: url("./assets/DejaVuSans-Bold.ttf") format("truetype"); font-display: block; font-weight: 700; }
+  body { margin: 0; padding: 24px; background: #f8fafc; color: #182230; font: 14px/1.4 "DejaVu Sans", sans-serif; }
+  main { max-width: 340px; }
+  h2 { margin: 18px 0 6px; font-size: 13px; font-weight: 700; color: #475467; }
+  .row { display: flex; width: 300px; background: #fff; border: 1px solid #cbd5e1; }
+  .box { background: #dbeafe; border: 1px solid #93c5fd; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .a { width: 50px; height: 30px; }
+  .b { width: 60px; height: 40px; background: #dcfce7; border-color: #86efac; }
+  .c { width: 70px; height: 20px; background: #fef3c7; border-color: #fcd34d; }
+  /* Supported: direction, gap, padding, justification, alignment, nesting, absolute children. */
+  #basic { gap: 12px; padding: 10px; align-items: flex-start; }
+  #between { height: 80px; justify-content: space-between; align-items: center; padding: 0 8px; }
+  #column { flex-direction: column; width: 300px; gap: 8px; padding: 12px; align-items: flex-start; }
+  #centered { height: 70px; justify-content: center; align-items: center; }
+  #card { gap: 12px; padding: 12px; border: 2px solid #94a3b8; border-radius: 10px; box-shadow: 0 2px 6px rgb(0 0 0 / 15%); align-items: center; }
+  #avatar { width: 40px; height: 40px; border-radius: 50%; background: #7c3aed; flex: none; }
+  #card-text { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+  #card-text strong { font-size: 14px; }
+  #card-text span { font-size: 12px; color: #667085; }
+  #with-badge { position: relative; height: 56px; gap: 8px; padding: 8px; align-items: flex-start; }
+  #badge { position: absolute; right: 6px; top: 6px; width: 14px; height: 14px; border-radius: 50%; background: #dc2626; }
+  /* Unsupported: these keep their captured geometry. */
+  #wrapping { flex-wrap: wrap; width: 160px; gap: 6px; padding: 6px; align-items: flex-start; }
+  #reversed { flex-direction: row-reverse; gap: 8px; padding: 8px; justify-content: flex-start; align-items: flex-start; }
+  #margins { padding: 8px; align-items: flex-start; }
+  #margins .b { margin-left: auto; }
+  #ordered { gap: 8px; padding: 8px; align-items: flex-start; }
+  #ordered .a { order: 2; }
+  #baseline { padding: 8px; gap: 8px; align-items: baseline; }
+</style>
+<main>
+  <h2>Row with gap and padding</h2>
+  <div class="row" id="basic"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Space between, centered cross axis</h2>
+  <div class="row" id="between"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Column</h2>
+  <div class="row" id="column"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Centered child</h2>
+  <div class="row" id="centered"><div class="box b">B</div></div>
+
+  <h2>Decorated card with a nested flex column</h2>
+  <div class="row" id="card"><div id="avatar"></div><div id="card-text"><strong>Ada Lovelace</strong><span>Analyst</span></div></div>
+
+  <h2>Absolute badge outside the flow</h2>
+  <div class="row" id="with-badge"><div class="box a">A</div><div class="box b">B</div><div id="badge"></div></div>
+
+  <h2>Wrapping (kept fixed)</h2>
+  <div class="row" id="wrapping"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Row reverse (kept fixed)</h2>
+  <div class="row" id="reversed"><div class="box a">A</div><div class="box b">B</div></div>
+
+  <h2>Auto margin (kept fixed)</h2>
+  <div class="row" id="margins"><div class="box a">A</div><div class="box b">B</div></div>
+
+  <h2>CSS order (kept fixed)</h2>
+  <div class="row" id="ordered"><div class="box a">A</div><div class="box b">B</div></div>
+
+  <h2>Baseline alignment (kept fixed)</h2>
+  <div class="row" id="baseline"><div class="box a">A</div><div class="box b">B</div></div>
+</main>

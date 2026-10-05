@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, type SceneDocument, type SceneNode } from "../shared/contracts";
 import { validateScenes } from "../shared/validation";
+import { predictFlex } from "./flexLayout";
 import { ImportCancelledError, importScenes, rotatedBoundsOrigin } from "./penpot";
 
 type FakeShape = Record<string, unknown> & { type: string; children?: FakeShape[]; removed?: boolean };
@@ -210,6 +211,127 @@ describe("Penpot importer", () => {
       expect(all.some((shape) => String(shape.name).startsWith("Unsupported:"))).toBe(false);
       expect(scenes[index].diagnostics.map((diagnostic) => diagnostic.code)).toContain("UNSUPPORTED_TEXT_SHADOW");
     }
+  });
+
+  describe("native flex layouts", () => {
+    type Host = { createBoard: ReturnType<typeof vi.fn>; createRectangle: ReturnType<typeof vi.fn>; createText: ReturnType<typeof vi.fn>; createPath: ReturnType<typeof vi.fn>; group: ReturnType<typeof vi.fn> };
+    const host = () => (globalThis as unknown as { penpot: Host }).penpot;
+    const data = (shape: FakeShape) => shape.pluginData as Record<string, string>;
+    const sized = (shape: FakeShape) => ({ w: shape.width as number, h: shape.height as number });
+
+    /** Give every fake shape the layout-child state and parent link a live host has. */
+    function installLayoutHost(relayout: boolean) {
+      let nextId = 0;
+      const decorate = <T extends FakeShape>(shape: T): T => {
+        Object.defineProperty(shape, "id", { value: `shape-${nextId += 1}`, enumerable: false });
+        Object.defineProperty(shape, "layoutChild", { value: { absolute: false }, enumerable: false });
+        return shape;
+      };
+      const api = host();
+      for (const name of ["createRectangle", "createText", "createPath"] as const) {
+        const original = api[name].getMockImplementation()!;
+        api[name].mockImplementation((...args: unknown[]) => decorate((original as (...values: unknown[]) => FakeShape)(...args)));
+      }
+      const group = api.group.getMockImplementation()!;
+      api.group.mockImplementation((shapes: FakeShape[]) => {
+        const created = decorate((group as (value: FakeShape[]) => FakeShape)(shapes));
+        // Like the live host, a group's bounds enclose its members.
+        const left = Math.min(...shapes.map((child) => child.x as number)), top = Math.min(...shapes.map((child) => child.y as number));
+        Object.assign(created, { x: left, y: top, width: Math.max(...shapes.map((child) => (child.x as number) + (child.width as number))) - left, height: Math.max(...shapes.map((child) => (child.y as number) + (child.height as number))) - top });
+        // Like the live host, the group takes its members' place in their parent.
+        const parent = (shapes[0] as unknown as { parent?: FakeShape }).parent;
+        if (parent?.children) {
+          const index = Math.min(...shapes.map((child) => parent.children!.indexOf(child)).filter((position) => position >= 0));
+          parent.children = parent.children.filter((child) => !shapes.includes(child));
+          parent.children.splice(Number.isFinite(index) ? index : parent.children.length, 0, created);
+          Object.defineProperty(created, "parent", { value: parent, configurable: true, enumerable: false });
+        }
+        shapes.forEach((child) => Object.defineProperty(child, "parent", { value: created, configurable: true, enumerable: false }));
+        return created;
+      });
+      const createBoard = api.createBoard.getMockImplementation()!;
+      api.createBoard.mockImplementation(() => {
+        const board = decorate((createBoard as () => FakeShape)());
+        const append = board.appendChild as (child: FakeShape) => void;
+        board.appendChild = vi.fn(function (this: FakeShape, child: FakeShape) {
+          append.call(this, child);
+          Object.defineProperty(child, "parent", { value: this, configurable: true, enumerable: false });
+        });
+        board.addFlexLayout = vi.fn(() => {
+          const layout: Record<string, unknown> = { dir: "row", rowGap: 0, columnGap: 0, topPadding: 0, rightPadding: 0, bottomPadding: 0, leftPadding: 0, justifyContent: "start", alignItems: "start", remove: () => { board.flex = undefined; } };
+          board.flex = layout;
+          // The live host applies a layout shortly after it is configured.
+          if (relayout) setTimeout(() => {
+            if (!board.flex) return;
+            const flow = (board.children || []).filter((child) => !(child as unknown as { layoutChild: { absolute: boolean } }).layoutChild.absolute);
+            const rects = predictFlex({ dir: layout.dir as "row" | "column", gap: layout.dir === "row" ? layout.columnGap as number : layout.rowGap as number,
+              padding: [layout.topPadding, layout.rightPadding, layout.bottomPadding, layout.leftPadding] as [number, number, number, number],
+              justify: layout.justifyContent as "start", align: layout.alignItems as "start" }, { width: board.width as number, height: board.height as number }, flow.map((child) => ({ width: child.width as number, height: child.height as number })));
+            flow.forEach((child, index) => { child.x = (board.x as number) + rects[index].x; child.y = (board.y as number) + rects[index].y; });
+          }, 20);
+          return layout;
+        });
+        return board;
+      });
+    }
+
+    const flexScenes = () => scenesForFixture(baselineEvidence().scenes, "flex-layouts.html");
+    const sourceShapes = (all: FakeShape[], source: string) => all.filter((shape) => data(shape).source === source);
+
+    it("keeps the fixed snapshot, with no layout requested, unless the option is on", async () => {
+      const imported = await importScenes(flexScenes(), { isCancelled: () => false, onProgress: vi.fn() });
+      const all = shapesBelow(imported[0] as unknown as FakeShape);
+      expect(all.some((shape) => Boolean(shape.addFlexLayout) && (shape.addFlexLayout as ReturnType<typeof vi.fn>).mock.calls.length > 0)).toBe(false);
+      expect(sourceShapes(all, "#basic").some((shape) => shape.type === "board")).toBe(false);
+    });
+
+    it("converts supported flex containers to native boards at the captured positions, and keeps the rest fixed", async () => {
+      installLayoutHost(true);
+      const scenes = flexScenes();
+      const diagnostics: { code: string; message: string }[] = [];
+      const imported = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn(), onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), nativeLayout: true });
+      expect(imported).toHaveLength(3);
+      for (const [index, board] of imported.entries()) {
+        const all = shapesBelow(board as unknown as FakeShape);
+        const native = (source: string) => sourceShapes(all, source).find((shape) => data(shape)["native-layout"] === "flex");
+        for (const source of ["#basic", "#between", "#column", "#centered", "#card", "#with-badge"]) expect(native(source), `${source} (${scenes[index].viewport.name})`).toBeDefined();
+        for (const source of ["#wrapping", "#reversed", "#margins", "#ordered", "#baseline"]) expect(native(source), source).toBeUndefined();
+        // The host's layout reproduces the browser: the middle box starts after the first plus the gap.
+        const basic = native("#basic")!;
+        const node = scenes[index].nodes.find((candidate) => candidate.source === "#basic")!;
+        const children = (basic.children || []).filter((child) => child.type !== "path");
+        expect(children.map((child) => Math.round((child.x as number) - (basic.x as number)))).toEqual(
+          scenes[index].nodes.filter((candidate) => candidate.parentId === node.id).map((candidate) => Math.round(candidate.rect.x - node.rect.x))
+        );
+        // Positioned content goes in first (topmost), flagged as outside the flow.
+        const withBadge = native("#with-badge")!;
+        expect(data((withBadge.children as FakeShape[])[0]).source).toBe("#badge");
+        expect(((withBadge.children as FakeShape[])[0] as unknown as { layoutChild: { absolute: boolean } }).layoutChild.absolute).toBe(true);
+        expect(withBadge.flex).toMatchObject({ dir: "row", columnGap: 8, topPadding: 9, leftPadding: 9 });
+        expect(native("#card")?.flex).toMatchObject({ topPadding: 14, leftPadding: 14, alignItems: "center" });
+      }
+      expect(diagnostics.filter((diagnostic) => diagnostic.code === "NATIVE_LAYOUT_SKIPPED")).toHaveLength(3);
+      expect(diagnostics.some((diagnostic) => diagnostic.code === "NATIVE_LAYOUT_REVERTED")).toBe(false);
+    });
+
+    it("falls back to the captured geometry when the host never applies a layout", async () => {
+      installLayoutHost(false);
+      const scenes = flexScenes();
+      const diagnostics: { code: string }[] = [];
+      const imported = await importScenes(scenes, { isCancelled: () => false, onProgress: vi.fn(), onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), nativeLayout: true });
+      for (const [index, board] of imported.entries()) {
+        const all = shapesBelow(board as unknown as FakeShape);
+        expect(all.some((shape) => data(shape)["native-layout"])).toBe(false);
+        expect(all.every((shape) => !shape.flex)).toBe(true);
+        const basic = sourceShapes(all, "#basic").find((shape) => shape.type === "board")!;
+        const node = scenes[index].nodes.find((candidate) => candidate.source === "#basic")!;
+        const kids = scenes[index].nodes.filter((candidate) => candidate.parentId === node.id);
+        // Reverting puts every child back at its captured offset inside the board.
+        const offsets = (basic.children || []).filter((child) => child.type !== "path").map((child) => Math.round((child.x as number) - (basic.x as number)));
+        expect(offsets.sort((a, b) => a - b)).toEqual(kids.map((kid) => Math.round(kid.rect.x - node.rect.x)).sort((a, b) => a - b));
+      }
+      expect(diagnostics.some((diagnostic) => diagnostic.code === "NATIVE_LAYOUT_REVERTED")).toBe(true);
+    });
   });
 
   it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {

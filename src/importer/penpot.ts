@@ -7,6 +7,8 @@ import { BoardPersistence, LARGE_BOARD_NODES } from "./persistence";
 import { borderInsets, borderPolygons, borderWidth, hasBorder, uniformBorder } from "./borders";
 import { imageGeometry } from "../shared/images";
 import { svgImageGeometry } from "./svgImage";
+import { planFlex, type FlexPlan } from "./flexLayout";
+import { applyNativeLayouts, type NativeFlexEntry } from "./nativeLayout";
 
 export class ImportCancelledError extends Error {
   constructor() { super("Import cancelled."); }
@@ -23,6 +25,8 @@ export interface ImportOptions {
   onProgress: (completed: number, total: number, label: string) => void;
   onDiagnostic?: (diagnostic: Diagnostic) => void;
   onMetrics?: (metrics: ImportMetrics) => void;
+  /** Convert supported flex containers to native Penpot flex boards. Off keeps the fixed snapshot. */
+  nativeLayout?: boolean;
 }
 
 const IMPORT_NAMESPACE = "ultimate-html-to-penpot";
@@ -723,6 +727,29 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           return rankB - rankA || zB - zA || (domOrder.get(b.id) ?? 0) - (domOrder.get(a.id) ?? 0);
         };
         for (const siblings of childrenByParent.values()) siblings.sort(byPaintOrder);
+        // Native flex conversion is opt-in. A container qualifies only when the
+        // browser's own child positions match the supported model; the rest keep
+        // their captured geometry, with one diagnostic listing why.
+        const nativeFlex = new Map<string, FlexPlan>();
+        const nativeEntries: NativeFlexEntry[] = [];
+        if (options.nativeLayout) {
+          const reasons = new Map<string, string[]>();
+          for (const candidate of scene.nodes) {
+            if (candidate.kind !== "container" || candidate.layout.kind !== "flex" || !candidate.parentId || !nodes.has(candidate.parentId)) continue;
+            const inSourceOrder = (childrenByParent.get(candidate.id) || []).slice().sort((a, b) => (domOrder.get(a.id) ?? 0) - (domOrder.get(b.id) ?? 0));
+            const decision = planFlex(candidate, inSourceOrder);
+            if ("plan" in decision) nativeFlex.set(candidate.id, decision.plan);
+            else reasons.set(decision.reason, [...(reasons.get(decision.reason) || []), candidate.source]);
+          }
+          const kept = [...reasons.values()].reduce((sum, sources) => sum + sources.length, 0);
+          if (kept) {
+            const detail = [...reasons.entries()].slice(0, 3).map(([reason, sources]) => `${sources.length} × ${reason}`).join(" ");
+            options.onDiagnostic?.({
+              severity: "info", code: "NATIVE_LAYOUT_SKIPPED", viewportId: scene.viewport.id, source: [...reasons.values()][0][0],
+              message: `${kept} flex container${kept === 1 ? " keeps" : "s keep"} fixed geometry instead of a native layout. ${detail}`
+            });
+          }
+        }
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
         // Prefetch referenced media for this board, excluding SVG leaves that
         // first try editable conversion. Their raster fallback uploads remain
@@ -895,7 +922,8 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             reportProgress();
             return frame;
           }
-          if (node.kind === "container" && clipsContent(node.paint)) {
+          const flexPlan = nativeFlex.get(node.id);
+          if (node.kind === "container" && (clipsContent(node.paint) || flexPlan)) {
             // A Penpot board is the clipping-capable container. Unlike a
             // group, its bounds stay at the captured element's box instead of
             // growing to enclose its descendants, so an oversized child is
@@ -904,7 +932,8 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             // rounded corners on one surface.
             const clip = track(penpot.createBoard());
             fixBoardSizing(clip);
-            clip.clipContent = true;
+            // A native flex board is a board for its layout, not for clipping.
+            clip.clipContent = clipsContent(node.paint);
             applyPaint(clip, node.paint);
             // Establish parentage and the container's own bounds before its
             // children: applyGeometry writes page-space coordinates, and the
@@ -940,7 +969,16 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
               contentClip.name = `${contentClip.name.slice(0, 180)} content clip`;
               contentClip.setPluginData("border-content-clip", "true");
             }
-            for (const child of childrenByParent.get(node.id) || []) await render(child, contentClip);
+            if (flexPlan) {
+              // Penpot lays a row out in the order children were appended, first
+              // appended first, while paint order appends the topmost first.
+              // Positioned children paint above the flow, so they go first; the
+              // flow follows in source order.
+              nativeEntries.push({ node, plan: flexPlan, board: clip, flow: [], absolute: [] });
+              const entry = nativeEntries[nativeEntries.length - 1];
+              for (const child of flexPlan.absolute) entry.absolute.push(await render(child, contentClip));
+              for (const child of flexPlan.flow) entry.flow.push(await render(child, contentClip));
+            } else for (const child of childrenByParent.get(node.id) || []) await render(child, contentClip);
             // Append after descendants: the host inserts these at the back,
             // above the board background and below CSS child content.
             createBorders(node, clip);
@@ -1121,6 +1159,17 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
           text.x = bounds.x;
           text.y = bounds.y;
           persistence?.markDirty();
+        }
+        if (nativeEntries.length) {
+          const converted = await applyNativeLayouts(nativeEntries, {
+            wait: waitForHost, markDirty: () => persistence?.markDirty(), viewportId: scene.viewport.id,
+            diagnostic: (diagnostic) => options.onDiagnostic?.(diagnostic)
+          });
+          throwIfCancelled();
+          if (converted.converted) {
+            const saved = persistence?.checkpoint();
+            if (saved) await saved;
+          }
         }
         await persistence?.flush();
         throwIfCancelled();
