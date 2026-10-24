@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.11.6-nightly.202610170622.9254299eb",
+  "checkpoint_id": "01M5QXMH7EFEXRMG10EGGKFN8X",
+  "strategy": "manual-commit",
+  "branch": "phase6-native-flex-more-containers",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "README.md",
+    "docs/importer-native-layout.md",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/flex-layouts-desktop-1440.png",
+    "src/capture/fixtures/baselines/flex-layouts-mobile-390.png",
+    "src/capture/fixtures/baselines/flex-layouts-tablet-768.png",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/baselines/unsupported-css-desktop-1440.png",
+    "src/capture/fixtures/baselines/unsupported-css-mobile-390.png",
+    "src/capture/fixtures/baselines/unsupported-css-tablet-768.png",
+    "src/capture/fixtures/flex-layouts.html",
+    "src/importer/flexLayout.fixture.test.ts",
+    "src/importer/flexLayout.test.ts",
+    "src/importer/flexLayout.ts",
+    "src/importer/nativeLayout.test.ts",
+    "src/importer/nativeLayout.ts",
+    "src/importer/penpot.test.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 218,
+    "cache_creation_tokens": 235769,
+    "cache_read_tokens": 18764277,
+    "output_tokens": 101493,
+    "api_call_count": 109
+  }
+}
