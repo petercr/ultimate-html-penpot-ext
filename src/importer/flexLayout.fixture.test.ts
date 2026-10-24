@@ -16,10 +16,11 @@ function decide(scene: SceneDocument, source: string) {
 }
 
 describe("flex fixture decisions", () => {
-  const supported = ["#basic", "#between", "#column", "#centered", "#card", "#with-badge"];
-  const kept: [string, RegExp][] = [
-    ["#card-text", /do not match/], ["#wrapping", /Wrapping/], ["#reversed", /row-reverse/], ["#margins", /do not match/], ["#ordered", /do not match/], ["#baseline", /baseline/]
+  const supported = [
+    "#basic", "#between", "#column", "#centered", "#card", "#card-text", "#with-badge", "#wrapping", "#reversed",
+    "#text-row", "#grow", "#grow-equal", "#grow-unequal", "#column-reverse", "#wrap-centered"
   ];
+  const kept: [string, RegExp][] = [["#wrap-reversed", /break their lines/], ["#wrap-reverse", /wrap-reverse/], ["#margins", /do not match/], ["#ordered", /do not match/], ["#baseline", /baseline/]];
 
   it.each(scenes.map((scene) => [scene.viewport.name, scene] as const))("%s converts the supported containers and keeps the rest fixed", (_name, scene) => {
     for (const source of supported) expect(decide(scene, source), source).toHaveProperty("plan");
@@ -32,5 +33,30 @@ describe("flex fixture decisions", () => {
     const badge = decide(scenes[0], "#with-badge");
     expect("plan" in badge && badge.plan.absolute).toHaveLength(1);
     expect("plan" in badge && badge.plan.flow).toHaveLength(2);
+  });
+
+  it.each(scenes.map((scene) => [scene.viewport.name, scene] as const))("%s lays out text items by their element box", (_name, scene) => {
+    // Each line's glyphs sit a pixel below the top of its line box; the rest of the leading is below.
+    for (const source of ["#card-text", "#text-row"]) {
+      const decision = decide(scene, source);
+      if (!("plan" in decision)) throw new Error(source);
+      decision.plan.flow.forEach((child, index) => {
+        if (child.kind !== "text") return expect(decision.plan.margins[index]).toEqual([0, 0, 0, 0]);
+        expect(decision.plan.margins[index][0]).toBeCloseTo(1, 1);
+        expect(decision.plan.margins[index][2]).toBeGreaterThan(1);
+      });
+    }
+  });
+
+  it.each(scenes.map((scene) => [scene.viewport.name, scene] as const))("%s fills with equal growth and keeps unequal growth at its captured size", (_name, scene) => {
+    expect(decide(scene, "#grow")).toMatchObject({ plan: { fill: [false, true, false] } });
+    expect(decide(scene, "#grow-equal")).toMatchObject({ plan: { fill: [false, true, true] } });
+    expect(decide(scene, "#grow-unequal")).toMatchObject({ plan: { fill: [false, false] } });
+  });
+
+  it("reads wrapping and reversed containers with their line gaps and line placement", () => {
+    expect(decide(scenes[0], "#wrapping")).toMatchObject({ plan: { dir: "row", wrap: true, gap: 6, crossGap: 6, alignContent: "stretch" } });
+    expect(decide(scenes[0], "#wrap-centered")).toMatchObject({ plan: { wrap: true, gap: 6, crossGap: 4, justify: "center", alignContent: "center", align: "center" } });
+    expect(decide(scenes[0], "#column-reverse")).toMatchObject({ plan: { dir: "column-reverse", wrap: false, align: "end" } });
   });
 });

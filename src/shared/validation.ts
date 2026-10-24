@@ -88,6 +88,11 @@ function validateNode(value: unknown, index: number): asserts value is SceneNode
   const height = number(rect.height, `nodes[${index}].rect.height`, 0);
   if (height > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].rect.height must be no greater than ${SCENE_LIMITS.maxDimension}.`);
   optionalNumber(node.rotation, `nodes[${index}].rotation`, -360, 360);
+  if (node.box !== undefined) {
+    const box = record(node.box, `nodes[${index}].box`);
+    for (const key of ["x", "y"]) if (Math.abs(number(box[key], `nodes[${index}].box.${key}`)) > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].box.${key} must be within ±${SCENE_LIMITS.maxDimension}.`);
+    for (const key of ["width", "height"]) if (number(box[key], `nodes[${index}].box.${key}`, 0) > SCENE_LIMITS.maxDimension) fail(`nodes[${index}].box.${key} must be no greater than ${SCENE_LIMITS.maxDimension}.`);
+  }
   number(node.zIndex, `nodes[${index}].zIndex`);
   optionalBoolean(node.zIndexAuto, `nodes[${index}].zIndexAuto`);
   validatePaint(node.paint, index);
@@ -194,9 +199,13 @@ function validateLayout(value: unknown, index: number): void {
   const layout = record(value, `nodes[${index}].layout`);
   enumValue(string(layout.kind, `nodes[${index}].layout.kind`, 20), `nodes[${index}].layout.kind`, ["none", "flex", "grid"]);
   enumValue(layout.direction, `nodes[${index}].layout.direction`, ["row", "row-reverse", "column", "column-reverse"]);
-  enumValue(layout.wrap, `nodes[${index}].layout.wrap`, ["wrap", "nowrap"]);
+  enumValue(layout.wrap, `nodes[${index}].layout.wrap`, ["wrap", "nowrap", "wrap-reverse"]);
   optionalString(layout.justifyContent, `nodes[${index}].layout.justifyContent`, 100);
   optionalString(layout.alignItems, `nodes[${index}].layout.alignItems`, 100);
+  optionalString(layout.alignContent, `nodes[${index}].layout.alignContent`, 100);
+  optionalNumber(layout.flexGrow, `nodes[${index}].layout.flexGrow`, 0);
+  optionalNumber(layout.flexShrink, `nodes[${index}].layout.flexShrink`, 0);
+  optionalString(layout.flexBasis, `nodes[${index}].layout.flexBasis`, 100);
   optionalNumber(layout.rowGap, `nodes[${index}].layout.rowGap`, 0, SCENE_LIMITS.maxDimension);
   optionalNumber(layout.columnGap, `nodes[${index}].layout.columnGap`, 0, SCENE_LIMITS.maxDimension);
   if (layout.padding !== undefined) tuple(layout.padding, `nodes[${index}].layout.padding`, 0);

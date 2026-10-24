@@ -91,9 +91,11 @@ export interface TextStyle {
 export interface SceneLayout {
   kind: LayoutKind;
   direction?: "row" | "row-reverse" | "column" | "column-reverse";
-  wrap?: "wrap" | "nowrap";
+  wrap?: "wrap" | "nowrap" | "wrap-reverse";
   justifyContent?: string;
   alignItems?: string;
+  /** Computed align-content; it places the lines of a wrapping container. */
+  alignContent?: string;
   rowGap?: number;
   columnGap?: number;
   padding?: [number, number, number, number];
@@ -101,6 +103,10 @@ export interface SceneLayout {
   /** True when CSS position is not static. Positioned elements with an
    * automatic or zero z-index paint above non-positioned in-flow content. */
   positioned?: boolean;
+  /** Computed flex-grow, flex-shrink and flex-basis of the element as a flex item. */
+  flexGrow?: number;
+  flexShrink?: number;
+  flexBasis?: string;
 }
 
 export interface AssetRef {
@@ -145,6 +151,10 @@ export interface SceneNode {
   /** Clockwise rotation in degrees (the CSS convention) about the top-left
    * corner of `rect`. Absent when no transform rotates the layer. */
   rotation?: number;
+  /** The element box a text layer came from, in the same space as `rect`.
+   * A text layer's `rect` is its glyph line, which sits inside this box; a
+   * flex container lays out the box. */
+  box?: Rect;
   /** Effective integer z-index. `z-index: auto` is stored as 0 (its paint
    * position for positioned elements) with `zIndexAuto` set, so explicit
    * numeric zero stays distinct from automatic stacking. */

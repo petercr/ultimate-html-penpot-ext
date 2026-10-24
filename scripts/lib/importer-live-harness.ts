@@ -124,7 +124,23 @@ async function flexProbe(): Promise<Probe> {
   const hl = h.host.addFlexLayout(); hl.dir = "row"; hl.columnGap = 10; await pause(300);
   const before = positions(h.children); hl.remove(); await pause(300);
   out.removedLayout = { before, after: positions(h.children), hasLayout: Boolean(h.host.flex) };
-  out.boardIds = [b, c, d, e, f, g, h].map((value) => value.host.id);
+  // 9. Reversed directions: which end each justification starts from, and the order along it.
+  const reversed: [string, number, number, (layout: import("@penpot/plugin-types").FlexLayout) => void][] = [
+    ["rowReverseStart", 400, 100, (layout) => { layout.dir = "row-reverse"; layout.columnGap = 10; layout.justifyContent = "start"; }],
+    ["rowReverseEnd", 400, 100, (layout) => { layout.dir = "row-reverse"; layout.columnGap = 10; layout.justifyContent = "end"; }],
+    ["rowReversePadded", 400, 100, (layout) => { layout.dir = "row-reverse"; layout.columnGap = 10; layout.leftPadding = 8; layout.rightPadding = 20; }],
+    ["columnReverseStart", 300, 200, (layout) => { layout.dir = "column-reverse"; layout.rowGap = 6; layout.justifyContent = "start"; }],
+    ["rowReverseWrap", 130, 120, (layout) => { layout.dir = "row-reverse"; layout.wrap = "wrap"; layout.columnGap = 10; layout.rowGap = 4; layout.alignContent = "start"; }]
+  ];
+  const reversedHosts: Board[] = [];
+  for (const [name, width, height, configure] of reversed) {
+    const r = make(width, height);
+    configure(r.host.addFlexLayout());
+    await pause(400);
+    reversedHosts.push(r.host);
+    out[name] = { host: { x: round(r.host.x), y: round(r.host.y) }, children: positions(r.children) };
+  }
+  out.boardIds = [b, c, d, e, f, g, h].map((value) => value.host.id).concat(reversedHosts.map((host) => host.id));
   return out;
 }
 
@@ -165,6 +181,36 @@ async function flexEditProbe(pageId: string): Promise<Probe> {
     out.cardBefore = kids(card);
     text.characters = "Ada Lovelace, Countess of Lovelace"; await pause(800);
     out.cardAfterTextEdit = { text: { w: round(text.width), h: round(text.height), growType: text.growType }, children: kids(card) };
+  }
+
+  // Growing items fill the space a wider board adds; equal growers share it.
+  for (const source of ["#grow", "#grow-equal"]) {
+    const board = find(source, "board") as Board;
+    const before = kids(board);
+    board.resize(board.width + 60, board.height); await pause(500);
+    out[`${source.slice(1)}Widened`] = { before, after: kids(board) };
+  }
+  // A narrower wrapping board moves items onto new lines.
+  const wrapping = find("#wrapping", "board") as Board;
+  const wrappingBefore = kids(wrapping);
+  wrapping.resize(120, wrapping.height); await pause(500);
+  out.wrappingNarrowed = { before: wrappingBefore, after: kids(wrapping) };
+  // A layer appended to a reversed row; a taller first item in a reversed column.
+  const reversedRow = find("#reversed", "board") as Board;
+  const appended = penpot.createRectangle(); appended.resize(20, 20); reversedRow.appendChild(appended); await pause(500);
+  out.reversedAfterAppend = kids(reversedRow);
+  const reversedColumn = find("#column-reverse", "board") as Board;
+  const reversedBefore = kids(reversedColumn);
+  const bottom = reversedColumn.children.slice().reverse()[0];
+  bottom.resize(bottom.width, bottom.height + 10); await pause(500);
+  out.columnReverseAfterResize = { before: reversedBefore, after: kids(reversedColumn) };
+  // Editing the caption of the text column keeps its margins and the heading in place.
+  const caption = page.findShapes().find((shape) => shape.type === "text" && (shape as import("@penpot/plugin-types").Text).characters === "Analyst") as import("@penpot/plugin-types").Text | undefined;
+  const textColumn = find("#card-text", "board") as Board | undefined;
+  if (caption && textColumn) {
+    const before = kids(textColumn);
+    caption.characters = "Analyst and mathematician"; await pause(800);
+    out.textColumnAfterEdit = { before, after: kids(textColumn), margins: textColumn.children.map((child) => [child.layoutChild?.topMargin, child.layoutChild?.bottomMargin]) };
   }
   return out;
 }
@@ -329,8 +375,8 @@ penpot.ui.onMessage<{ action: string; native?: boolean; size?: number; pageId?: 
           return { id: shape.id, name: shape.name, type: shape.type, parentId: shape.parent?.id, x: shape.x, y: shape.y, width: shape.width, height: shape.height, rotation: shape.rotation,
             clipContent: shape.type === "board" ? (shape as import("@penpot/plugin-types").Board).clipContent : undefined,
             source: shape.getPluginData("source"), nativeLayout: shape.getPluginData("native-layout"),
-            flex: shape.type === "board" && (shape as import("@penpot/plugin-types").Board).flex ? (() => { const f = (shape as import("@penpot/plugin-types").Board).flex!; return { dir: f.dir, rowGap: f.rowGap, columnGap: f.columnGap, padding: [f.topPadding, f.rightPadding, f.bottomPadding, f.leftPadding], justifyContent: f.justifyContent, alignItems: f.alignItems, horizontalSizing: f.horizontalSizing, verticalSizing: f.verticalSizing }; })() : undefined,
-            layoutChild: shape.layoutChild ? { absolute: shape.layoutChild.absolute, horizontalSizing: shape.layoutChild.horizontalSizing, verticalSizing: shape.layoutChild.verticalSizing } : undefined, borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), imageClip: shape.getPluginData("image-clip"), imageContentClip: shape.getPluginData("image-content-clip"), imageContent: shape.getPluginData("image-content"), imageSvgViewport: shape.getPluginData("image-svg-viewport"), imageSvgVector: shape.getPluginData("image-svg-vector"), opacity: shape.opacity,
+            flex: shape.type === "board" && (shape as import("@penpot/plugin-types").Board).flex ? (() => { const f = (shape as import("@penpot/plugin-types").Board).flex!; return { dir: f.dir, wrap: f.wrap, alignContent: f.alignContent, rowGap: f.rowGap, columnGap: f.columnGap, padding: [f.topPadding, f.rightPadding, f.bottomPadding, f.leftPadding], justifyContent: f.justifyContent, alignItems: f.alignItems, horizontalSizing: f.horizontalSizing, verticalSizing: f.verticalSizing }; })() : undefined,
+            layoutChild: shape.layoutChild ? { absolute: shape.layoutChild.absolute, horizontalSizing: shape.layoutChild.horizontalSizing, verticalSizing: shape.layoutChild.verticalSizing, margins: [shape.layoutChild.topMargin, shape.layoutChild.rightMargin, shape.layoutChild.bottomMargin, shape.layoutChild.leftMargin] } : undefined, borderSide: shape.getPluginData("border-side"), contentClip: shape.getPluginData("border-content-clip"), imageClip: shape.getPluginData("image-clip"), imageContentClip: shape.getPluginData("image-content-clip"), imageContent: shape.getPluginData("image-content"), imageSvgViewport: shape.getPluginData("image-svg-viewport"), imageSvgVector: shape.getPluginData("image-svg-vector"), opacity: shape.opacity,
             fills: "fills" in shape ? shape.fills.map((fill) => ({ color: fill.fillColor, opacity: fill.fillOpacity, imageId: fill.fillImage?.id, keepAspectRatio: fill.fillImage?.keepAspectRatio })) : [],
             radii: "borderRadiusTopLeft" in shape ? [shape.borderRadiusTopLeft, shape.borderRadiusTopRight, shape.borderRadiusBottomRight, shape.borderRadiusBottomLeft] : undefined,
             strokes: shape.strokes, d: shape.type === "path" ? shape.d : undefined,

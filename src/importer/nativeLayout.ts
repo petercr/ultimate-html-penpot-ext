@@ -1,6 +1,6 @@
 import type { Board, Shape } from "@penpot/plugin-types";
 import type { Diagnostic, SceneNode } from "../shared/contracts";
-import { FLEX_TOLERANCE, matchesPrediction, predictFlex, type FlexPlan } from "./flexLayout";
+import { FLEX_TOLERANCE, matchesPrediction, predictFlex, type FlexJustify, type FlexPlan } from "./flexLayout";
 
 /** A board already holding its children at their captured positions. */
 export interface NativeFlexEntry {
@@ -23,6 +23,10 @@ export interface NativeLayoutResult {
   reverted: number;
 }
 
+// Penpot reverses only the order of a reversed layout; its justification stays
+// on the physical axis, where CSS measures it from the reversed main start.
+const MIRRORED: Partial<Record<FlexJustify, FlexJustify>> = { start: "end", end: "start" };
+
 // The host applies a layout asynchronously: positions were still the captured
 // ones immediately afterwards and settled within 100 ms in live passes.
 const SETTLE_DELAYS = [150, 250, 400];
@@ -31,7 +35,7 @@ interface Saved {
   entry: NativeFlexEntry;
   flow: Shape[];
   absolute: Shape[];
-  offsets: Map<Shape, { dx: number; dy: number }>;
+  offsets: Map<Shape, { dx: number; dy: number; width: number; height: number }>;
 }
 
 const rectOf = (shape: Shape, board: Board) => ({ x: shape.x - board.x, y: shape.y - board.y, width: shape.width, height: shape.height });
@@ -41,8 +45,9 @@ function settled(saved: Saved): boolean {
   const { board, plan } = entry;
   const actual = flow.map((shape) => rectOf(shape, board));
   // Predict from the sizes the host now has: text fitting may have changed
-  // widths, and a native layout is expected to reflow around them.
-  const expected = predictFlex(plan, { width: board.width, height: board.height }, actual);
+  // widths, and a native layout is expected to reflow around them. A filling
+  // layer's size is the model's to predict.
+  const expected = predictFlex(plan, { width: board.width, height: board.height }, actual.map((rect, index) => ({ width: rect.width, height: rect.height, margin: plan.margins[index], fill: plan.fill[index] })));
   if (!matchesPrediction(actual, expected)) return false;
   return absolute.every((shape) => {
     const original = offsets.get(shape)!;
@@ -55,6 +60,7 @@ function restore(saved: Saved): void {
   entry.board.flex?.remove();
   for (const shape of [...saved.flow, ...saved.absolute]) {
     const original = offsets.get(shape)!;
+    if (Math.abs(shape.width - original.width) > 0.01 || Math.abs(shape.height - original.height) > 0.01) shape.resize(original.width, original.height);
     shape.x = entry.board.x + original.dx;
     shape.y = entry.board.y + original.dy;
   }
@@ -78,21 +84,33 @@ export async function applyNativeLayouts(entries: NativeFlexEntry[], hooks: Nati
       skipped.push(entry.node.source);
       continue;
     }
-    const offsets = new Map<Shape, { dx: number; dy: number }>();
-    for (const shape of [...flow, ...absolute]) offsets.set(shape, { dx: shape.x - entry.board.x, dy: shape.y - entry.board.y });
+    const offsets = new Map<Shape, { dx: number; dy: number; width: number; height: number }>();
+    for (const shape of [...flow, ...absolute]) offsets.set(shape, { dx: shape.x - entry.board.x, dy: shape.y - entry.board.y, width: shape.width, height: shape.height });
     usable.push({ entry, flow, absolute, offsets });
   }
   for (const { entry, flow, absolute, offsets } of usable) {
     const { board, plan } = entry;
     for (const shape of flow) { shape.x = board.x; shape.y = board.y; }
     const layout = board.addFlexLayout();
+    const row = plan.dir === "row" || plan.dir === "row-reverse";
     layout.dir = plan.dir;
-    layout.wrap = "nowrap";
-    layout.rowGap = plan.gap;
-    layout.columnGap = plan.gap;
+    layout.wrap = plan.wrap ? "wrap" : "nowrap";
+    layout.rowGap = row ? plan.crossGap : plan.gap;
+    layout.columnGap = row ? plan.gap : plan.crossGap;
     [layout.topPadding, layout.rightPadding, layout.bottomPadding, layout.leftPadding] = plan.padding;
-    layout.justifyContent = plan.justify;
+    layout.justifyContent = plan.dir.endsWith("-reverse") ? MIRRORED[plan.justify] ?? plan.justify : plan.justify;
     layout.alignItems = plan.align;
+    if (plan.wrap) layout.alignContent = plan.alignContent;
+    flow.forEach((shape, index) => {
+      const child = shape.layoutChild;
+      if (!child) return;
+      const [top, right, bottom, left] = plan.margins[index];
+      if (top || right || bottom || left) [child.topMargin, child.rightMargin, child.bottomMargin, child.leftMargin] = [top, right, bottom, left];
+      if (plan.fill[index]) {
+        if (row) child.horizontalSizing = "fill";
+        else child.verticalSizing = "fill";
+      }
+    });
     for (const shape of absolute) {
       if (shape.layoutChild) shape.layoutChild.absolute = true;
       const original = offsets.get(shape)!;
