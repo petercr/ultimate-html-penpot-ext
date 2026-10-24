@@ -180,7 +180,9 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const [a, b, c, d, e, f] = matrix;
     const scale = Math.hypot(a, b);
     const degrees = Math.atan2(b, a) * 180 / Math.PI;
-    node.rect = rectOf({ x: a * box.x + c * box.y + e, y: b * box.x + d * box.y + f, width: box.width * scale, height: box.height * scale });
+    const frame = (rect) => rectOf({ x: a * rect.x + c * rect.y + e, y: b * rect.x + d * rect.y + f, width: rect.width * scale, height: rect.height * scale });
+    node.rect = frame(box);
+    if (node.box) node.box = frame(node.box);
     if (Math.abs(degrees) > 0.005) node.rotation = Math.round(degrees * 1000) / 1000;
     if (node.image && scale !== 1) {
       node.image.scale = (node.image.scale || 1) * scale;
@@ -719,20 +721,24 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   };
   const layoutOf = (style) => {
     const direction = ["row", "row-reverse", "column", "column-reverse"].includes(style.flexDirection) ? style.flexDirection : undefined;
-    const wrap = ["wrap", "nowrap"].includes(style.flexWrap) ? style.flexWrap : undefined;
+    const wrap = ["wrap", "nowrap", "wrap-reverse"].includes(style.flexWrap) ? style.flexWrap : undefined;
     return {
       kind: style.display === "flex" || style.display === "inline-flex" ? "flex" : style.display === "grid" || style.display === "inline-grid" ? "grid" : "none",
       direction,
       wrap,
       justifyContent: style.justifyContent,
       alignItems: style.alignItems,
+      alignContent: style.alignContent,
       rowGap: number(style.rowGap),
       columnGap: number(style.columnGap),
       padding: [number(style.paddingTop), number(style.paddingRight), number(style.paddingBottom), number(style.paddingLeft)],
       absolute: ["absolute", "fixed"].includes(style.position),
       // Match known positioned keywords positively: engines that report an
       // empty position for unstyled elements must read as non-positioned.
-      positioned: ["relative", "absolute", "fixed", "sticky"].includes(style.position)
+      positioned: ["relative", "absolute", "fixed", "sticky"].includes(style.position),
+      flexGrow: number(style.flexGrow),
+      flexShrink: number(style.flexShrink),
+      flexBasis: style.flexBasis
     };
   };
   const isDecorated = (style, paint) => !transparent(style.backgroundColor) || style.backgroundImage !== "none" || borderEntries(paint).some(([, border]) => activeBorder(border)) || Boolean(style.borderImageSource && style.borderImageSource !== "none") || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
@@ -1132,7 +1138,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (!plan.decorated && !reason && lines.length === 1) {
       reportUnsupportedTextColor(style.color, source);
       const line = lines[0];
-      const node = { id, parentId: host.id, children: [], kind: "text", name: pseudo, source, rect: line.rect, ...stacking, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: layoutOf(style), text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(box, line.rect), textMaxWidth: textMaxWidthOf(box, line.rect), textStyle: { ...textStyleOf(style, measured.layout.measuredLineHeight), textAlign: "left" } };
+      const node = { id, parentId: host.id, children: [], kind: "text", name: pseudo, source, rect: line.rect, box: rectOf(box), ...stacking, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: layoutOf(style), text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(box, line.rect), textMaxWidth: textMaxWidthOf(box, line.rect), textStyle: { ...textStyleOf(style, measured.layout.measuredLineHeight), textAlign: "left" } };
       nodes.push(node);
       nodeById.set(id, node);
       host.children.push(id);
@@ -1270,7 +1276,9 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
           scene.textFitScale = textFitScaleOf(scene.rect, line.rect);
           scene.textMaxWidth = textMaxWidthOf(scene.rect, line.rect);
           // Use the glyph line's position, not the enclosing element's box
-          // (which includes padding and text-align offsets).
+          // (which includes padding and text-align offsets). Keep the box: a
+          // flex container lays out the box, not the glyphs.
+          scene.box = scene.rect;
           scene.rect = line.rect;
           scene.textStyle.textAlign = "left";
         }

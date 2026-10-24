@@ -394,12 +394,20 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
       "#basic": { direction: "row", columnGap: 12 }, "#between": { justifyContent: "space-between", alignItems: "center" },
       "#column": { direction: "column", rowGap: 8 }, "#centered": { justifyContent: "center" }, "#card": { direction: "row", columnGap: 12 },
       "#card-text": { direction: "column", rowGap: 2 }, "#with-badge": { direction: "row" }, "#wrapping": { wrap: "wrap" },
-      "#reversed": { direction: "row-reverse" }, "#baseline": { alignItems: "baseline" }
+      "#reversed": { direction: "row-reverse" }, "#baseline": { alignItems: "baseline" }, "#column-reverse": { direction: "column-reverse" },
+      "#wrap-centered": { wrap: "wrap", alignContent: "center", rowGap: 4, columnGap: 6 }, "#wrap-reversed": { direction: "row-reverse", wrap: "wrap" },
+      "#wrap-reverse": { wrap: "wrap-reverse" }
     };
     for (const [source, layout] of Object.entries(expectations)) {
       const node = flex(source);
       for (const [key, value] of Object.entries(layout)) if (node.layout[key] !== value) throw new Error(`${source} layout.${key} expected ${value}, got ${node.layout[key]}.`);
     }
+    // A text item records its element box around the glyph line, and growing items their flex factors.
+    for (const text of scene.nodes.filter((node) => node.parentId === flex("#card-text").id)) {
+      if (text.kind !== "text" || !text.box || text.box.height <= text.rect.height || text.box.y > text.rect.y) throw new Error(`${text.source} should record its element box around the glyph line.`);
+    }
+    const grow = scene.nodes.filter((node) => node.parentId === flex("#grow-unequal").id).map((node) => node.layout.flexGrow);
+    if (grow.join() !== "1,2") throw new Error(`#grow-unequal children should grow 1 and 2, got ${grow.join()}.`);
     const badge = sceneNode(scene, "#badge");
     if (!badge.layout.absolute) throw new Error("The badge must be captured as absolutely positioned.");
     if (scene.diagnostics.length) throw new Error("The flex fixture should have no capture diagnostics.");

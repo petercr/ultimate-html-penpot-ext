@@ -25,9 +25,24 @@
   #card-text span { font-size: 12px; color: #667085; }
   #with-badge { position: relative; height: 56px; gap: 8px; padding: 8px; align-items: flex-start; }
   #badge { position: absolute; right: 6px; top: 6px; width: 14px; height: 14px; border-radius: 50%; background: #dc2626; }
-  /* Unsupported: these keep their captured geometry. */
   #wrapping { flex-wrap: wrap; width: 160px; gap: 6px; padding: 6px; align-items: flex-start; }
   #reversed { flex-direction: row-reverse; gap: 8px; padding: 8px; justify-content: flex-start; align-items: flex-start; }
+  /* Text items are laid out by their element box, not their glyphs. */
+  #text-row { gap: 8px; padding: 8px; align-items: center; }
+  #text-row .label { font-size: 13px; }
+  /* Growing items fill the remaining space. */
+  #grow { gap: 8px; padding: 8px; align-items: flex-start; }
+  #grow .grow { flex-grow: 1; height: 30px; }
+  #grow-equal { gap: 8px; padding: 8px; align-items: flex-start; }
+  #grow-equal .box:not(.a) { flex: 1; height: 30px; }
+  #grow-unequal { gap: 8px; padding: 8px; align-items: flex-start; }
+  #grow-unequal .one { flex-grow: 1; height: 30px; }
+  #grow-unequal .two { flex-grow: 2; height: 30px; }
+  #column-reverse { flex-direction: column-reverse; height: 130px; gap: 6px; padding: 8px; align-items: flex-end; }
+  #wrap-centered { flex-wrap: wrap; width: 160px; height: 120px; gap: 4px 6px; padding: 6px; justify-content: center; align-content: center; align-items: center; }
+  /* Unsupported: these keep their captured geometry. */
+  #wrap-reversed { flex-direction: row-reverse; flex-wrap: wrap; width: 160px; gap: 6px; padding: 6px; align-items: flex-start; }
+  #wrap-reverse { flex-wrap: wrap-reverse; width: 160px; gap: 6px; padding: 6px; align-items: flex-start; }
   #margins { padding: 8px; align-items: flex-start; }
   #margins .b { margin-left: auto; }
   #ordered { gap: 8px; padding: 8px; align-items: flex-start; }
@@ -53,11 +68,35 @@
   <h2>Absolute badge outside the flow</h2>
   <div class="row" id="with-badge"><div class="box a">A</div><div class="box b">B</div><div id="badge"></div></div>
 
-  <h2>Wrapping (kept fixed)</h2>
+  <h2>Wrapping</h2>
   <div class="row" id="wrapping"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
 
-  <h2>Row reverse (kept fixed)</h2>
+  <h2>Row reverse</h2>
   <div class="row" id="reversed"><div class="box a">A</div><div class="box b">B</div></div>
+
+  <h2>Text beside a box, centered</h2>
+  <div class="row" id="text-row"><span class="label">Status</span><div class="box a">A</div><span>Ready</span></div>
+
+  <h2>Growing middle item</h2>
+  <div class="row" id="grow"><div class="box a">A</div><div class="box grow">Grow</div><div class="box c">C</div></div>
+
+  <h2>Two equal growing items</h2>
+  <div class="row" id="grow-equal"><div class="box a">A</div><div class="box">One</div><div class="box">Two</div></div>
+
+  <h2>Unequal growth (fixed sizes)</h2>
+  <div class="row" id="grow-unequal"><div class="box one">One</div><div class="box two">Two</div></div>
+
+  <h2>Column reverse</h2>
+  <div class="row" id="column-reverse"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Wrapping, centered lines</h2>
+  <div class="row" id="wrap-centered"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Wrapping row reverse (kept fixed)</h2>
+  <div class="row" id="wrap-reversed"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Wrap reverse (kept fixed)</h2>
+  <div class="row" id="wrap-reverse"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
 
   <h2>Auto margin (kept fixed)</h2>
   <div class="row" id="margins"><div class="box a">A</div><div class="box b">B</div></div>

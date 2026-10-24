@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, type SceneDocument, type SceneNode } from "../shared/contracts";
 import { validateScenes } from "../shared/validation";
-import { predictFlex } from "./flexLayout";
+import { predictFlex, type FlexAlign, type FlexAlignContent, type FlexDirection, type FlexJustify, type Sides } from "./flexLayout";
 import { ImportCancelledError, importScenes, rotatedBoundsOrigin } from "./penpot";
 
 type FakeShape = Record<string, unknown> & { type: string; children?: FakeShape[]; removed?: boolean };
@@ -258,16 +258,25 @@ describe("Penpot importer", () => {
           Object.defineProperty(child, "parent", { value: this, configurable: true, enumerable: false });
         });
         board.addFlexLayout = vi.fn(() => {
-          const layout: Record<string, unknown> = { dir: "row", rowGap: 0, columnGap: 0, topPadding: 0, rightPadding: 0, bottomPadding: 0, leftPadding: 0, justifyContent: "start", alignItems: "start", remove: () => { board.flex = undefined; } };
+          const layout: Record<string, unknown> = { dir: "row", wrap: "nowrap", rowGap: 0, columnGap: 0, topPadding: 0, rightPadding: 0, bottomPadding: 0, leftPadding: 0, justifyContent: "start", alignItems: "start", remove: () => { board.flex = undefined; } };
           board.flex = layout;
           // The live host applies a layout shortly after it is configured.
           if (relayout) setTimeout(() => {
             if (!board.flex) return;
-            const flow = (board.children || []).filter((child) => !(child as unknown as { layoutChild: { absolute: boolean } }).layoutChild.absolute);
-            const rects = predictFlex({ dir: layout.dir as "row" | "column", gap: layout.dir === "row" ? layout.columnGap as number : layout.rowGap as number,
-              padding: [layout.topPadding, layout.rightPadding, layout.bottomPadding, layout.leftPadding] as [number, number, number, number],
-              justify: layout.justifyContent as "start", align: layout.alignItems as "start" }, { width: board.width as number, height: board.height as number }, flow.map((child) => ({ width: child.width as number, height: child.height as number })));
-            flow.forEach((child, index) => { child.x = (board.x as number) + rects[index].x; child.y = (board.y as number) + rects[index].y; });
+            type Child = { absolute: boolean; topMargin?: number; rightMargin?: number; bottomMargin?: number; leftMargin?: number; horizontalSizing?: string; verticalSizing?: string };
+            const itemOf = (child: FakeShape) => (child as unknown as { layoutChild: Child }).layoutChild;
+            const flow = (board.children || []).filter((child) => !itemOf(child).absolute);
+            const row = String(layout.dir).startsWith("row");
+            const rects = predictFlex({
+              dir: layout.dir as FlexDirection, wrap: layout.wrap === "wrap", gap: (row ? layout.columnGap : layout.rowGap) as number, crossGap: (row ? layout.rowGap : layout.columnGap) as number,
+              padding: [layout.topPadding, layout.rightPadding, layout.bottomPadding, layout.leftPadding] as Sides,
+              // Like the live host, a reversed layout keeps its justification on the physical axis.
+              justify: (String(layout.dir).endsWith("-reverse") ? ({ start: "end", end: "start" } as Record<string, FlexJustify>)[layout.justifyContent as string] : undefined) ?? layout.justifyContent as FlexJustify, align: layout.alignItems as FlexAlign, alignContent: (layout.alignContent ?? "stretch") as FlexAlignContent
+            }, { width: board.width as number, height: board.height as number }, flow.map((child) => {
+              const item = itemOf(child);
+              return { width: child.width as number, height: child.height as number, margin: [item.topMargin ?? 0, item.rightMargin ?? 0, item.bottomMargin ?? 0, item.leftMargin ?? 0] as Sides, fill: (row ? item.horizontalSizing : item.verticalSizing) === "fill" };
+            }));
+            flow.forEach((child, index) => Object.assign(child, { x: (board.x as number) + rects[index].x, y: (board.y as number) + rects[index].y, width: rects[index].width, height: rects[index].height }));
           }, 20);
           return layout;
         });
@@ -294,8 +303,9 @@ describe("Penpot importer", () => {
       for (const [index, board] of imported.entries()) {
         const all = shapesBelow(board as unknown as FakeShape);
         const native = (source: string) => sourceShapes(all, source).find((shape) => data(shape)["native-layout"] === "flex");
-        for (const source of ["#basic", "#between", "#column", "#centered", "#card", "#with-badge"]) expect(native(source), `${source} (${scenes[index].viewport.name})`).toBeDefined();
-        for (const source of ["#wrapping", "#reversed", "#margins", "#ordered", "#baseline"]) expect(native(source), source).toBeUndefined();
+        const supported = ["#basic", "#between", "#column", "#centered", "#card", "#card-text", "#with-badge", "#wrapping", "#reversed", "#text-row", "#grow", "#grow-equal", "#grow-unequal", "#column-reverse", "#wrap-centered"];
+        for (const source of supported) expect(native(source), `${source} (${scenes[index].viewport.name})`).toBeDefined();
+        for (const source of ["#wrap-reversed", "#wrap-reverse", "#margins", "#ordered", "#baseline"]) expect(native(source), source).toBeUndefined();
         // The host's layout reproduces the browser: the middle box starts after the first plus the gap.
         const basic = native("#basic")!;
         const node = scenes[index].nodes.find((candidate) => candidate.source === "#basic")!;
@@ -309,6 +319,18 @@ describe("Penpot importer", () => {
         expect(((withBadge.children as FakeShape[])[0] as unknown as { layoutChild: { absolute: boolean } }).layoutChild.absolute).toBe(true);
         expect(withBadge.flex).toMatchObject({ dir: "row", columnGap: 8, topPadding: 9, leftPadding: 9 });
         expect(native("#card")?.flex).toMatchObject({ topPadding: 14, leftPadding: 14, alignItems: "center" });
+        // Text lines sit inside their element boxes; the glyph inset becomes the layer's margins.
+        const heading = (native("#card-text")!.children as FakeShape[]).find((child) => child.type === "text")!;
+        expect((heading as unknown as { layoutChild: { topMargin: number } }).layoutChild.topMargin).toBeCloseTo(1, 1);
+        // The growing box fills, at the width the browser gave it.
+        const grow = native("#grow")!;
+        const growNode = scenes[index].nodes.find((candidate) => candidate.parentId === scenes[index].nodes.find((parent) => parent.source === "#grow")!.id && candidate.layout.flexGrow)!;
+        const filled = (grow.children as FakeShape[]).find((child) => data(child).source === growNode.source)!;
+        expect((filled as unknown as { layoutChild: { horizontalSizing: string } }).layoutChild.horizontalSizing).toBe("fill");
+        expect(filled.width as number).toBeCloseTo(growNode.rect.width, 0);
+        expect(native("#wrap-centered")?.flex).toMatchObject({ dir: "row", wrap: "wrap", columnGap: 6, rowGap: 4, justifyContent: "center", alignContent: "center" });
+        expect(native("#reversed")?.flex).toMatchObject({ dir: "row-reverse", justifyContent: "end" });
+        expect(native("#column-reverse")?.flex).toMatchObject({ dir: "column-reverse", justifyContent: "end", alignItems: "end" });
       }
       expect(diagnostics.filter((diagnostic) => diagnostic.code === "NATIVE_LAYOUT_SKIPPED")).toHaveLength(3);
       expect(diagnostics.some((diagnostic) => diagnostic.code === "NATIVE_LAYOUT_REVERTED")).toBe(false);
@@ -331,7 +353,8 @@ describe("Penpot importer", () => {
         expect(offsets.sort((a, b) => a - b)).toEqual(kids.map((kid) => Math.round(kid.rect.x - node.rect.x)).sort((a, b) => a - b));
       }
       expect(diagnostics.some((diagnostic) => diagnostic.code === "NATIVE_LAYOUT_REVERTED")).toBe(true);
-    });
+    // Three viewports each wait out every host settle delay before reverting.
+    }, 20_000);
   });
 
   it("keeps checked-in fixture evidence synchronized with its source, assets, and extractor", () => {
