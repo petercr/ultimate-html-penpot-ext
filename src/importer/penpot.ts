@@ -7,7 +7,7 @@ import { BoardPersistence, LARGE_BOARD_NODES } from "./persistence";
 import { borderInsets, borderPolygons, borderWidth, hasBorder, uniformBorder } from "./borders";
 import { imageGeometry } from "../shared/images";
 import { svgImageGeometry } from "./svgImage";
-import { planFlex, type FlexPlan } from "./flexLayout";
+import { planSceneFlex, type FlexPlan } from "./flexLayout";
 import { applyNativeLayouts, type NativeFlexEntry } from "./nativeLayout";
 
 export class ImportCancelledError extends Error {
@@ -734,10 +734,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
         const nativeEntries: NativeFlexEntry[] = [];
         if (options.nativeLayout) {
           const reasons = new Map<string, string[]>();
-          for (const candidate of scene.nodes) {
-            if (candidate.kind !== "container" || candidate.layout.kind !== "flex" || !candidate.parentId || !nodes.has(candidate.parentId)) continue;
-            const inSourceOrder = (childrenByParent.get(candidate.id) || []).slice().sort((a, b) => (domOrder.get(a.id) ?? 0) - (domOrder.get(b.id) ?? 0));
-            const decision = planFlex(candidate, inSourceOrder);
+          for (const { node: candidate, decision } of planSceneFlex(scene)) {
             if ("plan" in decision) nativeFlex.set(candidate.id, decision.plan);
             else reasons.set(decision.reason, [...(reasons.get(decision.reason) || []), candidate.source]);
           }
@@ -750,6 +747,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             });
           }
         }
+        const flexItems = new Set([...nativeFlex.values()].flatMap((plan) => plan.flow.map((child) => child.id)));
         const assets = new Map(scene.assets.map((asset) => [asset.id, asset]));
         // Prefetch referenced media for this board, excluding SVG leaves that
         // first try editable conversion. Their raster fallback uploads remain
@@ -923,7 +921,7 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             return frame;
           }
           const flexPlan = nativeFlex.get(node.id);
-          if (node.kind === "container" && (clipsContent(node.paint) || flexPlan)) {
+          if (node.kind === "container" && (clipsContent(node.paint) || flexPlan || flexItems.has(node.id))) {
             // A Penpot board is the clipping-capable container. Unlike a
             // group, its bounds stay at the captured element's box instead of
             // growing to enclose its descendants, so an oversized child is
@@ -933,6 +931,8 @@ export async function importScenes(scenes: SceneDocument[], options: ImportOptio
             const clip = track(penpot.createBoard());
             fixBoardSizing(clip);
             // A native flex board is a board for its layout, not for clipping.
+            // So is a container laid out by one: a group's bounds would shrink
+            // to its content, and the layout places those bounds, not the box.
             clip.clipContent = clipsContent(node.paint);
             applyPaint(clip, node.paint);
             // Establish parentage and the container's own bounds before its

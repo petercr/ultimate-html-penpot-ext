@@ -396,7 +396,7 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
       "#card-text": { direction: "column", rowGap: 2 }, "#with-badge": { direction: "row" }, "#wrapping": { wrap: "wrap" },
       "#reversed": { direction: "row-reverse" }, "#baseline": { alignItems: "baseline" }, "#column-reverse": { direction: "column-reverse" },
       "#wrap-centered": { wrap: "wrap", alignContent: "center", rowGap: 4, columnGap: 6 }, "#wrap-reversed": { direction: "row-reverse", wrap: "wrap" },
-      "#wrap-reverse": { wrap: "wrap-reverse" }
+      "#wrap-reverse": { wrap: "wrap-reverse" }, "#padded-item": { direction: "row", columnGap: 8 }
     };
     for (const [source, layout] of Object.entries(expectations)) {
       const node = flex(source);

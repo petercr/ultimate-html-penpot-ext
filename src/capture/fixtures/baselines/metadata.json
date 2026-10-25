@@ -1941,7 +1941,7 @@
     },
     {
       "file": "flex-layouts.html",
-      "sha256": "aa096d0dc2700c4a33c45cd9c5beb93199fef8aab67de22fa3b004115f7b562a",
+      "sha256": "6721a335701c248a55008aa43cb1f39ec67b2002e7f83a373641f92f147f90f5",
       "viewports": [
         {
           "id": "desktop",
@@ -1986,7 +1986,7 @@
               "x": 0,
               "y": 0,
               "width": 1425,
-              "height": 2232
+              "height": 2324
             }
           },
           "capture": {
@@ -1995,13 +1995,13 @@
               "x": 0,
               "y": 0,
               "width": 1425,
-              "height": 2232,
+              "height": 2324,
               "scale": 1
             }
           },
           "png": {
             "width": 1425,
-            "height": 2232
+            "height": 2324
           }
         },
         {
@@ -2047,7 +2047,7 @@
               "x": 0,
               "y": 0,
               "width": 753,
-              "height": 2232
+              "height": 2324
             }
           },
           "capture": {
@@ -2056,13 +2056,13 @@
               "x": 0,
               "y": 0,
               "width": 753,
-              "height": 2232,
+              "height": 2324,
               "scale": 1
             }
           },
           "png": {
             "width": 753,
-            "height": 2232
+            "height": 2324
           }
         },
         {
@@ -2108,7 +2108,7 @@
               "x": 0,
               "y": 0,
               "width": 375,
-              "height": 2232
+              "height": 2324
             }
           },
           "capture": {
@@ -2117,13 +2117,13 @@
               "x": 0,
               "y": 0,
               "width": 375,
-              "height": 2232,
+              "height": 2324,
               "scale": 1
             }
           },
           "png": {
             "width": 375,
-            "height": 2232
+            "height": 2324
           }
         }
       ]

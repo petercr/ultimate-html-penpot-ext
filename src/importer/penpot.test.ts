@@ -303,7 +303,7 @@ describe("Penpot importer", () => {
       for (const [index, board] of imported.entries()) {
         const all = shapesBelow(board as unknown as FakeShape);
         const native = (source: string) => sourceShapes(all, source).find((shape) => data(shape)["native-layout"] === "flex");
-        const supported = ["#basic", "#between", "#column", "#centered", "#card", "#card-text", "#with-badge", "#wrapping", "#reversed", "#text-row", "#grow", "#grow-equal", "#grow-unequal", "#column-reverse", "#wrap-centered"];
+        const supported = ["#basic", "#between", "#column", "#centered", "#card", "#card-text", "#with-badge", "#wrapping", "#reversed", "#text-row", "#grow", "#grow-equal", "#grow-unequal", "#column-reverse", "#wrap-centered", "#padded-item"];
         for (const source of supported) expect(native(source), `${source} (${scenes[index].viewport.name})`).toBeDefined();
         for (const source of ["#wrap-reversed", "#wrap-reverse", "#margins", "#ordered", "#baseline"]) expect(native(source), source).toBeUndefined();
         // The host's layout reproduces the browser: the middle box starts after the first plus the gap.
@@ -328,6 +328,13 @@ describe("Penpot importer", () => {
         const filled = (grow.children as FakeShape[]).find((child) => data(child).source === growNode.source)!;
         expect((filled as unknown as { layoutChild: { horizontalSizing: string } }).layoutChild.horizontalSizing).toBe("fill");
         expect(filled.width as number).toBeCloseTo(growNode.rect.width, 0);
+        // An undecorated wrapper item is a board at its element box, so its padding survives the layout.
+        const rectOf = (source: string) => scenes[index].nodes.find((candidate) => candidate.source === source)!.rect;
+        const item = native("#padded-item")!;
+        const padded = (item.children as FakeShape[]).find((child) => data(child).source === "#padded")!;
+        expect(padded.type).toBe("board");
+        expect((padded.x as number) - (item.x as number)).toBeCloseTo(rectOf("#padded").x - rectOf("#padded-item").x, 0);
+        expect(padded.width as number).toBeCloseTo(rectOf("#padded").width, 0);
         expect(native("#wrap-centered")?.flex).toMatchObject({ dir: "row", wrap: "wrap", columnGap: 6, rowGap: 4, justifyContent: "center", alignContent: "center" });
         expect(native("#reversed")?.flex).toMatchObject({ dir: "row-reverse", justifyContent: "end" });
         expect(native("#column-reverse")?.flex).toMatchObject({ dir: "column-reverse", justifyContent: "end", alignItems: "end" });

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 const [page, action, ...args] = process.argv.slice(2);
-if (!page || !action) throw new Error("Usage: node scripts/importer-live-orca.mjs <browserPageId> open|run <nodes>|fixture <viewportIndex> [native]|rotated-image|status|inspect <pageId>|focus <pageId> <layerNames...>|rotation-probe|flex-probe|flex-edit-probe <pageId>|pivot-probe|late-rotation-probe|delay-probe|cleanup <originalPageId> <testPageIds...>|network <output.json>");
+if (!page || !action) throw new Error("Usage: node scripts/importer-live-orca.mjs <browserPageId> open|run <nodes>|fixture <viewportIndex> [native]|rotated-image|status|inspect <pageId>|focus <pageId> <layerNames...>|rotation-probe|flex-probe|flex-edit-probe <pageId>|compare <snapshotPageId> <nativePageId>|reflow-probe <pageId> [px]|pivot-probe|late-rotation-probe|delay-probe|cleanup <originalPageId> <testPageIds...>|network <output.json>");
 const executable = process.env.ORCA_CLI_COMMAND || (process.env.ORCA_DEV_REPO_ROOT ? "orca-dev" : process.platform === "linux" ? "orca-ide" : "orca");
 function call(command, options = []) {
   let output;
@@ -66,6 +66,10 @@ if (action === "open" || action === "connect") {
   console.log(send({ action: "flex-probe" }));
 } else if (action === "flex-edit-probe") {
   console.log(send({ action: "flex-edit-probe", pageId: args[0] }));
+} else if (action === "compare") {
+  console.log(send({ action: "compare", pageIds: args.slice(0, 2) }));
+} else if (action === "reflow-probe") {
+  console.log(send({ action: "reflow-probe", pageId: args[0], size: Number(args[1] ?? 40) }));
 } else if (action === "pivot-probe") {
   console.log(send({ action: "pivot-probe" }));
 } else if (action === "late-rotation-probe") {

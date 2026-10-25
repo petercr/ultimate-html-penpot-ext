@@ -1,4 +1,4 @@
-import type { Rect, SceneNode } from "../shared/contracts";
+import type { Rect, SceneDocument, SceneNode } from "../shared/contracts";
 import { borderWidth, uniformBorder } from "./borders";
 
 /** Largest difference, in pixels, between the browser's box and the model. */
@@ -243,3 +243,19 @@ export function planFlex(container: SceneNode, children: SceneNode[]): FlexDecis
 }
 
 const sortAbsolute = (absolute: SceneNode[]): SceneNode[] => absolute.slice().reverse().sort((a, b) => b.zIndex - a.zIndex);
+
+/**
+ * The native layout decision for every flex container of a scene, in source
+ * order. The scene root is left out: it becomes the viewport board itself.
+ */
+export function planSceneFlex(scene: SceneDocument): { node: SceneNode; decision: FlexDecision }[] {
+  const ids = new Set(scene.nodes.map((node) => node.id));
+  const children = new Map<string, SceneNode[]>();
+  for (const node of scene.nodes) {
+    if (!node.parentId || !ids.has(node.parentId)) continue;
+    children.set(node.parentId, [...(children.get(node.parentId) || []), node]);
+  }
+  return scene.nodes
+    .filter((node) => node.kind === "container" && node.layout.kind === "flex" && node.parentId && ids.has(node.parentId))
+    .map((node) => ({ node, decision: planFlex(node, children.get(node.id) || []) }));
+}
