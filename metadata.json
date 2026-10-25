@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.11.6-nightly.202610170622.9254299eb",
+  "checkpoint_id": "01M5RBJDHPHA2C3FQ6VEF96CTZ",
+  "strategy": "manual-commit",
+  "branch": "phase6-native-layout-trial",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/importer-native-layout.md",
+    "scripts/importer-live-harness.mjs",
+    "scripts/importer-live-orca.mjs",
+    "scripts/importer-native-trial.mjs",
+    "scripts/importer-visual-baselines.mjs",
+    "scripts/lib/importer-live-harness.ts",
+    "src/capture/fixtures/baselines/flex-layouts-desktop-1440.png",
+    "src/capture/fixtures/baselines/flex-layouts-mobile-390.png",
+    "src/capture/fixtures/baselines/flex-layouts-tablet-768.png",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/flex-layouts.html",
+    "src/importer/flexLayout.fixture.test.ts",
+    "src/importer/flexLayout.ts",
+    "src/importer/nativeLayout.test.ts",
+    "src/importer/nativeLayout.ts",
+    "src/importer/penpot.test.ts",
+    "src/importer/penpot.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 202,
+    "cache_creation_tokens": 222607,
+    "cache_read_tokens": 16521362,
+    "output_tokens": 79441,
+    "api_call_count": 99
+  }
+}

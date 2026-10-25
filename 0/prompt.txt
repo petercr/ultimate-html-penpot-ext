@@ -1,0 +1,29 @@
+ok pr merged
+
+---
+
+what's the next issue to work on
+
+---
+
+issue 51
+
+---
+
+<task-notification>
+<task-id>bo98ietf6</task-id>
+<tool-use-id>toolu_019tYo3JSDMgQeZHapfB6rwa</tool-use-id>
+<output-file>/tmp/claude-1000/-home-peterc-ultimate-html-penpot-ext/f428ffaa-647c-441d-9d3c-79c2ac3f2495/tasks/bo98ietf6.output</output-file>
+<status>completed</status>
+<summary>Background command "Run live trial over remaining real scenes" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bxjmfyxdz</task-id>
+<tool-use-id>toolu_014zAGJgv7oY3zppQbo3FPEz</tool-use-id>
+<output-file>/tmp/claude-1000/-home-peterc-ultimate-html-penpot-ext/f428ffaa-647c-441d-9d3c-79c2ac3f2495/tasks/bxjmfyxdz.output</output-file>
+<status>completed</status>
+<summary>Background command "Retry snapshot imports and run reflow probes" completed (exit code 0)</summary>
+</task-notification>
