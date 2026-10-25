@@ -40,6 +40,9 @@
   #grow-unequal .two { flex-grow: 2; height: 30px; }
   #column-reverse { flex-direction: column-reverse; height: 130px; gap: 6px; padding: 8px; align-items: flex-end; }
   #wrap-centered { flex-wrap: wrap; width: 160px; height: 120px; gap: 4px 6px; padding: 6px; justify-content: center; align-content: center; align-items: center; }
+  /* An undecorated wrapper as an item: its padding is part of the item box. */
+  #padded-item { gap: 8px; padding: 8px; align-items: flex-start; }
+  #padded { padding: 6px 24px; }
   /* Unsupported: these keep their captured geometry. */
   #wrap-reversed { flex-direction: row-reverse; flex-wrap: wrap; width: 160px; gap: 6px; padding: 6px; align-items: flex-start; }
   #wrap-reverse { flex-wrap: wrap-reverse; width: 160px; gap: 6px; padding: 6px; align-items: flex-start; }
@@ -91,6 +94,9 @@
 
   <h2>Wrapping, centered lines</h2>
   <div class="row" id="wrap-centered"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Padded wrapper as an item</h2>
+  <div class="row" id="padded-item"><div class="box a">A</div><div id="padded"><div class="box c">C</div></div></div>
 
   <h2>Wrapping row reverse (kept fixed)</h2>
   <div class="row" id="wrap-reversed"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>

@@ -30,7 +30,8 @@ async function inlineFixtureAsset(asset) {
   try { return { ...asset, url: undefined, dataUrl: `data:${type};base64,${(await readFile(resolve("src/capture/fixtures/assets", name))).toString("base64")}`, mimeType: type }; }
   catch { return asset; }
 }
-const fixtureScenes = await Promise.all((evidence.fixtures.find((fixture) => fixture.file === fixtureFile)?.viewports ?? [])
+// PHASE5_SCENES names a JSON array of scenes instead, such as real pages captured by importer-native-trial.mjs.
+const fixtureScenes = process.env.PHASE5_SCENES ? JSON.parse(await readFile(resolve(process.env.PHASE5_SCENES), "utf8")) : await Promise.all((evidence.fixtures.find((fixture) => fixture.file === fixtureFile)?.viewports ?? [])
   .map(async ({ scene }) => ({ ...scene, assets: await Promise.all(scene.assets.map(inlineFixtureAsset)) })));
 const result = await build({ configFile: false, logLevel: "error", define: { FIXTURE_SCENES: JSON.stringify(fixtureScenes), LIVE_IMAGES: JSON.stringify(Array.from({ length: 120 }, (_, index) => png(index))) }, build: { write: false, lib: { entry: resolve("scripts/lib/importer-live-harness.ts"), formats: ["iife"], name: "ImporterHostValidation" } } });
 const output = (Array.isArray(result) ? result : [result]).flatMap((entry) => entry.output);

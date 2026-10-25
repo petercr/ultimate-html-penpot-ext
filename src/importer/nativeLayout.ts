@@ -44,9 +44,18 @@ function settled(saved: Saved): boolean {
   const { entry, flow, absolute, offsets } = saved;
   const { board, plan } = entry;
   const actual = flow.map((shape) => rectOf(shape, board));
-  // Predict from the sizes the host now has: text fitting may have changed
-  // widths, and a native layout is expected to reflow around them. A filling
-  // layer's size is the model's to predict.
+  // The layout places a layer's bounds, so a layer whose bounds are not the
+  // captured item (an SVG group drawn inside its viewport, say) would move its
+  // content. Text is exempt: fitting may change its width, and a native layout
+  // is expected to reflow around it.
+  const sizedAsCaptured = (rect: { width: number; height: number }, index: number) => {
+    const node = plan.flow[index];
+    if (node.kind === "text" || plan.fill[index]) return true;
+    return Math.abs(rect.width - node.rect.width) <= FLEX_TOLERANCE && Math.abs(rect.height - node.rect.height) <= FLEX_TOLERANCE;
+  };
+  if (!actual.every(sizedAsCaptured)) return false;
+  // Predict from the sizes the host now has. A filling layer's size is the
+  // model's to predict.
   const expected = predictFlex(plan, { width: board.width, height: board.height }, actual.map((rect, index) => ({ width: rect.width, height: rect.height, margin: plan.margins[index], fill: plan.fill[index] })));
   if (!matchesPrediction(actual, expected)) return false;
   return absolute.every((shape) => {

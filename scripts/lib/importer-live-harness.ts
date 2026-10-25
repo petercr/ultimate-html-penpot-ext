@@ -1,5 +1,6 @@
 /** Local-only entry point; never included in a production plugin build. */
 import { importScenes, rotatedBoundsOrigin } from "../../src/importer/penpot";
+import { matchesPrediction, predictFlex, type FlexItem, type FlexLayoutModel } from "../../src/importer/flexLayout";
 import { profileNow, type ImportMetrics } from "../../src/shared/performance";
 import type { SceneDocument } from "../../src/shared/contracts";
 import { validateScenes } from "../../src/shared/validation";
@@ -215,6 +216,114 @@ async function flexEditProbe(pageId: string): Promise<Probe> {
   return out;
 }
 
+type Placed = { x: number; y: number; width: number; height: number; native: boolean };
+/** Shape geometry relative to its top-level board, grouped by viewport, source, and type. */
+function sourceGeometry(page: import("@penpot/plugin-types").Page): Map<string, Placed[]> {
+  const out = new Map<string, Placed[]>();
+  for (const shape of page.findShapes()) {
+    const source = shape.getPluginData("source");
+    if (!source) continue;
+    let top: import("@penpot/plugin-types").Shape = shape;
+    while (top.parent && top.parent.id !== page.root.id) top = top.parent;
+    const key = `${top.getPluginData("viewport")}|${source}|${shape.type}`;
+    out.set(key, [...(out.get(key) || []), { x: shape.x - top.x, y: shape.y - top.y, width: shape.width, height: shape.height,
+      native: shape.parent?.type === "board" && Boolean((shape.parent as import("@penpot/plugin-types").Board).flex) }]);
+  }
+  return out;
+}
+
+/** Compares a native-layout import with a snapshot import of the same scene, layer by layer. Layers that
+ * share a source and type (border sides, text runs) are paired nearest first, since layer order may differ. */
+function compareImports(snapshotPageId: string, nativePageId: string): Probe {
+  const pages = penpot.currentFile?.pages || [];
+  const snapshot = pages.find((page) => page.id === snapshotPageId), native = pages.find((page) => page.id === nativePageId);
+  if (!snapshot || !native) throw new Error("Expected two existing pages.");
+  const a = sourceGeometry(snapshot), b = sourceGeometry(native);
+  const moved: { key: string; dx: number; dy: number; dw: number; dh: number; native: boolean }[] = [];
+  const groups: typeof moved = [];
+  const size = (entry: { dx: number; dy: number; dw: number; dh: number }) => Math.max(Math.abs(entry.dx), Math.abs(entry.dy), Math.abs(entry.dw), Math.abs(entry.dh));
+  let compared = 0, inNative = 0, snapshotLayers = 0, nativeLayers = 0;
+  for (const list of b.values()) nativeLayers += list.length;
+  for (const [key, befores] of a) {
+    snapshotLayers += befores.length;
+    const afters = (b.get(key) || []).slice();
+    const pairs = befores.flatMap((before, i) => afters.map((after, j) => {
+      const delta = { dx: round(after.x - before.x), dy: round(after.y - before.y), dw: round(after.width - before.width), dh: round(after.height - before.height) };
+      return { i, j, delta, distance: size(delta) };
+    })).sort((x, y) => x.distance - y.distance);
+    const usedA = new Set<number>(), usedB = new Set<number>();
+    for (const pair of pairs) {
+      if (usedA.has(pair.i) || usedB.has(pair.j)) continue;
+      usedA.add(pair.i); usedB.add(pair.j);
+      compared += 1;
+      const after = afters[pair.j];
+      if (after.native) inNative += 1;
+      // A group draws nothing itself; its bounds follow whatever it encloses.
+      if (pair.distance > 1) (key.endsWith("|group") ? groups : moved).push({ key, ...pair.delta, native: after.native });
+    }
+  }
+  moved.sort((x, y) => size(y) - size(x));
+  return { snapshotLayers, nativeLayers, compared, inNativeLayouts: inNative, movedOver1px: moved.length, movedInNativeLayouts: moved.filter((entry) => entry.native).length,
+    movedOver3px: moved.filter((entry) => size(entry) > 3).length, groupBoundsChanged: groups.length, worst: moved.slice(0, 20) };
+}
+
+/** The supported flex model for a native board, read back from the host, with its in-flow children in layout order. */
+function hostModel(board: import("@penpot/plugin-types").Board): { model: FlexLayoutModel; flow: import("@penpot/plugin-types").Shape[]; items: FlexItem[] } | undefined {
+  const flex = board.flex;
+  if (!flex || flex.dir.endsWith("-reverse")) return undefined;
+  const row = flex.dir === "row";
+  const justify = !flex.justifyContent || flex.justifyContent === "stretch" ? "start" : flex.justifyContent;
+  const align = flex.alignItems === "stretch" ? "start" : flex.alignItems;
+  const model: FlexLayoutModel = { dir: flex.dir, wrap: flex.wrap === "wrap", gap: row ? flex.columnGap : flex.rowGap, crossGap: row ? flex.rowGap : flex.columnGap,
+    padding: [flex.topPadding, flex.rightPadding, flex.bottomPadding, flex.leftPadding], justify, align: align as FlexLayoutModel["align"], alignContent: (flex.alignContent ?? "stretch") as FlexLayoutModel["alignContent"] };
+  const flow = board.children.slice().reverse().filter((child) => !child.layoutChild?.absolute);
+  const items = flow.map((child): FlexItem => {
+    const layout = child.layoutChild;
+    return { width: child.width, height: child.height, margin: layout ? [layout.topMargin, layout.rightMargin, layout.bottomMargin, layout.leftMargin] : undefined,
+      fill: (row ? layout?.horizontalSizing : layout?.verticalSizing) === "fill" };
+  });
+  return { model, flow, items };
+}
+
+/** Grows every native board along its main axis and checks its children reflow as the flex model predicts, then restores the sizes. */
+async function reflowProbe(pageId: string, amount: number): Promise<Probe> {
+  type Board = import("@penpot/plugin-types").Board;
+  const page = penpot.currentFile?.pages.find((candidate) => candidate.id === pageId);
+  if (!page) throw new Error("Expected an existing page.");
+  const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  const boards = page.findShapes({ type: "board" }).filter((shape) => shape.getPluginData("native-layout") === "flex") as Board[];
+  const check = (label: string) => {
+    const failures: Probe[] = [];
+    let checked = 0, matched = 0;
+    for (const board of boards) {
+      const host = hostModel(board);
+      if (!host) continue;
+      checked += 1;
+      const actual = host.flow.map((child) => ({ x: child.x - board.x, y: child.y - board.y, width: child.width, height: child.height }));
+      const expected = predictFlex(host.model, { width: board.width, height: board.height }, host.items);
+      if (matchesPrediction(actual, expected)) matched += 1;
+      else if (failures.length < 8) failures.push({ source: board.getPluginData("source"), dir: host.model.dir, justify: host.model.justify, wrap: host.model.wrap, size: [round(board.width), round(board.height)],
+        actual: actual.map((rect) => [round(rect.x), round(rect.y), round(rect.width), round(rect.height)]), expected: expected.map((rect) => [round(rect.x), round(rect.y), round(rect.width), round(rect.height)]) });
+    }
+    return { label, checked, matched, failures };
+  };
+  const before = check("imported");
+  const sizes = new Map(boards.map((board) => [board, { width: board.width, height: board.height }]));
+  let moved = 0;
+  const positions = new Map(boards.map((board) => [board, board.children.map((child) => [child.x - board.x, child.y - board.y, child.width, child.height].join())]));
+  for (const board of boards) {
+    const row = board.flex?.dir.startsWith("row");
+    board.resize(board.width + (row ? amount : 0), board.height + (row ? 0 : amount));
+  }
+  await pause(1500);
+  const grown = check(`grown ${amount}px`);
+  for (const board of boards) if (board.children.map((child) => [child.x - board.x, child.y - board.y, child.width, child.height].join()).join() !== positions.get(board)!.join()) moved += 1;
+  for (const board of boards) { const size = sizes.get(board)!; board.resize(size.width, size.height); }
+  await pause(1500);
+  const restored = check("restored");
+  return { boards: boards.length, before, grown, childrenMovedWhenGrown: moved, restored };
+}
+
 /** Second pass: the primitives a flat per-node transform model depends on. */
 async function pivotProbe(): Promise<Probe> {
   const out: Probe = {};
@@ -343,6 +452,10 @@ penpot.ui.onMessage<{ action: string; native?: boolean; size?: number; pageId?: 
       page.name = `${pagePrefix}flex probe`;
       await openPage(page);
       send({ type: "flex-probe", pageId: page.id, result: await flexProbe() });
+    } else if (message.action === "compare") {
+      send({ type: "comparison", result: compareImports(message.pageIds![0], message.pageIds![1]) });
+    } else if (message.action === "reflow-probe") {
+      send({ type: "reflow-probe", pageId: message.pageId, result: await reflowProbe(message.pageId!, message.size ?? 40) });
     } else if (message.action === "flex-edit-probe") {
       send({ type: "flex-edit-probe", pageId: message.pageId, result: await flexEditProbe(message.pageId!) });
     } else if (message.action === "pivot-probe") {
