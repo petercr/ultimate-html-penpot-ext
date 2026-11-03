@@ -1,0 +1,13 @@
+ok lets looks at '\\wsl.localhost\Ubuntu\home\peterc\ultimate-html-penpot-ext\IMPORTER-UPGRADE-PLAN.md' and see what next on the lilst
+
+---
+
+yes, start with item margins
+
+---
+
+lets try to add a firefox fallback as well
+
+---
+
+ok penpot tab is open to the test project in orca tab

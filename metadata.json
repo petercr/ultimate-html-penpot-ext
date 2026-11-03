@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.12.3-nightly.202610300619.cea1b3cee",
+  "checkpoint_id": "01M6HVJTHB4HC7HBZC3DD411VX",
+  "strategy": "manual-commit",
+  "branch": "phase6-flex-item-margins",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "IMPORTER-UPGRADE-PLAN.md",
+    "docs/importer-native-layout.md",
+    "scripts/importer-visual-baselines.mjs",
+    "src/capture/extractor.test.ts",
+    "src/capture/extractor.ts",
+    "src/capture/fixtures/baselines/flex-layouts-desktop-1440.png",
+    "src/capture/fixtures/baselines/flex-layouts-mobile-390.png",
+    "src/capture/fixtures/baselines/flex-layouts-tablet-768.png",
+    "src/capture/fixtures/baselines/metadata.json",
+    "src/capture/fixtures/baselines/scene-evidence.json",
+    "src/capture/fixtures/flex-layouts.html",
+    "src/importer/flexLayout.fixture.test.ts",
+    "src/importer/flexLayout.test.ts",
+    "src/importer/flexLayout.ts",
+    "src/shared/contracts.ts",
+    "src/shared/validation.test.ts",
+    "src/shared/validation.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 258,
+    "cache_creation_tokens": 224123,
+    "cache_read_tokens": 21743444,
+    "output_tokens": 90411,
+    "api_call_count": 129
+  },
+  "redaction": {
+    "replacements": 3,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 3,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
