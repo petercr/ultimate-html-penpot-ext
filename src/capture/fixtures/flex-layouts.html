@@ -51,6 +51,23 @@
   #ordered { gap: 8px; padding: 8px; align-items: flex-start; }
   #ordered .a { order: 2; }
   #baseline { padding: 8px; gap: 8px; align-items: baseline; }
+  /* Item margins pass through as layout-child margins. */
+  #item-margins { padding: 8px; align-items: center; }
+  #item-margins .a { margin: 0 12px 0 4px; }
+  #item-margins .b { margin-top: 6px; }
+  #item-margins .label { margin-left: 10px; font-size: 13px; }
+  #column-margins { flex-direction: column; padding: 8px; align-items: flex-start; }
+  #column-margins .a { margin: 4px 0 10px 16px; }
+  #column-margins .c { margin-left: 30px; }
+  #wrap-margins { flex-wrap: wrap; width: 160px; padding: 6px; align-items: flex-start; }
+  #wrap-margins .box { margin: 4px; }
+  #negative-margin { padding: 8px; gap: 8px; align-items: flex-start; }
+  #negative-margin .b { margin-left: -16px; }
+  /* A generated icon with a margin, and one pushed by an auto margin. */
+  #pseudo-margin { padding: 8px; align-items: center; }
+  #pseudo-margin::before { content: ""; width: 16px; height: 16px; border-radius: 4px; background: #7c3aed; margin-right: 10px; }
+  #pseudo-auto { padding: 8px; align-items: center; }
+  #pseudo-auto::after { content: ""; width: 16px; height: 16px; border-radius: 4px; background: #dc2626; margin-left: auto; }
 </style>
 <main>
   <h2>Row with gap and padding</h2>
@@ -112,4 +129,22 @@
 
   <h2>Baseline alignment (kept fixed)</h2>
   <div class="row" id="baseline"><div class="box a">A</div><div class="box b">B</div></div>
+
+  <h2>Item margins, centered</h2>
+  <div class="row" id="item-margins"><div class="box a">A</div><div class="box b">B</div><span class="label">Margin</span></div>
+
+  <h2>Column with item margins</h2>
+  <div class="row" id="column-margins"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Wrapping with item margins</h2>
+  <div class="row" id="wrap-margins"><div class="box a">A</div><div class="box b">B</div><div class="box c">C</div></div>
+
+  <h2>Negative margin (kept fixed)</h2>
+  <div class="row" id="negative-margin"><div class="box a">A</div><div class="box b">B</div></div>
+
+  <h2>Generated icon with a margin</h2>
+  <div class="row" id="pseudo-margin"><div class="box a">A</div><span>Label</span></div>
+
+  <h2>Generated icon pushed by an auto margin (kept fixed)</h2>
+  <div class="row" id="pseudo-auto"><div class="box a">A</div><span>Label</span></div>
 </main>

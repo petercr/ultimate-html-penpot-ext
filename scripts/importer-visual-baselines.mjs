@@ -408,6 +408,20 @@ function assertSceneEvidence(file, scene, failedAssetUrls) {
     }
     const grow = scene.nodes.filter((node) => node.parentId === flex("#grow-unequal").id).map((node) => node.layout.flexGrow);
     if (grow.join() !== "1,2") throw new Error(`#grow-unequal children should grow 1 and 2, got ${grow.join()}.`);
+    // Flex items record their used margins, with auto sides marked.
+    const margins = (source) => scene.nodes.filter((node) => node.parentId === flex(source).id).map((node) => (node.layout.margin || [0, 0, 0, 0]).join(" "));
+    const marginExpectations = {
+      "#item-margins": ["0 12 0 4", "6 0 0 0", "0 0 0 10"], "#column-margins": ["4 0 10 16", "0 0 0 0", "0 0 0 30"],
+      "#wrap-margins": ["4 4 4 4", "4 4 4 4", "4 4 4 4"], "#negative-margin": ["0 0 0 0", "0 0 0 -16"]
+    };
+    for (const [source, expected] of Object.entries(marginExpectations)) {
+      if (margins(source).join() !== expected.join()) throw new Error(`${source} item margins expected ${expected.join(", ")}, got ${margins(source).join(", ")}.`);
+    }
+    const generated = (source) => sceneNode(scene, source).layout;
+    if ((generated("#pseudo-margin ::before").margin || []).join(" ") !== "0 10 0 0") throw new Error("The generated icon should record its 10px right margin.");
+    if ((generated("#pseudo-auto ::after").marginAuto || []).join(" ") !== "false false false true") throw new Error("The generated icon should mark its left margin auto.");
+    const autoSides = scene.nodes.filter((node) => node.parentId === flex("#margins").id).map((node) => (node.layout.marginAuto || []).join(" "));
+    if (autoSides[1] !== "false false false true") throw new Error(`#margins should mark its second item's left margin auto, got ${autoSides.join(", ")}.`);
     const badge = sceneNode(scene, "#badge");
     if (!badge.layout.absolute) throw new Error("The badge must be captured as absolutely positioned.");
     if (scene.diagnostics.length) throw new Error("The flex fixture should have no capture diagnostics.");

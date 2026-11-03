@@ -326,6 +326,92 @@ describe("extractor script", () => {
     }
   });
 
+  it("records flex item margins and auto sides from the typed computed style", async () => {
+    document.body.innerHTML = `<div id="row" style="display:flex;opacity:1;visibility:visible"><div id="spaced" style="margin:4px 6px 0 8px;opacity:1;visibility:visible"></div><div id="pushed" style="margin-left:auto;opacity:1;visibility:visible"></div><div id="flush" style="opacity:1;visibility:visible"></div></div><div id="block" style="margin:5px;opacity:1;visibility:visible"></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCss = window.CSS;
+    const originalGetComputedStyle = window.getComputedStyle;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    // jsdom reports specified margins; a browser reports the used length, so
+    // the auto side reads as the space it absorbed.
+    window.getComputedStyle = ((element: Element, pseudo?: string | null) => {
+      const style = originalGetComputedStyle(element, pseudo);
+      if ((element as HTMLElement).id !== "pushed") return style;
+      return new Proxy(style, { get: (target, key) => key === "marginLeft" ? "17px" : Reflect.get(target, key) });
+    }) as typeof window.getComputedStyle;
+    const prototype = HTMLElement.prototype as unknown as { computedStyleMap?: (this: HTMLElement) => unknown };
+    prototype.computedStyleMap = function (this: HTMLElement) {
+      const inline = this.style;
+      return { get: (side: string) => inline.getPropertyValue(side) === "auto" ? { value: "auto" } : { value: 0, unit: "px" } };
+    };
+    try {
+      const result = await captureScript("flex-margins");
+      const layoutOf = (source: string) => result.nodes.find((node) => node.source === source)?.layout;
+      expect(layoutOf("#spaced")).toMatchObject({ margin: [4, 6, 0, 8] });
+      expect(layoutOf("#spaced")?.marginAuto).toBeUndefined();
+      expect(layoutOf("#pushed")).toMatchObject({ margin: [0, 0, 0, 17], marginAuto: [false, false, false, true] });
+      expect(layoutOf("#flush")?.margin).toBeUndefined();
+      // Margins outside a flex container are not a layout child's margins.
+      expect(layoutOf("#block")?.margin).toBeUndefined();
+    } finally {
+      delete prototype.computedStyleMap;
+      window.getComputedStyle = originalGetComputedStyle;
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
+  it("flags possibly-auto margin sides from style rules when the engine has no typed computed style", async () => {
+    document.head.innerHTML = `<style>
+      .row { display: flex; }
+      .push { margin: 0 auto 0 0; }
+      @media (min-width: 1px) { .row > .logical { margin-inline-start: auto; } }
+      @media (max-width: 0px) { .never { margin-left: auto; } }
+      .row > .nested { margin-top: var(--gap); }
+      .themed { margin-bottom: inherit; }
+    </style>`;
+    document.body.innerHTML = `<div class="row" style="opacity:1;visibility:visible"><div id="plain" style="margin:4px 6px 0 8px;opacity:1;visibility:visible"></div><div id="push" class="push" style="margin-left:3px;opacity:1;visibility:visible"></div><div id="logical" class="logical" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="never" class="never" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="nested" class="nested" style="margin-right:2px;opacity:1;visibility:visible"></div><div id="themed" class="themed" style="margin-right:2px;opacity:1;visibility:visible"></div><div id="inline" style="margin:2px auto 0 0;opacity:1;visibility:visible"></div></div>`;
+    document.body.style.cssText = "opacity:1;visibility:visible";
+    const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const originalCss = window.CSS;
+    const originalMatchMedia = window.matchMedia;
+    HTMLElement.prototype.getBoundingClientRect = function () { return bounds; };
+    Object.defineProperty(window, "CSS", { value: { escape: (value: string) => value }, configurable: true });
+    window.matchMedia = ((query: string) => ({ matches: query.includes("min-width") })) as typeof window.matchMedia;
+    try {
+      const result = await captureScript("flex-margins-rules");
+      const layoutOf = (source: string) => result.nodes.find((node) => node.source === source)?.layout;
+      expect(layoutOf("#plain")).toMatchObject({ margin: [4, 6, 0, 8] });
+      expect(layoutOf("#plain")?.marginAuto).toBeUndefined();
+      expect(layoutOf("#push")?.marginAuto).toEqual([false, true, false, false]);
+      expect(layoutOf("#logical")?.marginAuto).toEqual([false, true, false, true]);
+      // A rule in a media query that does not apply is ignored.
+      expect(layoutOf("#never")?.marginAuto).toBeUndefined();
+      expect(layoutOf("#nested")?.marginAuto).toEqual([true, false, false, false]);
+      expect(layoutOf("#themed")?.marginAuto).toEqual([false, false, true, false]);
+      expect(layoutOf("#inline")?.marginAuto).toEqual([false, true, false, false]);
+      // A stylesheet that cannot be read leaves every margin unrecorded.
+      const sheets = Object.getOwnPropertyDescriptor(Document.prototype, "styleSheets")!;
+      Object.defineProperty(document, "styleSheets", { configurable: true, get: () => [{ get cssRules(): never { throw new DOMException("cross-origin", "SecurityError"); } }] });
+      try {
+        const unreadable = await captureScript("flex-margins-unreadable");
+        expect(unreadable.nodes.find((node) => node.source === "#plain")?.layout.margin).toBeUndefined();
+      } finally {
+        Object.defineProperty(document, "styleSheets", sheets);
+        delete (document as unknown as { styleSheets?: unknown }).styleSheets;
+      }
+    } finally {
+      document.head.innerHTML = "";
+      window.matchMedia = originalMatchMedia;
+      HTMLElement.prototype.getBoundingClientRect = originalBounds;
+      Object.defineProperty(window, "CSS", { value: originalCss, configurable: true });
+    }
+  });
+
   it("preserves preformatted indentation, tabs, and line breaks per white-space", async () => {
     document.body.innerHTML = `<pre id="code" style="white-space:pre;opacity:1;visibility:visible">  indented\n\ttabbed</pre>`;
     document.body.style.cssText = "opacity:1;visibility:visible";

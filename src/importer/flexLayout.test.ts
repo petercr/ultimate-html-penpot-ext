@@ -175,6 +175,42 @@ describe("flex planning", () => {
     expect(planFlex(parent, [fixed, text])).toMatchObject({ plan: { fill: [false, false] } });
   });
 
+  it("passes item margins through as layout-child margins, added to a text layer's inset", () => {
+    const parent = container({ x: 0, y: 0, width: 400, height: 60 }, { columnGap: 10, alignItems: "center" });
+    const card = node({ x: 20, y: 15, width: 50, height: 30 }, { margin: [0, 16, 0, 20] });
+    const label = node({ x: 96, y: 22, width: 40, height: 16 }, {}, { kind: "text", box: { x: 96, y: 21, width: 40, height: 18 } });
+    const spaced = node({ x: 150, y: 22, width: 60, height: 20 }, { margin: [4, 0, 0, 4] });
+    const decision = planFlex(parent, [card, label, spaced]);
+    expect(decision).toMatchObject({ plan: { margins: [[0, 16, 0, 20], [1, 0, 1, 0], [4, 0, 0, 4]], align: "center" } });
+    // Without the captured margins the same positions miss the model.
+    const bare = (child: SceneNode) => ({ ...child, layout: { ...child.layout, margin: undefined } });
+    expect(planFlex(parent, [bare(card), bare(label), bare(spaced)])).toHaveProperty("reason");
+    const marginedText = node({ x: 12, y: 1, width: 40, height: 16 }, { margin: [0, 0, 0, 12] }, { kind: "text", box: { x: 12, y: 0, width: 40, height: 18 } });
+    expect(planFlex(container({ x: 0, y: 0, width: 200, height: 18 }, {}), [marginedText])).toMatchObject({ plan: { margins: [[1, 0, 1, 12]] } });
+  });
+
+  it("places margins in a column and a wrapping row the way the browser does", () => {
+    const column = container({ x: 0, y: 0, width: 200, height: 120 }, { direction: "column", rowGap: 4 });
+    const first = node({ x: 8, y: 10, width: 100, height: 20 }, { margin: [10, 0, 6, 8] });
+    const second = node({ x: 0, y: 40, width: 200, height: 20 });
+    expect(planFlex(column, [first, second])).toMatchObject({ plan: { margins: [[10, 0, 6, 8], [0, 0, 0, 0]] } });
+    const wrapping = container({ x: 0, y: 0, width: 140, height: 80 }, { wrap: "wrap", alignContent: "flex-start" });
+    // Each item is 60 wide plus 5 on both sides, so two fit per line.
+    const items = [0, 1, 2].map((index) => node({ x: 5 + (index % 2) * 70, y: 5 + Math.floor(index / 2) * 30, width: 60, height: 20 }, { margin: [5, 5, 5, 5] }));
+    expect(planFlex(wrapping, items)).toMatchObject({ plan: { wrap: true } });
+  });
+
+  it("keeps auto margins and negative margins that move an item as fixed geometry", () => {
+    const parent = container({ x: 0, y: 0, width: 300, height: 40 }, {});
+    const pushed = node({ x: 250, y: 0, width: 50, height: 20 }, { margin: [0, 0, 0, 250], marginAuto: [false, false, false, true] });
+    expect(planFlex(parent, [pushed])).toMatchObject({ reason: expect.stringContaining("auto margin") });
+    const pulled = node({ x: -10, y: 0, width: 50, height: 20 }, { margin: [0, 0, 0, -10] });
+    expect(planFlex(parent, [pulled])).toMatchObject({ reason: expect.stringContaining("negative margin that moves it") });
+    // A trailing negative margin moves nothing, so it becomes zero.
+    const trailing = node({ x: 0, y: 0, width: 50, height: 20 }, { margin: [0, -12, -4, 0] });
+    expect(planFlex(parent, [trailing])).toMatchObject({ plan: { margins: [[0, 0, 0, 0]] } });
+  });
+
   it("returns absolute children topmost first", () => {
     const parent = container({ x: 0, y: 0, width: 100, height: 40 }, {});
     const low = node({ x: 0, y: 0, width: 10, height: 10 }, { absolute: true, positioned: true });

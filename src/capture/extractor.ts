@@ -195,6 +195,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (node.paint.borders) for (const border of Object.values(node.paint.borders)) border.width = scaled(border.width);
     if (node.paint.radius) node.paint.radius = node.paint.radius.map(scaled);
     if (node.layout.padding) node.layout.padding = node.layout.padding.map(scaled);
+    if (node.layout.margin) node.layout.margin = node.layout.margin.map(scaled);
     if (node.textMaxWidth) node.textMaxWidth = Math.max(0.1, scaled(node.textMaxWidth));
     if (node.textStyle) {
       node.textStyle.fontSize = scaled(node.textStyle.fontSize);
@@ -741,6 +742,149 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       flexBasis: style.flexBasis
     };
   };
+  // A flex item's margins, read only where a flex container lays the item out.
+  // The computed style gives used lengths, so an auto margin reads as the space
+  // it absorbed. The specified keyword comes from the typed computed map where
+  // the engine has one; otherwise (Firefox) from the inline style and every
+  // matching style rule, flagging any side that could be auto. That scan
+  // over-approximates (it ignores the cascade), which only keeps a container
+  // fixed. When a stylesheet cannot be read, no margins are recorded, which
+  // also keeps the captured geometry.
+  const MARGIN_SIDES = ["margin-top", "margin-right", "margin-bottom", "margin-left"];
+  // Logical sides are flagged on both ends of their axis, whatever the writing mode.
+  const MARGIN_LONGHAND_SIDES = {
+    "margin-top": [0], "margin-right": [1], "margin-bottom": [2], "margin-left": [3],
+    "margin-block-start": [0, 2], "margin-block-end": [0, 2], "margin-inline-start": [1, 3], "margin-inline-end": [1, 3]
+  };
+  // auto itself, or a value only resolved later: a variable or environment
+  // substitution, the parent's value, or a cascade-origin rollback (the user
+  // agent gives dialogs and popovers auto margins).
+  const POSSIBLY_AUTO = /\\bauto\\b|var\\(|env\\(|attr\\(|inherit|revert/i;
+  // A shorthand's own value matters only when its longhands read empty: a
+  // variable substitution still pending, or an engine that keeps shorthands unexpanded.
+  const shorthandSides = (value, sides) => {
+    if (/var\\(|env\\(|attr\\(/i.test(value)) return sides;
+    const parts = value.trim().split(/\\s+/).filter(Boolean);
+    const expanded = sides.length === 4 ? [parts[0], parts[1] ?? parts[0], parts[2] ?? parts[0], parts[3] ?? parts[1] ?? parts[0]] : [parts[0], parts[1] ?? parts[0]];
+    // A two-value logical axis maps start and end onto both physical ends.
+    if (sides.length === 2) return expanded.some((part) => part && POSSIBLY_AUTO.test(part)) ? sides : [];
+    return sides.filter((_, index) => expanded[index] && POSSIBLY_AUTO.test(expanded[index]));
+  };
+  const MARGIN_SHORTHANDS = { margin: [0, 1, 2, 3], "margin-block": [0, 2], "margin-inline": [1, 3] };
+  const MARGIN_SHORTHAND_LONGHANDS = {
+    margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+    "margin-block": ["margin-block-start", "margin-block-end"], "margin-inline": ["margin-inline-start", "margin-inline-end"]
+  };
+  const autoSidesOf = (declaration) => {
+    const sides = [false, false, false, false];
+    if (!declaration) return sides;
+    for (const [property, indices] of Object.entries(MARGIN_LONGHAND_SIDES)) {
+      if (POSSIBLY_AUTO.test(declaration.getPropertyValue(property) || "")) for (const index of indices) sides[index] = true;
+    }
+    for (const [property, indices] of Object.entries(MARGIN_SHORTHANDS)) {
+      const value = declaration.getPropertyValue(property) || "";
+      if (!value || MARGIN_SHORTHAND_LONGHANDS[property].some((longhand) => declaration.getPropertyValue(longhand))) continue;
+      for (const index of shorthandSides(value, indices)) sides[index] = true;
+    }
+    return sides;
+  };
+  const conditionHolds = (rule) => {
+    try {
+      if (rule.media && rule.media.mediaText && typeof matchMedia === "function") return matchMedia(rule.media.mediaText).matches;
+      if (typeof CSSSupportsRule !== "undefined" && rule instanceof CSSSupportsRule && typeof CSS !== "undefined" && typeof CSS.supports === "function") return CSS.supports(rule.conditionText);
+    } catch { return true; }
+    return true;
+  };
+  // Split a selector list at its top-level commas, leaving those inside
+  // functional pseudo-classes, attribute selectors, and strings alone.
+  const splitSelectorList = (list) => {
+    const parts = [];
+    let depth = 0;
+    let quote = "";
+    let start = 0;
+    for (let index = 0; index < list.length; index += 1) {
+      const character = list[index];
+      if (quote) {
+        if (character === "\\\\") index += 1;
+        else if (character === quote) quote = "";
+      } else if (character === '"' || character === "'") quote = character;
+      else if (character === "(" || character === "[") depth += 1;
+      else if (character === ")" || character === "]") depth -= 1;
+      else if (character === "," && depth === 0) { parts.push(list.slice(start, index).trim()); start = index + 1; }
+    }
+    parts.push(list.slice(start).trim());
+    return parts.filter(Boolean);
+  };
+  let autoMarginRules;
+  const collectAutoMarginRules = () => {
+    const found = [];
+    const visitRules = (rules, parentSelector) => {
+      for (const rule of rules) {
+        if (rule.styleSheet) {
+          if (!conditionHolds(rule)) continue;
+          visitRules(rule.styleSheet.cssRules, parentSelector);
+          continue;
+        }
+        let selector = parentSelector;
+        if (typeof rule.selectorText === "string" && rule.style) {
+          const own = rule.selectorText;
+          selector = !parentSelector ? own : own.includes("&") ? own.split("&").join(":is(" + parentSelector + ")") : ":is(" + parentSelector + ") " + own;
+          const sides = autoSidesOf(rule.style);
+          if (sides.some(Boolean)) {
+            // A ::before or ::after rule is matched against its host element.
+            for (const part of splitSelectorList(selector)) {
+              const generated = /::?(before|after)\s*$/i.exec(part);
+              if (generated) found.push({ selector: part.slice(0, generated.index).trim() || "*", pseudo: "::" + generated[1].toLowerCase(), sides });
+              else if (!part.includes("::")) found.push({ selector: part, pseudo: "", sides });
+            }
+          }
+        } else if (!conditionHolds(rule)) continue;
+        if (rule.cssRules && rule.cssRules.length) visitRules(rule.cssRules, selector);
+      }
+    };
+    try {
+      for (const sheet of [...document.styleSheets, ...(document.adoptedStyleSheets || [])]) {
+        if (sheet.disabled) continue;
+        if (sheet.media && sheet.media.mediaText && typeof matchMedia === "function" && !matchMedia(sheet.media.mediaText).matches) continue;
+        visitRules(sheet.cssRules, "");
+      }
+    } catch { return null; }
+    return found;
+  };
+  const autoSidesFromRules = (element, pseudo) => {
+    if (autoMarginRules === undefined) autoMarginRules = collectAutoMarginRules();
+    if (!autoMarginRules) return undefined;
+    const sides = pseudo ? [false, false, false, false] : autoSidesOf(element.style);
+    if (!pseudo && element.matches("dialog, [popover]")) sides.fill(true);
+    for (const rule of autoMarginRules) {
+      if (rule.pseudo !== pseudo) continue;
+      let matched;
+      try { matched = element.matches(rule.selector); } catch { return undefined; }
+      if (matched) rule.sides.forEach((side, index) => { if (side) sides[index] = true; });
+    }
+    return sides;
+  };
+  const autoSidesFromTypedStyle = (element) => {
+    let map;
+    try { map = element.computedStyleMap(); } catch { return undefined; }
+    return MARGIN_SIDES.map((side) => {
+      const value = map.get(side);
+      return Boolean(value && typeof value.value === "string" && value.value === "auto");
+    });
+  };
+  // A pseudo-element's flex container is its host; the typed computed map
+  // cannot read a pseudo-element, so its auto sides always come from the rules.
+  const flexItemMarginOf = (element, style, pseudo = "") => {
+    const parent = pseudo ? element : element.parentElement;
+    if (!parent) return undefined;
+    const display = styleOf(parent).display;
+    if (display !== "flex" && display !== "inline-flex") return undefined;
+    const margin = [number(style.marginTop), number(style.marginRight), number(style.marginBottom), number(style.marginLeft)];
+    if (margin.every((value) => !value)) return undefined;
+    const marginAuto = !pseudo && typeof element.computedStyleMap === "function" ? autoSidesFromTypedStyle(element) : autoSidesFromRules(element, pseudo);
+    if (!marginAuto) return undefined;
+    return marginAuto.some(Boolean) ? { margin, marginAuto } : { margin };
+  };
   const isDecorated = (style, paint) => !transparent(style.backgroundColor) || style.backgroundImage !== "none" || borderEntries(paint).some(([, border]) => activeBorder(border)) || Boolean(style.borderImageSource && style.borderImageSource !== "none") || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
   const lineHeightOf = (style, measuredLineHeight) => {
     const fontSize = Math.max(1, number(style.fontSize));
@@ -1138,7 +1282,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (!plan.decorated && !reason && lines.length === 1) {
       reportUnsupportedTextColor(style.color, source);
       const line = lines[0];
-      const node = { id, parentId: host.id, children: [], kind: "text", name: pseudo, source, rect: line.rect, box: rectOf(box), ...stacking, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: layoutOf(style), text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(box, line.rect), textMaxWidth: textMaxWidthOf(box, line.rect), textStyle: { ...textStyleOf(style, measured.layout.measuredLineHeight), textAlign: "left" } };
+      const node = { id, parentId: host.id, children: [], kind: "text", name: pseudo, source, rect: line.rect, box: rectOf(box), ...stacking, paint: { color: style.color, opacity: number(style.opacity || "1") }, layout: { ...layoutOf(style), ...flexItemMarginOf(element, style, pseudo) }, text: line.text, textNoWrap: true, textFitScale: textFitScaleOf(box, line.rect), textMaxWidth: textMaxWidthOf(box, line.rect), textStyle: { ...textStyleOf(style, measured.layout.measuredLineHeight), textAlign: "left" } };
       nodes.push(node);
       nodeById.set(id, node);
       host.children.push(id);
@@ -1151,7 +1295,7 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     if (backgroundLayerCount > 1) {
       diagnostics.push({ severity: "warning", code: "MULTIPLE_BACKGROUND_LAYERS", message: "Only the topmost of " + backgroundLayerCount + " CSS background layers was imported; lower layers were omitted.", viewportId: viewport.id, source });
     }
-    const node = { id, parentId: host.id, children: [], kind: reason ? "fallback" : lines.length ? "container" : "box", name: pseudo, source, rect: rectOf(box), ...stacking, paint: plan.paint, layout: layoutOf(style), assetId: asset(materializeSvgBackground(plan.paint, box)), fallbackReason: reason };
+    const node = { id, parentId: host.id, children: [], kind: reason ? "fallback" : lines.length ? "container" : "box", name: pseudo, source, rect: rectOf(box), ...stacking, paint: plan.paint, layout: { ...layoutOf(style), ...flexItemMarginOf(element, style, pseudo) }, assetId: asset(materializeSvgBackground(plan.paint, box)), fallbackReason: reason };
     nodes.push(node);
     nodeById.set(id, node);
     host.children.push(id);
@@ -1250,6 +1394,8 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const parsedZIndex = Number.parseInt(style.zIndex, 10);
     const zIndexAuto = !Number.isFinite(parsedZIndex);
     const scene = { id, parentId, children: [], kind, name: nameOf(element), source, rect: rectOf(rect), zIndex: zIndexAuto ? 0 : parsedZIndex, zIndexAuto, paint, layout: layoutOf(style), assetId: imageAsset, image: kind === "image" && imageAsset ? imageOf(element, style, source) : undefined, fallbackReason: reason, textNoWrap };
+    const itemMargin = flexItemMarginOf(element, style);
+    if (itemMargin) Object.assign(scene.layout, itemMargin);
     let directTextNodes = [];
     let directTextLayout;
     let expandedDirectText = false;

@@ -209,6 +209,13 @@ function validateLayout(value: unknown, index: number): void {
   optionalNumber(layout.rowGap, `nodes[${index}].layout.rowGap`, 0, SCENE_LIMITS.maxDimension);
   optionalNumber(layout.columnGap, `nodes[${index}].layout.columnGap`, 0, SCENE_LIMITS.maxDimension);
   if (layout.padding !== undefined) tuple(layout.padding, `nodes[${index}].layout.padding`, 0);
+  if (layout.margin !== undefined) tuple(layout.margin, `nodes[${index}].layout.margin`, -SCENE_LIMITS.maxDimension);
+  if (layout.marginAuto !== undefined) {
+    if (!Array.isArray(layout.marginAuto) || layout.marginAuto.length !== 4) fail(`nodes[${index}].layout.marginAuto must have four entries.`);
+    layout.marginAuto.forEach((side: unknown, sideIndex: number) => {
+      if (typeof side !== "boolean") fail(`nodes[${index}].layout.marginAuto[${sideIndex}] must be a boolean.`);
+    });
+  }
   optionalBoolean(layout.absolute, `nodes[${index}].layout.absolute`);
   optionalBoolean(layout.positioned, `nodes[${index}].layout.positioned`);
 }

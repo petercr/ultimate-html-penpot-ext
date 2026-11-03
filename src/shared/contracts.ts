@@ -107,6 +107,13 @@ export interface SceneLayout {
   flexGrow?: number;
   flexShrink?: number;
   flexBasis?: string;
+  /** Used margins (top, right, bottom, left) of a flex item, in pixels.
+   * Recorded only for a direct child of a flex container with a nonzero
+   * margin whose specified values could be read. */
+  margin?: [number, number, number, number];
+  /** Sides of `margin` whose specified value is `auto`; their used value
+   * absorbs free space, which a Penpot layout margin cannot. */
+  marginAuto?: [boolean, boolean, boolean, boolean];
 }
 
 export interface AssetRef {

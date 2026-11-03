@@ -15,9 +15,10 @@ function decide(scene: SceneDocument, source: string) {
 describe("flex fixture decisions", () => {
   const supported = [
     "#basic", "#between", "#column", "#centered", "#card", "#card-text", "#with-badge", "#wrapping", "#reversed",
-    "#text-row", "#grow", "#grow-equal", "#grow-unequal", "#column-reverse", "#wrap-centered", "#padded-item"
+    "#text-row", "#grow", "#grow-equal", "#grow-unequal", "#column-reverse", "#wrap-centered", "#padded-item",
+    "#item-margins", "#column-margins", "#wrap-margins", "#pseudo-margin"
   ];
-  const kept: [string, RegExp][] = [["#wrap-reversed", /break their lines/], ["#wrap-reverse", /wrap-reverse/], ["#margins", /do not match/], ["#ordered", /do not match/], ["#baseline", /baseline/]];
+  const kept: [string, RegExp][] = [["#wrap-reversed", /break their lines/], ["#wrap-reverse", /wrap-reverse/], ["#margins", /auto margin/], ["#negative-margin", /negative margin/], ["#pseudo-auto", /auto margin/], ["#ordered", /do not match/], ["#baseline", /baseline/]];
 
   it.each(scenes.map((scene) => [scene.viewport.name, scene] as const))("%s converts the supported containers and keeps the rest fixed", (_name, scene) => {
     for (const source of supported) expect(decide(scene, source), source).toHaveProperty("plan");
@@ -55,6 +56,19 @@ describe("flex fixture decisions", () => {
     expect(decide(scene, "#grow")).toMatchObject({ plan: { fill: [false, true, false] } });
     expect(decide(scene, "#grow-equal")).toMatchObject({ plan: { fill: [false, true, true] } });
     expect(decide(scene, "#grow-unequal")).toMatchObject({ plan: { fill: [false, false] } });
+  });
+
+  it.each(scenes.map((scene) => [scene.viewport.name, scene] as const))("%s passes item margins through, adding a text item's margin to its glyph inset", (_name, scene) => {
+    expect(decide(scene, "#column-margins")).toMatchObject({ plan: { margins: [[4, 0, 10, 16], [0, 0, 0, 0], [0, 0, 0, 30]] } });
+    expect(decide(scene, "#wrap-margins")).toMatchObject({ plan: { wrap: true, margins: [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]] } });
+    const row = decide(scene, "#item-margins");
+    if (!("plan" in row)) throw new Error("#item-margins");
+    expect(row.plan.margins.slice(0, 2)).toEqual([[0, 12, 0, 4], [6, 0, 0, 0]]);
+    expect(row.plan.margins[2][3]).toBe(10);
+    expect(row.plan.margins[2][0]).toBeCloseTo(1, 1);
+    const icon = decide(scene, "#pseudo-margin");
+    expect("plan" in icon && icon.plan.flow[0].source).toMatch(/::before$/);
+    expect("plan" in icon && icon.plan.margins[0]).toEqual([0, 10, 0, 0]);
   });
 
   it("reads wrapping and reversed containers with their line gaps and line placement", () => {

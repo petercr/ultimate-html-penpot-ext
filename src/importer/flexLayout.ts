@@ -156,14 +156,24 @@ export function matchesPrediction(actual: Rect[], expected: Rect[], tolerance = 
   return actual.length === expected.length && actual.every((rect, index) => (["x", "y", "width", "height"] as const).every((key) => Math.abs(rect[key] - expected[index][key]) <= tolerance));
 }
 
-/** The flex item a scene child stands for: a text layer's item is its element's box. */
-function itemOf(child: SceneNode): { margin: Sides } | { reason: string } {
+/**
+ * The space between a flow layer and the edge of the flex item's margin box: a
+ * text layer's glyph line sits inside its element's box, and the element's own
+ * margins surround that box.
+ */
+function itemOf(child: SceneNode): { margin: Sides; negative: boolean } | { reason: string } {
+  const { margin: captured = NO_MARGIN, marginAuto } = child.layout;
+  if (marginAuto?.some(Boolean)) return { reason: "An item has an auto margin, which a Penpot layout margin cannot reproduce." };
+  // A negative side becomes zero: the layout keeps the container only when the
+  // browser's positions still match without it (a trailing negative margin,
+  // say, moves nothing).
+  const negative = captured.some((value) => value < 0);
+  const element = captured.map((value) => Math.max(0, value));
   const box = child.kind === "text" ? child.box : undefined;
-  if (!box) return { margin: NO_MARGIN };
   const { rect } = child;
-  const margin: Sides = [rect.y - box.y, box.x + box.width - rect.x - rect.width, box.y + box.height - rect.y - rect.height, rect.x - box.x];
-  if (margin.some((value) => value < -FLEX_TOLERANCE)) return { reason: "A text line overflows its element's box." };
-  return { margin: margin.map((value) => Math.max(0, Math.round(value * 100) / 100)) as Sides };
+  const inset: Sides = box ? [rect.y - box.y, box.x + box.width - rect.x - rect.width, box.y + box.height - rect.y - rect.height, rect.x - box.x] : NO_MARGIN;
+  if (inset.some((value) => value < -FLEX_TOLERANCE)) return { reason: "A text line overflows its element's box." };
+  return { margin: inset.map((value, index) => Math.max(0, Math.round((value + element[index]) * 100) / 100)) as Sides, negative };
 }
 
 /**
@@ -201,10 +211,12 @@ export function planFlex(container: SceneNode, children: SceneNode[]): FlexDecis
   if (new Set(flow.map(rankOf)).size > 1) return { reason: "In-flow children differ in stacking, so their paint order is not their source order." };
   if (absolute.length && rankOf(flow[0]) !== "flow") return { reason: "Positioned or stacked in-flow children can paint above or below the absolutely positioned ones." };
   const margins: Sides[] = [];
+  let negative = false;
   for (const child of flow) {
     const item = itemOf(child);
     if ("reason" in item) return item;
     margins.push(item.margin);
+    negative ||= item.negative;
   }
   const border = borderWidth(container.paint, "top");
   const [top, right, bottom, left] = layout.padding ?? [0, 0, 0, 0];
@@ -238,7 +250,9 @@ export function planFlex(container: SceneNode, children: SceneNode[]): FlexDecis
   // Text keeps its fitted width, and growth in a wrapping line is not modelled.
   const fill = flow.map((child) => !wrap && child.kind !== "text" && (child.layout.flexGrow ?? 0) > 0);
   if (fill.some(Boolean) && matchesPrediction(actual, predictFlex(model, container.rect, items(fill)))) return { plan: { ...model, flow, margins, fill, absolute: sortAbsolute(absolute) } };
-  if (!matchesPrediction(actual, predictFlex(model, container.rect, items(fixed)))) return { reason: "The captured child positions do not match the supported flex model (margins, order, or auto margins)." };
+  if (!matchesPrediction(actual, predictFlex(model, container.rect, items(fixed)))) {
+    return { reason: negative ? "An item has a negative margin that moves it." : "The captured child positions do not match the supported flex model (order, or sizing it does not model)." };
+  }
   return { plan: { ...model, flow, margins, fill: fixed, absolute: sortAbsolute(absolute) } };
 }
 

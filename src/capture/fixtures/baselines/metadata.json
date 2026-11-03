@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "command": "npm run baseline:importer",
   "browser": {
-    "product": "Chrome/155.0.8059.84",
-    "revision": "@5869fe313571d75152b77813cf0a4ee26a4e6df0",
-    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+    "product": "Chrome/156.0.8078.79",
+    "revision": "@a21ce95c24ce3964416f09ae1862f53f319eb4d0",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
   },
   "fixtureServer": "loopback only; all external http(s) requests are failed through CDP Fetch interception",
   "externalRequestsRejected": [],
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "dd7df3c3c3b1cea77f6c31b34681e654e7425942641f89f3d659ede8115f57a9"
+      "sha256": "bf1bd15561d01c2d86a27d08253aa9258971f61a7a93e0ec925fcdc2959f8dea"
     },
     "assets": [
       {
@@ -1941,7 +1941,7 @@
     },
     {
       "file": "flex-layouts.html",
-      "sha256": "6721a335701c248a55008aa43cb1f39ec67b2002e7f83a373641f92f147f90f5",
+      "sha256": "e24c6012a39a47739ac6e896b1cc1d98cd09c721c5bcabb0023e0863413225d4",
       "viewports": [
         {
           "id": "desktop",
@@ -1986,7 +1986,7 @@
               "x": 0,
               "y": 0,
               "width": 1425,
-              "height": 2324
+              "height": 3025
             }
           },
           "capture": {
@@ -1995,13 +1995,13 @@
               "x": 0,
               "y": 0,
               "width": 1425,
-              "height": 2324,
+              "height": 3025,
               "scale": 1
             }
           },
           "png": {
             "width": 1425,
-            "height": 2324
+            "height": 3025
           }
         },
         {
@@ -2047,7 +2047,7 @@
               "x": 0,
               "y": 0,
               "width": 753,
-              "height": 2324
+              "height": 3025
             }
           },
           "capture": {
@@ -2056,13 +2056,13 @@
               "x": 0,
               "y": 0,
               "width": 753,
-              "height": 2324,
+              "height": 3025,
               "scale": 1
             }
           },
           "png": {
             "width": 753,
-            "height": 2324
+            "height": 3025
           }
         },
         {
@@ -2108,7 +2108,7 @@
               "x": 0,
               "y": 0,
               "width": 375,
-              "height": 2324
+              "height": 3025
             }
           },
           "capture": {
@@ -2117,13 +2117,13 @@
               "x": 0,
               "y": 0,
               "width": 375,
-              "height": 2324,
+              "height": 3025,
               "scale": 1
             }
           },
           "png": {
             "width": 375,
-            "height": 2324
+            "height": 3025
           }
         }
       ]
