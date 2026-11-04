@@ -327,7 +327,7 @@ describe("extractor script", () => {
   });
 
   it("records flex item margins and auto sides from the typed computed style", async () => {
-    document.body.innerHTML = `<div id="row" style="display:flex;opacity:1;visibility:visible"><div id="spaced" style="margin:4px 6px 0 8px;opacity:1;visibility:visible"></div><div id="pushed" style="margin-left:auto;opacity:1;visibility:visible"></div><div id="flush" style="opacity:1;visibility:visible"></div></div><div id="block" style="margin:5px;opacity:1;visibility:visible"></div>`;
+    document.body.innerHTML = `<div id="row" style="display:flex;opacity:1;visibility:visible"><div id="spaced" style="margin:4px 6px 0 8px;opacity:1;visibility:visible"></div><div id="pushed" style="margin-left:auto;opacity:1;visibility:visible"></div><div id="flush" style="opacity:1;visibility:visible"></div><div id="zero-auto" style="margin-left:auto;opacity:1;visibility:visible"></div></div><div id="block" style="margin:5px;opacity:1;visibility:visible"></div>`;
     document.body.style.cssText = "opacity:1;visibility:visible";
     const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
     const originalBounds = HTMLElement.prototype.getBoundingClientRect;
@@ -354,6 +354,9 @@ describe("extractor script", () => {
       expect(layoutOf("#spaced")?.marginAuto).toBeUndefined();
       expect(layoutOf("#pushed")).toMatchObject({ margin: [0, 0, 0, 17], marginAuto: [false, false, false, true] });
       expect(layoutOf("#flush")?.margin).toBeUndefined();
+      // An auto margin that absorbed nothing is still recorded, so its
+      // container is not converted with a margin Penpot keeps fixed.
+      expect(layoutOf("#zero-auto")).toMatchObject({ margin: [0, 0, 0, 0], marginAuto: [false, false, false, true] });
       // Margins outside a flex container are not a layout child's margins.
       expect(layoutOf("#block")?.margin).toBeUndefined();
     } finally {
@@ -394,8 +397,19 @@ describe("extractor script", () => {
       expect(layoutOf("#nested")?.marginAuto).toEqual([true, false, false, false]);
       expect(layoutOf("#themed")?.marginAuto).toEqual([false, false, true, false]);
       expect(layoutOf("#inline")?.marginAuto).toEqual([false, true, false, false]);
-      // A stylesheet that cannot be read leaves every margin unrecorded.
+      // Declarations nested inside a style rule (CSSNestedDeclarations, here
+      // inside a nested @media) have a style but no selector of their own.
       const sheets = Object.getOwnPropertyDescriptor(Document.prototype, "styleSheets")!;
+      const declarations = (css: string) => { const style = document.createElement("div").style; style.cssText = css; return style; };
+      const nested = { cssRules: [{ selectorText: ".row > #plain", style: declarations("margin-top: 4px"), cssRules: [{ media: { mediaText: "(min-width: 1px)" }, cssRules: [{ style: declarations("margin-right: auto") }] }] }] };
+      Object.defineProperty(document, "styleSheets", { configurable: true, get: () => [nested] });
+      try {
+        const nestedResult = await captureScript("flex-margins-nested");
+        expect(nestedResult.nodes.find((node) => node.source === "#plain")?.layout.marginAuto).toEqual([false, true, false, false]);
+      } finally {
+        delete (document as unknown as { styleSheets?: unknown }).styleSheets;
+      }
+      // A stylesheet that cannot be read leaves every margin unrecorded.
       Object.defineProperty(document, "styleSheets", { configurable: true, get: () => [{ get cssRules(): never { throw new DOMException("cross-origin", "SecurityError"); } }] });
       try {
         const unreadable = await captureScript("flex-margins-unreadable");

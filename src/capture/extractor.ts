@@ -818,6 +818,16 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   let autoMarginRules;
   const collectAutoMarginRules = () => {
     const found = [];
+    const addRule = (selector, style) => {
+      const sides = autoSidesOf(style);
+      if (!sides.some(Boolean)) return;
+      // A ::before or ::after rule is matched against its host element.
+      for (const part of splitSelectorList(selector)) {
+        const generated = /::?(before|after)\\s*$/i.exec(part);
+        if (generated) found.push({ selector: part.slice(0, generated.index).trim() || "*", pseudo: "::" + generated[1].toLowerCase(), sides });
+        else if (!part.includes("::")) found.push({ selector: part, pseudo: "", sides });
+      }
+    };
     const visitRules = (rules, parentSelector) => {
       for (const rule of rules) {
         if (rule.styleSheet) {
@@ -829,15 +839,13 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
         if (typeof rule.selectorText === "string" && rule.style) {
           const own = rule.selectorText;
           selector = !parentSelector ? own : own.includes("&") ? own.split("&").join(":is(" + parentSelector + ")") : ":is(" + parentSelector + ") " + own;
-          const sides = autoSidesOf(rule.style);
-          if (sides.some(Boolean)) {
-            // A ::before or ::after rule is matched against its host element.
-            for (const part of splitSelectorList(selector)) {
-              const generated = /::?(before|after)\s*$/i.exec(part);
-              if (generated) found.push({ selector: part.slice(0, generated.index).trim() || "*", pseudo: "::" + generated[1].toLowerCase(), sides });
-              else if (!part.includes("::")) found.push({ selector: part, pseudo: "", sides });
-            }
-          }
+          addRule(selector, rule.style);
+        } else if (rule.style && parentSelector && !rule.cssRules) {
+          // Declarations nested in a style rule after a child rule, or inside a
+          // nested @media or @supports, are a CSSNestedDeclarations rule: a
+          // style without a selector of its own, applying to the enclosing one.
+          addRule(parentSelector, rule.style);
+          continue;
         } else if (!conditionHolds(rule)) continue;
         if (rule.cssRules && rule.cssRules.length) visitRules(rule.cssRules, selector);
       }
@@ -880,10 +888,12 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     const display = styleOf(parent).display;
     if (display !== "flex" && display !== "inline-flex") return undefined;
     const margin = [number(style.marginTop), number(style.marginRight), number(style.marginBottom), number(style.marginLeft)];
-    if (margin.every((value) => !value)) return undefined;
+    // Auto sides are read even when every used margin is zero: an auto margin
+    // that absorbed nothing still absorbs space once the board is resized.
     const marginAuto = !pseudo && typeof element.computedStyleMap === "function" ? autoSidesFromTypedStyle(element) : autoSidesFromRules(element, pseudo);
-    if (!marginAuto) return undefined;
-    return marginAuto.some(Boolean) ? { margin, marginAuto } : { margin };
+    if (marginAuto?.some(Boolean)) return { margin, marginAuto };
+    if (!marginAuto || margin.every((value) => !value)) return undefined;
+    return { margin };
   };
   const isDecorated = (style, paint) => !transparent(style.backgroundColor) || style.backgroundImage !== "none" || borderEntries(paint).some(([, border]) => activeBorder(border)) || Boolean(style.borderImageSource && style.borderImageSource !== "none") || style.boxShadow !== "none" || [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some((value) => number(value) > 0);
   const lineHeightOf = (style, measuredLineHeight) => {
