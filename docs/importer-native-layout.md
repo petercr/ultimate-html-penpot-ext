@@ -131,7 +131,10 @@ zero:
   apply, `@layer`, `@import`ed and adopted sheets) for margins that could be
   `auto`:
   `auto` itself, or a value resolved later (`var()`, `env()`, `attr()`,
-  `inherit`, `revert`). A pseudo-element rule is matched against its host.
+  `inherit`, `revert`). A margin longhand that is declared but reads empty is
+  a variable substitution still pending (as in `margin: var(--m);
+  margin-top: 0`, where the shorthand also reads empty) and counts as possibly
+  auto. A pseudo-element rule is matched against its host.
   Logical sides are flagged on both ends of their axis, and `dialog` and
   `[popover]` elements count as auto because the user agent centers them.
   The scan ignores the cascade, so an overridden `auto` still flags its side;

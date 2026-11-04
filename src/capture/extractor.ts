@@ -781,6 +781,15 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     for (const [property, indices] of Object.entries(MARGIN_LONGHAND_SIDES)) {
       if (POSSIBLY_AUTO.test(declaration.getPropertyValue(property) || "")) for (const index of indices) sides[index] = true;
     }
+    // A longhand set from a shorthand whose variable is still pending reads
+    // empty, and once another longhand overrides one side the shorthand
+    // serializes empty too. A declared margin longhand with no value is that
+    // pending substitution, which could resolve to auto.
+    for (let index = 0; index < (declaration.length || 0); index += 1) {
+      const property = declaration[index];
+      const indices = MARGIN_LONGHAND_SIDES[property];
+      if (indices && !declaration.getPropertyValue(property)) for (const side of indices) sides[side] = true;
+    }
     for (const [property, indices] of Object.entries(MARGIN_SHORTHANDS)) {
       const value = declaration.getPropertyValue(property) || "";
       if (!value || MARGIN_SHORTHAND_LONGHANDS[property].some((longhand) => declaration.getPropertyValue(longhand))) continue;

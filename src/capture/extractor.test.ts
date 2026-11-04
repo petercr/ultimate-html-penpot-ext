@@ -401,11 +401,20 @@ describe("extractor script", () => {
       // inside a nested @media) have a style but no selector of their own.
       const sheets = Object.getOwnPropertyDescriptor(Document.prototype, "styleSheets")!;
       const declarations = (css: string) => { const style = document.createElement("div").style; style.cssText = css; return style; };
-      const nested = { cssRules: [{ selectorText: ".row > #plain", style: declarations("margin-top: 4px"), cssRules: [{ media: { mediaText: "(min-width: 1px)" }, cssRules: [{ style: declarations("margin-right: auto") }] }] }] };
+      // `margin: var(--m); margin-top: 0` as browsers expose it: the pending
+      // longhands are listed with empty values, and the shorthand reads empty.
+      const pendingValues: Record<string, string> = { "margin-right": "", "margin-bottom": "", "margin-left": "", "margin-top": "0px" };
+      const pending = Object.assign(Object.keys(pendingValues), { getPropertyValue: (property: string) => pendingValues[property] ?? "" });
+      const nested = { cssRules: [
+        { selectorText: ".row > #plain", style: declarations("margin-top: 4px"), cssRules: [{ media: { mediaText: "(min-width: 1px)" }, cssRules: [{ style: declarations("margin-right: auto") }] }] },
+        { selectorText: "#themed", style: pending }
+      ] };
       Object.defineProperty(document, "styleSheets", { configurable: true, get: () => [nested] });
       try {
         const nestedResult = await captureScript("flex-margins-nested");
         expect(nestedResult.nodes.find((node) => node.source === "#plain")?.layout.marginAuto).toEqual([false, true, false, false]);
+        // Every side still pending its variable may resolve to auto.
+        expect(nestedResult.nodes.find((node) => node.source === "#themed")?.layout.marginAuto).toEqual([false, true, true, true]);
       } finally {
         delete (document as unknown as { styleSheets?: unknown }).styleSheets;
       }
