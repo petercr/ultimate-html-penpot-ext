@@ -69,6 +69,16 @@ describe("scene validation", () => {
     expect(() => validateScenes([scene({ nodes: [{ ...root, rect: { ...root.rect, width: 100_001 } }] })])).toThrow("rect.width");
   });
 
+  it("accepts flex item margins with auto sides and rejects malformed ones", () => {
+    const root = scene().nodes[0];
+    const withLayout = (layout: object) => scene({ nodes: [{ ...root, layout: { kind: "none", ...layout } }] });
+    expect(validateScenes([withLayout({ margin: [0, -8, 4, 12], marginAuto: [false, false, false, true] })])).toHaveLength(1);
+    expect(() => validateScenes([withLayout({ margin: [0, 0, 0] })])).toThrow("layout.margin");
+    expect(() => validateScenes([withLayout({ margin: [0, 0, 0, Number.NaN] })])).toThrow("layout.margin");
+    expect(() => validateScenes([withLayout({ marginAuto: [false, true] })])).toThrow("layout.marginAuto");
+    expect(() => validateScenes([withLayout({ marginAuto: [false, false, false, "auto"] })])).toThrow("layout.marginAuto[3]");
+  });
+
   it("accepts complete per-side borders and legacy uniform borders", () => {
     const root = scene().nodes[0];
     const borders: SceneBorders = {

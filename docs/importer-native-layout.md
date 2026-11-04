@@ -16,7 +16,11 @@ fill, wrap, and reverse additions (#49) have their own live pass on Penpot
 axis and wraps a reversed sequence differently from CSS. A trial on twelve
 real pages (#51) converted 62% of their flex containers, found and fixed a
 defect with undecorated container items, and kept the setting opt-in; see
-[Real-page trial](#real-page-trial-51).
+[Real-page trial](#real-page-trial-51). Item margins, including those of
+`::before`/`::after` boxes, now pass through as layout-child margins; on the nine
+real pages that captured, they raise conversion from 60% to 69% (see
+[Item margins](#item-margins)), and have their own live pass on Penpot
+2.19.0-RC5.
 
 ## How a container is chosen
 
@@ -28,7 +32,7 @@ sharing the free space equally, and each layer inset in its item by a margin.
 
 1. **Before import (browser snapshot).** A container qualifies only when the
    model, fed the browser's own child sizes, reproduces the browser's child
-   positions and sizes within 1 px. Margins, `order`, auto margins, and
+   positions and sizes within 1 px. `order`, uncaptured offsets, and
    anything else the model cannot express fail this check on their own, so
    unsupported CSS cannot silently shift layers.
 2. **After import (host check).** Penpot applies a layout asynchronously, and in
@@ -53,6 +57,7 @@ the host's sizes rather than the browser's.
 | `justify-content`: `flex-start`, `center`, `flex-end`, `space-between`, `space-around`, `space-evenly` | The matching justification. Centering and spacing require the children to fit. |
 | `align-items`: `flex-start`, `center`, `flex-end`, and the default `stretch` | Start, center, end. Captured children already have their stretched size, so start alignment reproduces `stretch`. |
 | Text items | The element box, not the glyph line: the inset of the glyphs in the box becomes the text layer's margins. |
+| Item margins (elements and `::before`/`::after` boxes) | Layout-child margins, added to a text layer's glyph inset. A negative side becomes zero when the browser's positions still match without it. |
 | `flex-grow` | `fill` sizing along the main axis when the browser shared the free space equally (for example `flex: 1` siblings or a single growing item). Otherwise the item keeps its captured size. |
 | Absolutely positioned children | Flagged as outside the flow and kept at their captured offset. They are appended first so they stay topmost. |
 | Nested flex containers | Each converts on its own merits. |
@@ -87,7 +92,9 @@ them by reason.
 | In-flow children that differ in stacking (z-index, mixed positioned and static) | Penpot orders by layer, so paint order must equal source order. |
 | An absolute child behind the content, or positioned flow children with absolute siblings | The layering cannot be reproduced. |
 | Centering or spacing with overflowing children | The browser and Penpot place overflow differently. |
-| Margins, `order`, auto margins | The browser positions do not fit the model. |
+| An `auto` margin on any side of an item | It absorbs free space, which a fixed Penpot margin cannot. |
+| A negative margin that moves an item | Penpot margins cannot be negative. |
+| `order`, and offsets the capture does not record | The browser positions do not fit the model. |
 
 **Text items.** A single-line text element becomes a text layer at its glyph
 line, which sits inside the element's box by the line's leading. The capture
@@ -97,6 +104,103 @@ margins, so a column of bare text (a heading above a caption) now converts.
 Anonymous text runs directly inside a flex container still use their glyph
 line; a centered run is within the tolerance, which is why text inside a box,
 button, or card already qualified.
+
+## Item margins
+
+The capture records `layout.margin` (used top, right, bottom, left, in pixels)
+for each direct child of a flex container with a nonzero margin, and for each
+`::before`/`::after` box of a flex host. The planner adds it to the layer's
+inset in its item (zero except for text) and passes the total through as
+layout-child margins, which the model already placed; the host check verifies
+them like any other position. Margins scale with a uniformly scaled ancestor,
+as padding does.
+
+`getComputedStyle` reports a used length, so an `auto` margin reads as the space
+it absorbed. The specified keyword is recorded separately in `layout.marginAuto`,
+and any auto side keeps the container fixed, even one that absorbed nothing,
+because it would absorb space as soon as the board is resized. Auto sides are
+therefore read for every flex item, including one whose used margins are all
+zero:
+
+- **Chrome and other engines with the typed computed style map.**
+  `element.computedStyleMap()` returns the `auto` keyword for each side.
+- **Firefox, and every `::before`/`::after` box.** Firefox has no typed map, and
+  no engine exposes one for pseudo-elements. The capture scans the inline style
+  and every style rule once (nested rules, including declarations nested inside
+  a style rule's own `@media` or `@supports`, `@media` and `@supports` that
+  apply, `@layer`, `@import`ed and adopted sheets) for margins that could be
+  `auto`:
+  `auto` itself, or a value resolved later (`var()`, `env()`, `attr()`,
+  `inherit`, `revert`). A margin longhand that is declared but reads empty is
+  a variable substitution still pending (as in `margin: var(--m);
+  margin-top: 0`, where the shorthand also reads empty) and counts as possibly
+  auto. An `all` declaration with a possibly-auto value (`all: inherit`,
+  `revert`, `revert-layer`, or a variable) flags every side, because Chromium
+  does not list the margin longhands it resets, so they read empty; `all: unset`
+  and `all: initial` reset margins to 0. A pseudo-element rule is matched
+  against its host.
+  Logical sides are flagged on both ends of their axis, and `dialog` and
+  `[popover]` elements count as auto because the user agent centers them.
+  The scan ignores the cascade, so an overridden `auto` still flags its side;
+  that only keeps a container fixed. When a stylesheet cannot be read, or a
+  selector cannot be matched, the element records no margins, which also keeps
+  its container fixed.
+
+A negative side becomes zero. A container whose positions still match the model
+then converts (a trailing negative margin, for example, moves nothing); one
+whose item was moved by it keeps fixed geometry with its own reason.
+
+**Firefox check.** The extractor was run in Playwright's Firefox 148.0.2 and
+Chromium 147 on `flex-layouts.html` and a probe page. Firefox recorded the same
+margins and, for all 85 fixture containers, the same decisions as Chrome
+(78 converted); the only difference was the length an `auto` margin absorbed
+beside differently measured text. On the probe page, the rule scan matched the
+typed map except where it is meant to over-approximate: the far end of a
+`margin-inline-start: auto`, and a margin set through `var()`. Both keep a
+container fixed. Both engines also flag an `auto` margin that absorbed no
+space, declarations nested in a style rule's own `@media` (Firefox through the
+scan, Chrome through the typed map), and the same on a `::after` box (the scan
+in both). The check is a one-off script, not part of the suite, since
+the repository does not depend on Playwright.
+
+**Real pages, 2026-11-03.** The trial was rerun with the margin capture. Some
+pages exceed the UI's 30-second analysis deadline from run to run (in the final
+run Stripe, Tailwind, and GitHub; in earlier runs also vite.dev, Linear, and the
+Vite guide), and a `main` build fails the same way, so the pages have changed
+since October rather than the capture slowing down. On the nine that captured,
+the same scenes were planned with and without their margin fields:
+
+| | Flex containers | Converted |
+| --- | ---: | ---: |
+| Without margins (previous behavior) | 1,650 | 997 (60%) |
+| With margins | 1,650 | 1,140 (69%) |
+
+168 containers gained. 25 were lost, each to an `auto` margin that absorbed no
+space: the previous behavior converted those containers, which then would not
+push the item when the board was resized. In an earlier rerun, before negative
+sides were clamped, 23 more were lost to negative margins that moved nothing.
+Of the 510 still kept fixed:
+
+| Kept fixed because | Containers |
+| --- | ---: |
+| Child positions do not match the model | 167 |
+| Per-side borders | 99 |
+| In-flow children differ in stacking | 61 |
+| An `auto` margin | 49 |
+| No in-flow children | 41 |
+| `align-items: baseline` | 29 |
+| Positioned flow children beside absolute ones | 23 |
+| A negative margin that moves an item | 21 |
+| A rotated child | 10 |
+| A text line overflows its element's box | 10 |
+
+None of the 167 mismatches has an item margin left. 118 are MDN sidebar
+`<summary>` rows whose `::before` chevron is an unsupported-paint fallback
+offset outside the row, 23 hold an anonymous text run beside an element (the
+run has no item box), 12 more have a generated box out of place, and the rest
+are wrapped growth (7), growth (3), single items (2), one overflowing child,
+and one unclassified. October's estimate that margins blocked about 307 containers
+counted these together with real margins.
 
 ## Real-page trial (#51)
 
@@ -248,26 +352,29 @@ support making native layouts the default:
   keeps them at the browser's positions.
 - It costs up to about a quarter more import time on flex-heavy pages.
 
-Revisit the default once item margins are captured and a second trial on new
-pages shows no unexplained moves.
+Revisit the default once a second trial on new pages, now that item margins
+are captured, shows no unexplained moves in a live import.
 
-**Follow-ups, ranked by the containers they would convert:**
+**Follow-ups, ranked by the containers they would convert** (counts from the
+final 2026-11-03 rerun on nine pages):
 
-1. **Item margins, including auto margins**, about 307 of the 845 kept
-   containers (36%). The capture should record each item's computed margins,
-   and the planner should pass them through as layout-child margins, as it
-   already does for text. `auto` margins need Penpot's equivalent or should
-   stay fixed.
-2. **Per-side borders**, 142 (17%). The side paths could become absolutely
-   positioned children of the layout board instead of blocking the conversion.
-3. **Stacking differences among in-flow children**, 147 (17%) and 37 more
-   beside absolute children. These are harder: Penpot's layer order is its
-   layout order.
-4. **Grid (#50).** The same pages have 375 grid containers against 2,245 flex
-   containers, and grids often hold whole page sections. It has the largest
-   effect per container but the most work.
-5. Wrapped-line mismatches (21), main-axis overflow (16), and `order` (4) are
-   minor.
+1. ~~Item margins, including auto margins.~~ Done; see
+   [Item margins](#item-margins). Auto margins (49) stay fixed, because Penpot
+   has no equivalent.
+2. **Offset generated boxes**, 130, nearly all one MDN sidebar pattern: a
+   `::before` chevron that falls back to a fixed layer outside its row.
+3. **Per-side borders**, 99 of the 510 kept containers. The side paths could
+   become absolutely positioned children of the layout board instead of
+   blocking the conversion.
+4. **Stacking differences among in-flow children**, 61, and 23 more beside
+   absolute children. These are harder: Penpot's layer order is its layout
+   order.
+5. **`align-items: baseline`**, 29, and **anonymous text runs**, 23. A run of
+   text beside elements could take its line box as the item box, as text
+   elements already do.
+6. **Grid (#50).** The October pages had 375 grid containers against 2,245
+   flex containers, and grids often hold whole page sections. It has the
+   largest effect per container but the most work.
 
 ## Grid
 
@@ -284,10 +391,24 @@ captured first, then the same model-and-verify approach used here.
   decorated card with a nested text column, an absolute badge, wrapping, row
   reverse, text beside a box, a growing item, two equal growing items, unequal
   growth at fixed sizes, column reverse, centered wrapped lines, and a padded
-  undecorated wrapper as an item) and five
-  kept fixed (a wrapping row reverse, `wrap-reverse`, auto margin, `order`,
-  baseline), with three real-Chrome references. The baseline runner pins the
-  captured flex semantics, the text boxes, and the grow factors.
+  undecorated wrapper as an item), four with item margins (a centered row
+  with a margined text item, a column, a wrapping row, and a `::before` icon),
+  and seven kept fixed (a wrapping row reverse, `wrap-reverse`, auto margin,
+  `order`, baseline, a negative margin that moves an item, and a `::after`
+  pushed by an auto margin), with three real-Chrome references. The baseline
+  runner pins the captured flex semantics, the text boxes, the grow factors,
+  and every item margin and auto side.
+- The margin baselines were regenerated with Chrome 156 (previously 155). Only
+  the flex fixture's screenshots and scene changed; the new sections are
+  appended below the earlier ones.
+- Item margins validation: 476 tests pass, including the capture of used
+  margins and typed `auto` sides, the rule-scan fallback (shorthands, logical
+  sides, applying and non-applying `@media`, `var()`, `inherit`, `all`, declarations
+  nested in a style rule's `@media`, an unreadable sheet), an `auto` margin
+  that absorbed nothing, margin validation, and the planner's margin, auto, and negative cases.
+  App, API, and Worker typechecks, the production build, and
+  `npm run check:dist` pass. In one full run the unrelated `fetch-html`
+  rate-limit test failed under load; it passed three times on its own.
 - The #49 baselines were regenerated with Chrome 155 (previously 154). Every
   other fixture's scene is unchanged apart from the new `box`, `alignContent`,
   `flexGrow`, `flexShrink`, and `flexBasis` fields; the three
@@ -314,6 +435,43 @@ captured first, then the same model-and-verify approach used here.
 - Validation: all 467 tests pass; app, API, and Worker typechecks, the
   production build, and `npm run check:dist` pass. `npm run test:importer-fixtures`
   passes 346 tests in 17 files.
+- Live host for item margins, 2026-11-03, Penpot 2.19.0-RC5 through Orca's
+  embedded Windows Chromium 150:
+  - The fixture imported at all three viewports with 78 native boards each and
+    no reverts. The margin containers (`#item-margins`, `#column-margins`,
+    `#wrap-margins`, `#pseudo-margin`) carry their captured margins as
+    layout-child margins (14 margined children per viewport), and every layer
+    in them sits within 1 px of the browser. `#negative-margin`, `#pseudo-auto`,
+    and `#margins` stayed fixed. Outside them, only the known font reflow moved
+    layers: `#text-row` by 2.44 px and a label in `#grow` by 1.06 px.
+  - The reflow probe (desktop) grew all 78 boards by 40 px and restored them.
+    74 of the 76 it can check matched the model while grown, and all 76 before
+    and after. The two misses are `#wrapping` and `#wrap-margins`: the probe
+    also widens their item boards, so the lines no longer fit the fixed height
+    and Penpot compresses them (see [Limits](#limits)).
+  - **Undo, redo, reload** (tablet, fresh import): one Undo removed all 193
+    shapes (193 to 1); one Redo restored them with 78 layouts and 14 margined
+    children; three saves were observed, and after a reload there were still
+    193 shapes, 78 layouts, and 14 margined children at the same geometry.
+  - **A real page.** The Bootstrap pricing scene from the 2026-11-03 trial
+    imported as a snapshot and natively with all eight planned containers
+    converted (three only because of margins) and none reverted. Against the
+    snapshot, the only layers that moved more than 1 px are three header nav
+    links (2.79, 7.11, and 9.36 px left): the nav is a newly converted margin
+    container whose 16 px link margins hold while each link renders narrower in
+    the host's substituted font. The Bootstrap cheatsheet scene still fails
+    on the `form-select` chevron fill (#52).
+  - Both Bootstrap scenes first failed on Penpot 2.19 with
+    `Value not valid: 1. Code: :fontSize`. A visually hidden 1 px label
+    (`#bd-theme-text` and similar) gets a text fit scale of 0.01, and the
+    importer clamps the resulting size to 1, which this host rejects. That
+    code is unchanged by this work; the live pass removed those labels (17 on
+    the cheatsheet, one on pricing) from its scenes. It needs its own fix (#57).
+  - Two review findings were fixed after this pass: auto sides are now read for
+    items whose used margins are all zero, and nested declarations are
+    scanned. Neither changes the fixture scenes or the pricing scene's
+    decisions, so the pass above still applies; the trial lost 25 containers
+    elsewhere to zero-width auto margins.
 - Live host for #51, 2026-10-24, Penpot 2.18.4-RC5: besides the real pages
   above, the fixture imported at all three viewports with 62 native boards
   each and no reverts. Against a snapshot import of the desktop scene, only the
