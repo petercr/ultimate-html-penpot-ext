@@ -134,7 +134,11 @@ zero:
   `inherit`, `revert`). A margin longhand that is declared but reads empty is
   a variable substitution still pending (as in `margin: var(--m);
   margin-top: 0`, where the shorthand also reads empty) and counts as possibly
-  auto. A pseudo-element rule is matched against its host.
+  auto. An `all` declaration with a possibly-auto value (`all: inherit`,
+  `revert`, `revert-layer`, or a variable) flags every side, because Chromium
+  does not list the margin longhands it resets, so they read empty; `all: unset`
+  and `all: initial` reset margins to 0. A pseudo-element rule is matched
+  against its host.
   Logical sides are flagged on both ends of their axis, and `dialog` and
   `[popover]` elements count as auto because the user agent centers them.
   The scan ignores the cascade, so an overridden `auto` still flags its side;
@@ -399,7 +403,7 @@ captured first, then the same model-and-verify approach used here.
   appended below the earlier ones.
 - Item margins validation: 476 tests pass, including the capture of used
   margins and typed `auto` sides, the rule-scan fallback (shorthands, logical
-  sides, applying and non-applying `@media`, `var()`, `inherit`, declarations
+  sides, applying and non-applying `@media`, `var()`, `inherit`, `all`, declarations
   nested in a style rule's `@media`, an unreadable sheet), an `auto` margin
   that absorbed nothing, margin validation, and the planner's margin, auto, and negative cases.
   App, API, and Worker typechecks, the production build, and

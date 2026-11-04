@@ -778,6 +778,11 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
   const autoSidesOf = (declaration) => {
     const sides = [false, false, false, false];
     if (!declaration) return sides;
+    // all: inherit, revert, revert-layer, or a pending variable resets every
+    // margin to something that may be auto, and Chromium leaves the margin
+    // longhands unlisted, so they read empty. Every side may be auto, whatever
+    // else the block declares (a later all would override it).
+    if (POSSIBLY_AUTO.test(declaration.getPropertyValue("all") || "")) return sides.fill(true);
     for (const [property, indices] of Object.entries(MARGIN_LONGHAND_SIDES)) {
       if (POSSIBLY_AUTO.test(declaration.getPropertyValue(property) || "")) for (const index of indices) sides[index] = true;
     }
