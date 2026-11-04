@@ -376,7 +376,7 @@ describe("extractor script", () => {
       .row > .nested { margin-top: var(--gap); }
       .themed { margin-bottom: inherit; }
     </style>`;
-    document.body.innerHTML = `<div class="row" style="opacity:1;visibility:visible"><div id="plain" style="margin:4px 6px 0 8px;opacity:1;visibility:visible"></div><div id="push" class="push" style="margin-left:3px;opacity:1;visibility:visible"></div><div id="logical" class="logical" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="never" class="never" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="nested" class="nested" style="margin-right:2px;opacity:1;visibility:visible"></div><div id="themed" class="themed" style="margin-right:2px;opacity:1;visibility:visible"></div><div id="inline" style="margin:2px auto 0 0;opacity:1;visibility:visible"></div></div>`;
+    document.body.innerHTML = `<div class="row" style="opacity:1;visibility:visible"><div id="plain" style="margin:4px 6px 0 8px;opacity:1;visibility:visible"></div><div id="push" class="push" style="margin-left:3px;opacity:1;visibility:visible"></div><div id="logical" class="logical" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="never" class="never" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="nested" class="nested" style="margin-right:2px;opacity:1;visibility:visible"></div><div id="themed" class="themed" style="margin-right:2px;opacity:1;visibility:visible"></div><div id="inline" style="margin:2px auto 0 0;opacity:1;visibility:visible"></div></div><div id="row,marker" style="display:flex;opacity:1;visibility:visible"><div id="escaped-comma" style="margin-top:2px;opacity:1;visibility:visible"></div><div id="escaped-colons" class="a::b" style="margin-top:2px;opacity:1;visibility:visible"></div></div>`;
     document.body.style.cssText = "opacity:1;visibility:visible";
     const bounds = { x: 0, y: 0, left: 0, top: 0, right: 25, bottom: 15, width: 25, height: 15, toJSON: () => ({}) };
     const originalBounds = HTMLElement.prototype.getBoundingClientRect;
@@ -407,7 +407,11 @@ describe("extractor script", () => {
       const pending = Object.assign(Object.keys(pendingValues), { getPropertyValue: (property: string) => pendingValues[property] ?? "" });
       const nested = { cssRules: [
         { selectorText: ".row > #plain", style: declarations("margin-top: 4px"), cssRules: [{ media: { mediaText: "(min-width: 1px)" }, cssRules: [{ style: declarations("margin-right: auto") }] }] },
-        { selectorText: "#themed", style: pending }
+        { selectorText: "#themed", style: pending },
+        // Escaped characters are not selector syntax: neither the comma in the
+        // host's ID nor the colons in the class split or drop the rule.
+        { selectorText: "#row\\,marker > #escaped-comma", style: declarations("margin-left: auto") },
+        { selectorText: ".a\\:\\:b", style: declarations("margin-right: auto") }
       ] };
       Object.defineProperty(document, "styleSheets", { configurable: true, get: () => [nested] });
       try {
@@ -415,6 +419,8 @@ describe("extractor script", () => {
         expect(nestedResult.nodes.find((node) => node.source === "#plain")?.layout.marginAuto).toEqual([false, true, false, false]);
         // Every side still pending its variable may resolve to auto.
         expect(nestedResult.nodes.find((node) => node.source === "#themed")?.layout.marginAuto).toEqual([false, true, true, true]);
+        expect(nestedResult.nodes.find((node) => node.source === "#escaped-comma")?.layout.marginAuto).toEqual([false, false, false, true]);
+        expect(nestedResult.nodes.find((node) => node.source === "#escaped-colons")?.layout.marginAuto).toEqual([false, true, false, false]);
       } finally {
         delete (document as unknown as { styleSheets?: unknown }).styleSheets;
       }

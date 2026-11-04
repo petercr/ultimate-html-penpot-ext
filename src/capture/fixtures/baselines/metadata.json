@@ -11,7 +11,7 @@
   "inputs": {
     "extractor": {
       "path": "src/capture/extractor.ts",
-      "sha256": "ca8654f42c4482426d30e47aa6fef3cbf110184e366409bf5d46935aeb7f8c46"
+      "sha256": "6ee4717936ad88f60a5e5c8f890e4db83607bf69d167614d663dc56088887c7f"
     },
     "assets": [
       {

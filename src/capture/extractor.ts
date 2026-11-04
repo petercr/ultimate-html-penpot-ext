@@ -805,7 +805,8 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     return true;
   };
   // Split a selector list at its top-level commas, leaving those inside
-  // functional pseudo-classes, attribute selectors, and strings alone.
+  // functional pseudo-classes, attribute selectors, strings, and CSS escapes
+  // (an ID such as #row\\,marker) alone.
   const splitSelectorList = (list) => {
     const parts = [];
     let depth = 0;
@@ -813,9 +814,9 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
     let start = 0;
     for (let index = 0; index < list.length; index += 1) {
       const character = list[index];
-      if (quote) {
-        if (character === "\\\\") index += 1;
-        else if (character === quote) quote = "";
+      if (character === "\\\\") index += 1;
+      else if (quote) {
+        if (character === quote) quote = "";
       } else if (character === '"' || character === "'") quote = character;
       else if (character === "(" || character === "[") depth += 1;
       else if (character === ")" || character === "]") depth -= 1;
@@ -832,9 +833,12 @@ export function buildExtractorScript(token: string, viewport: ViewportSpec, sett
       if (!sides.some(Boolean)) return;
       // A ::before or ::after rule is matched against its host element.
       for (const part of splitSelectorList(selector)) {
-        const generated = /::?(before|after)\\s*$/i.exec(part);
+        // Escaped characters (a class such as .a\\:\\:b) are not syntax. Each
+        // escape is masked by two characters, so indexes still match the part.
+        const syntax = part.replace(/\\\\[\\s\\S]/g, "__");
+        const generated = /::?(before|after)\\s*$/i.exec(syntax);
         if (generated) found.push({ selector: part.slice(0, generated.index).trim() || "*", pseudo: "::" + generated[1].toLowerCase(), sides });
-        else if (!part.includes("::")) found.push({ selector: part, pseudo: "", sides });
+        else if (!syntax.includes("::")) found.push({ selector: part, pseudo: "", sides });
       }
     };
     const visitRules = (rules, parentSelector) => {
